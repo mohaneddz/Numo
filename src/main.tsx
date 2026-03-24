@@ -5,13 +5,16 @@ import App from './App';
 import './index.css';
 
 import { LanguageProvider } from './contexts/LanguageContext';
+import { AppDataProvider } from './contexts/AppDataContext';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <LanguageProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </LanguageProvider>
+    <AppDataProvider>
+      <LanguageProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </LanguageProvider>
+    </AppDataProvider>
   </React.StrictMode>,
 );

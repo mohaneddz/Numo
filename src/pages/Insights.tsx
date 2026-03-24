@@ -3,10 +3,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
-import { TrendingUp, Clock, BookOpen, Mic, PenLine, Brain } from 'lucide-react';
+import { TrendingUp, Clock, BookOpen, Mic, PenLine, Brain, Download, Settings } from 'lucide-react';
 import { analytics } from '../data/analytics';
-import { focusAreas } from '../data/learner';
 import { SpotlightCard } from '../components/ui/SpotlightCard';
+import { PageActions, PageContent } from '../components/layout/PageLayout';
 
 const chartTheme = { bg: '#171C24', grid: '#222A36', text: '#93A0B4' };
 const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
@@ -15,12 +15,17 @@ export default function InsightsPage() {
   const { monthlyStats } = analytics;
 
   return (
-    <div style={{ maxWidth: 1100 }}>
-      <motion.div {...fadeUp}>
-        <p style={{ color: 'var(--color-dim)', fontSize: 14, marginBottom: 24 }}>
-          Your learning analytics and performance trends at a glance.
-        </p>
-      </motion.div>
+    <PageContent className="pb-8">
+      <PageActions>
+        <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
+          <Download size={16} /> Export Report
+        </button>
+        <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-dim transition-colors hover:text-white cursor-pointer">
+          <Settings size={18} />
+        </button>
+      </PageActions>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
+      <div className="min-w-0">
 
       {/* Monthly Stats */}
       <motion.div {...fadeUp} transition={{ delay: 0.05 }}>
@@ -144,7 +149,41 @@ export default function InsightsPage() {
           </div>
         </SpotlightCard>
       </motion.div>
+      </div>
 
-    </div>
+      <aside className="flex flex-col gap-5 xl:sticky xl:top-4">
+        <SpotlightCard className="p-5">
+          <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Highlights</p>
+          <div className="space-y-3 text-[13px]">
+            <div className="flex items-center justify-between"><span className="text-dim">Best skill</span><span className="text-mint font-bold">Listening</span></div>
+            <div className="flex items-center justify-between"><span className="text-dim">Fastest growth</span><span className="text-cyan font-bold">Vocabulary</span></div>
+            <div className="flex items-center justify-between"><span className="text-dim">Review accuracy</span><span className="text-amber font-bold">{monthlyStats.reviewAccuracy}%</span></div>
+          </div>
+        </SpotlightCard>
+
+        <SpotlightCard className="p-5">
+          <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Goal Progress</p>
+          <p className="text-[13px] text-dim mb-4">Weekly target: 6 study sessions</p>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden mb-2">
+            <div className="h-full w-[68%] bg-gradient-to-r from-violet to-cyan" />
+          </div>
+          <p className="text-[12px] text-mist font-bold">4 / 6 sessions completed</p>
+        </SpotlightCard>
+
+        <SpotlightCard className="p-5">
+          <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Next Focus</p>
+          <div className="space-y-2">
+            {['Speaking drills', 'Grammar review', 'Retention checkpoint'].map((item) => (
+              <div key={item} className="rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-[13px] text-mist">{item}</div>
+            ))}
+          </div>
+        </SpotlightCard>
+      </aside>
+      </div>
+
+    </PageContent>
   );
 }
+
+
+

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
 import { Check, ChevronDown, ChevronRight, Play, User, Zap } from 'lucide-react';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
 
 const fadeUp = {
     initial: { opacity: 0, y: 12 },
@@ -10,17 +11,15 @@ const fadeUp = {
 
 export default function LearnPage() {
     return (
-        <div className="max-w-[1000px] mx-auto pb-24 relative mt-4">
-            {/* Header Area matching Mockup */}
-            <div className="flex justify-between items-center mb-10 pl-2">
-                <h1 className="text-[32px] font-bold tracking-tight text-white">Learn</h1>
-                <div className="flex items-center gap-4">
-                    <button className="flex items-center gap-2 px-5 py-2 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold text-[14px] hover:bg-blue-600/30 transition-colors">
-                        <Zap size={16} fill="currentColor" /> Quick Start
-                    </button>
-                </div>
-            </div>
+        <PageContent className="pb-24 relative" width="wide">
+            <PageActions>
+                <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
+                    <Zap size={16} fill="currentColor" /> Quick Start
+                </button>
+            </PageActions>
 
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
+            <div className="min-w-0">
             {/* Top Hero Progress Banner */}
             <motion.div {...fadeUp}>
                 <SpotlightCard className="mb-14 w-full border border-white/5">
@@ -297,6 +296,42 @@ export default function LearnPage() {
                 </SpotlightCard>
 
             </motion.div>
-        </div>
+            </div>
+
+            <aside className="flex flex-col gap-5 xl:sticky xl:top-4">
+                <SpotlightCard className="p-5">
+                    <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Weekly Plan</p>
+                    <h4 className="text-[17px] font-bold text-white mb-2">3 sessions left</h4>
+                    <p className="text-[13px] text-dim mb-4">Complete two lessons and one review checkpoint to hit this week’s target.</p>
+                    <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full w-[66%] bg-gradient-to-r from-violet to-cyan" />
+                    </div>
+                </SpotlightCard>
+
+                <SpotlightCard className="p-5">
+                    <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Up Next</p>
+                    <div className="space-y-3">
+                        {[
+                            'Module 3: Restaurant Basics',
+                            'Mission: Hotel Check-in',
+                            'Review: Checkpoint 3',
+                        ].map((item) => (
+                            <div key={item} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-3 py-2">
+                                <span className="text-[13px] text-mist">{item}</span>
+                                <ChevronRight size={14} className="text-dim" />
+                            </div>
+                        ))}
+                    </div>
+                </SpotlightCard>
+
+                <SpotlightCard className="p-5">
+                    <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Echo Tip</p>
+                    <p className="text-[13px] text-dim leading-relaxed">Alternate mission and review blocks in the same session for better long-term retention.</p>
+                    <img src="/figure/excited.png" alt="Echo tip" className="w-16 h-16 object-contain mt-4 ml-auto" />
+                </SpotlightCard>
+            </aside>
+            </div>
+        </PageContent>
     );
 }
+
