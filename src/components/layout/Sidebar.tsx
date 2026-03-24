@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     Home, GraduationCap, RotateCcw, Play, Mic, PenLine,
-    BookMarked, BarChart3, Library, Settings, Star
+    BookMarked, BarChart3, Library, BookCopy, Settings, Star
 } from 'lucide-react';
 import { dailyMission } from '../../data/learner';
 
@@ -19,6 +19,7 @@ const primaryNav = [
 
 const secondaryNav = [
     { to: '/library', icon: Library, label: 'Library' },
+    { to: '/references', icon: BookCopy, label: 'References' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BookOpen, Volume2, Star, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Volume2, Star } from 'lucide-react';
 import { vocabularyItems, grammarNotes, mistakeEntries } from '../../data/vocabulary';
 
 export default function NotebookDetail() {

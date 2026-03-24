@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { vocabularyItems } from '../../data/vocabulary';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
 
 const TABS = [
   { id: 'all', label: 'All', icon: LayoutGrid },
@@ -24,20 +25,19 @@ export default function NotebookPage() {
   const [activeListTab, setActiveListTab] = useState('favorites');
 
   return (
-    <div className="flex gap-8 w-full max-w-[1300px] mx-auto pb-12">
+    <PageContent className="pb-12" width="wide">
+    <div className="flex flex-col gap-8 lg:flex-row">
       {/* ============ MAIN CONTENT (LEFT) ============ */}
       <div className="flex-1 min-w-0 flex flex-col gap-8">
         
-        {/* Header */}
-        <header className="flex justify-between items-end mb-2">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-mist mb-2">Notebook</h1>
-            <p className="text-dim text-[14px]">Save new words, phrases, and notes... everything you need to level up your Spanish.</p>
-          </div>
-          <button className="p-2.5 rounded-xl bg-graphite border border-white/5 text-dim hover:text-mist transition-colors mb-1">
-             <Settings size={18} />
+        <PageActions>
+          <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
+            <Plus size={16} /> New Item
           </button>
-        </header>
+          <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-dim transition-colors hover:text-white cursor-pointer">
+            <Settings size={18} />
+          </button>
+        </PageActions>
 
         {/* Tab & Search Bar */}
         <div className="flex justify-between items-center bg-graphite/30 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
@@ -210,7 +210,7 @@ export default function NotebookPage() {
       </div>
 
       {/* ============ SIDEBAR (RIGHT) ============ */}
-      <aside className="w-[340px] shrink-0 flex flex-col gap-6 pt-2">
+      <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-6 pt-2">
         
         {/* Your Collections */}
         <section>
@@ -346,5 +346,6 @@ export default function NotebookPage() {
 
       </aside>
     </div>
+    </PageContent>
   );
 }

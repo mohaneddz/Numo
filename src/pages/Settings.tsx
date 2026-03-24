@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, ChevronRight
 } from 'lucide-react';
-import { SpotlightCard } from '../components/ui/SpotlightCard';
 
 interface SettingItem {
     label: string;
@@ -14,6 +13,7 @@ interface SettingItem {
 }
 
 interface SettingsSection {
+    id: string;
     title: string;
     icon: typeof User;
     color: string;
@@ -22,14 +22,14 @@ interface SettingsSection {
 
 const settingsSections: SettingsSection[] = [
     {
-        title: 'Profile', icon: User, color: '#8B5CF6',
+        id: 'profile', title: 'Profile', icon: User, color: '#8B5CF6',
         settings: [
             { label: 'Display Name', description: 'Your name as shown in the app', type: 'info', value: 'Alex' },
             { label: 'Native Language', description: 'Your first language', type: 'select', value: 'English', options: ['English', 'French', 'German', 'Arabic', 'Chinese'] },
         ],
     },
     {
-        title: 'Target Language', icon: Globe, color: '#22D3EE',
+        id: 'target-language', title: 'Target Language', icon: Globe, color: '#0ea5e9',
         settings: [
             { label: 'Language', description: 'The language you are learning', type: 'select', value: 'Spanish', options: ['Spanish', 'French', 'German', 'Japanese', 'Portuguese'] },
             { label: 'Dialect', description: 'Preferred dialect or regional variant', type: 'select', value: 'Latin American', options: ['Latin American', 'Castilian', 'Mexican', 'Argentine'] },
@@ -37,15 +37,15 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
-        title: 'Appearance', icon: Palette, color: '#34D399',
+        id: 'appearance', title: 'Appearance', icon: Palette, color: '#10b981',
         settings: [
-            { label: 'Theme', description: 'Midnight Signal (Dark)', type: 'select', value: 'Midnight Signal', options: ['Midnight Signal', 'Deep Ocean', 'Forest Night'] },
+            { label: 'Theme', description: 'Select your preferred visual style', type: 'select', value: 'Midnight Signal', options: ['Midnight Signal', 'Deep Ocean', 'Forest Night', 'Light Mode'] },
             { label: 'Font Size', description: 'Adjust text size throughout the app', type: 'select', value: 'Medium', options: ['Small', 'Medium', 'Large', 'Extra Large'] },
             { label: 'Animations', description: 'Enable subtle motion effects', type: 'toggle', value: true },
         ],
     },
     {
-        title: 'Audio & Microphone', icon: Volume2, color: '#F59E0B',
+        id: 'audio', title: 'Audio & Microphone', icon: Volume2, color: '#f59e0b',
         settings: [
             { label: 'Input Device', description: 'Microphone for speaking exercises', type: 'select', value: 'Default Microphone', options: ['Default Microphone', 'External Mic'] },
             { label: 'Audio Output', description: 'Speaker or headphone output', type: 'select', value: 'Default Speakers', options: ['Default Speakers', 'Headphones'] },
@@ -54,7 +54,7 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
-        title: 'Storage', icon: HardDrive, color: '#22D3EE',
+        id: 'storage', title: 'Storage', icon: HardDrive, color: '#0ea5e9',
         settings: [
             { label: 'Data Location', description: 'Where your learning data is stored', type: 'info', value: 'C:\\Users\\Alex\\AppData\\Numo' },
             { label: 'Used Space', description: 'Total space used by the app', type: 'info', value: '148 MB' },
@@ -62,14 +62,14 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
-        title: 'Backup & Export', icon: Download, color: '#34D399',
+        id: 'backup', title: 'Backup & Export', icon: Download, color: '#10b981',
         settings: [
             { label: 'Auto Backup', description: 'Automatically back up learning data weekly', type: 'toggle', value: true },
             { label: 'Export Format', description: 'File format for data export', type: 'select', value: 'JSON', options: ['JSON', 'CSV', 'Both'] },
         ],
     },
     {
-        title: 'Privacy', icon: Shield, color: '#F87171',
+        id: 'privacy', title: 'Privacy', icon: Shield, color: '#ef4444',
         settings: [
             { label: 'Recording Consent', description: 'Show notice before microphone recording', type: 'toggle', value: true },
             { label: 'Analytics', description: 'Help improve the app with anonymous usage data', type: 'toggle', value: false },
@@ -77,7 +77,7 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
-        title: 'Accessibility', icon: Accessibility, color: '#F59E0B',
+        id: 'accessibility', title: 'Accessibility', icon: Accessibility, color: '#f59e0b',
         settings: [
             { label: 'High Contrast', description: 'Increase contrast for better visibility', type: 'toggle', value: false },
             { label: 'Reduce Motion', description: 'Minimize animations and transitions', type: 'toggle', value: false },
@@ -85,7 +85,7 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
-        title: 'Desktop Preferences', icon: Monitor, color: '#8B5CF6',
+        id: 'desktop', title: 'Desktop Preferences', icon: Monitor, color: '#8b5cf6',
         settings: [
             { label: 'Start with System', description: 'Launch Numo when your computer starts', type: 'toggle', value: false },
             { label: 'Minimize to Tray', description: 'Keep running in the system tray when closed', type: 'toggle', value: true },
@@ -94,129 +94,142 @@ const settingsSections: SettingsSection[] = [
     },
 ];
 
-const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
+const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) => (
+    <button 
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${checked ? 'bg-purple-500' : 'bg-white/10'}`}
+        role="switch"
+        aria-checked={checked}
+    >
+        <span 
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-1'}`}
+        />
+    </button>
+);
 
 export default function SettingsPage() {
-    const [expandedSection, setExpandedSection] = useState<string>('Profile');
+    const [activeTabId, setActiveTabId] = useState<string>('profile');
+    
+    // In a real app we'd manage this state in a context or global store
+    const [settingsState, setSettingsState] = useState<Record<string, Record<string, any>>>(() => {
+        const initialState: Record<string, Record<string, any>> = {};
+        settingsSections.forEach(section => {
+            initialState[section.id] = {};
+            section.settings.forEach(setting => {
+                initialState[section.id][setting.label] = setting.value;
+            });
+        });
+        return initialState;
+    });
+
+    const activeSection = settingsSections.find(s => s.id === activeTabId) || settingsSections[0];
+
+    const updateSetting = (sectionId: string, label: string, value: any) => {
+        setSettingsState(prev => ({
+            ...prev,
+            [sectionId]: {
+                ...prev[sectionId],
+                [label]: value
+            }
+        }));
+    };
 
     return (
-        <div style={{ maxWidth: 800 }}>
-            <motion.div {...fadeUp}>
-                <p style={{ color: 'var(--color-dim)', fontSize: 14, marginBottom: 24 }}>
-                    Customize your Numo experience.
-                </p>
-            </motion.div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {settingsSections.map((section, i) => {
-                    const Icon = section.icon;
-                    const isExpanded = expandedSection === section.title;
-
-                    return (
-                        <motion.div
-                            key={section.title}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.04 + i * 0.03 }}
-                        >
-                            <SpotlightCard style={{ overflow: 'hidden', padding: 0 }}>
-                                <button
-                                    onClick={() => setExpandedSection(isExpanded ? '' : section.title)}
-                                    style={{
-                                        width: '100%', padding: '14px 18px',
-                                        display: 'flex', alignItems: 'center', gap: 12,
-                                        background: 'transparent', border: 'none', cursor: 'pointer',
-                                        color: 'var(--color-mist)', textAlign: 'left',
-                                        transition: 'background 0.2s',
-                                    }}
-                                >
-                                    <div style={{
-                                        width: 36, height: 36, borderRadius: 10,
-                                        background: `${section.color}15`, display: 'flex',
-                                        alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                                    }}>
-                                        <Icon size={17} style={{ color: section.color }} />
-                                    </div>
-                                    <span style={{ fontSize: 15, fontWeight: 700, flex: 1 }}>{section.title}</span>
-                                    <ChevronRight
-                                        size={16}
-                                        style={{
-                                            color: 'var(--color-dim-dark)',
-                                            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                                            transition: 'transform 0.2s ease',
-                                        }}
-                                    />
-                                </button>
-
-                                {isExpanded && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        transition={{ duration: 0.2 }}
-                                        style={{ borderTop: '1px solid var(--color-slate)' }}
-                                    >
-                                        {section.settings.map((setting, j) => (
-                                            <div
-                                                key={setting.label}
-                                                style={{
-                                                    padding: '14px 18px 14px 66px',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                                    borderBottom: j < section.settings.length - 1 ? '1px solid var(--color-slate)' : 'none',
-                                                }}
-                                            >
-                                                <div>
-                                                    <p style={{ fontSize: 13, fontWeight: 600 }}>{setting.label}</p>
-                                                    <p style={{ fontSize: 11, color: 'var(--color-dim-dark)' }}>{setting.description}</p>
-                                                </div>
-                                                {setting.type === 'select' && (
-                                                    <select
-                                                        defaultValue={setting.value as string}
-                                                        style={{
-                                                            padding: '6px 12px', borderRadius: 8,
-                                                            background: 'var(--color-slate)', color: 'var(--color-mist)',
-                                                            border: '1px solid var(--color-slate-light)',
-                                                            fontSize: 12, outline: 'none', cursor: 'pointer',
-                                                            fontWeight: 500,
-                                                        }}
-                                                    >
-                                                        {setting.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                    </select>
-                                                )}
-                                                {setting.type === 'toggle' && (
-                                                    <div style={{
-                                                        width: 44, height: 24, borderRadius: 99,
-                                                        background: setting.value ? '#8B5CF6' : 'var(--color-slate)',
-                                                        cursor: 'pointer', position: 'relative',
-                                                        transition: 'background 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                        boxShadow: setting.value ? '0 2px 8px rgba(139, 92, 246, 0.3)' : 'none',
-                                                    }}>
-                                                        <div style={{
-                                                            width: 18, height: 18, borderRadius: 99,
-                                                            background: '#fff', position: 'absolute',
-                                                            top: 3,
-                                                            left: setting.value ? 23 : 3,
-                                                            transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                            boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                                                        }} />
-                                                    </div>
-                                                )}
-                                                {setting.type === 'info' && (
-                                                    <span style={{ fontSize: 12, color: 'var(--color-dim)', maxWidth: 200, textAlign: 'right', fontWeight: 500 }}>{setting.value as string}</span>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </motion.div>
-                                )}
-                            </SpotlightCard>
-                        </motion.div>
-                    );
-                })}
+        <div className="flex h-full w-full bg-transparent overflow-hidden text-gray-200">
+            {/* Sidebar */}
+            <div className="w-72 lg:w-80 flex-shrink-0 border-r border-white/5 flex flex-col pt-2">
+                <div className="flex-1 overflow-y-auto pt-6 pb-8 px-6 scrollbar-hide space-y-2">
+                    {settingsSections.map((section) => {
+                        const Icon = section.icon;
+                        const isActive = activeTabId === section.id;
+                        
+                        return (
+                            <button
+                                key={section.id}
+                                onClick={() => setActiveTabId(section.id)}
+                                className={`w-full flex items-center gap-4 px-4 py-3 text-base rounded-xl transition-colors ${
+                                    isActive 
+                                        ? 'bg-white/10 text-white font-medium shadow-sm'
+                                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                                }`}
+                            >
+                                <Icon 
+                                    size={20} 
+                                    className={`${isActive ? 'text-white' : 'text-gray-500'}`}
+                                />
+                                {section.title}
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
-            {/* Version info */}
-            <div style={{ textAlign: 'center', marginTop: 32, marginBottom: 24 }}>
-                <p style={{ fontSize: 12, color: 'var(--color-dim-dark)' }}>Numo Desktop v0.1.0 • Built with Tauri 2.0</p>
-                <p style={{ fontSize: 11, color: 'var(--color-dim-dark)', marginTop: 4 }}>Midnight Signal Theme • Local-first</p>
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto scrollbar-default">
+                <div className="max-w-4xl 2xl:max-w-5xl mx-auto py-12 px-10 xl:px-16">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTabId}
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            transition={{ duration: 0.15 }}
+                        >
+                            <div className="mb-10">
+                                <h2 className="text-3xl font-semibold text-white tracking-tight leading-none mb-3">
+                                    {activeSection.title}
+                                </h2>
+                                <p className="text-base text-gray-400">
+                                    Manage your {activeSection.title.toLowerCase()} preferences and related settings.
+                                </p>
+                            </div>
+
+                            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-sm">
+                                {activeSection.settings.map((setting, index) => (
+                                    <div 
+                                        key={setting.label}
+                                        className={`flex items-center justify-between p-6 lg:p-8 ${index !== activeSection.settings.length - 1 ? 'border-b border-white/5' : ''}`}
+                                    >
+                                        <div className="flex-1 pr-8">
+                                            <h3 className="text-base font-medium text-gray-200 mb-1">{setting.label}</h3>
+                                            <p className="text-sm text-gray-500 leading-relaxed">{setting.description}</p>
+                                        </div>
+                                        
+                                        <div className="flex-shrink-0">
+                                            {setting.type === 'select' && (
+                                                <div className="relative">
+                                                    <select
+                                                        value={settingsState[activeSection.id][setting.label] as string}
+                                                        onChange={(e) => updateSetting(activeSection.id, setting.label, e.target.value)}
+                                                        className="appearance-none bg-black/20 border border-white/10 rounded-xl px-4 py-2 pr-10 text-base text-gray-200 focus:outline-none focus:ring-1 focus:ring-purple-500/50 cursor-pointer hover:bg-black/40 hover:border-white/20 transition-colors"
+                                                    >
+                                                        {setting.options?.map(opt => (
+                                                            <option key={opt} value={opt} className="bg-gray-800">{opt}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                                                        <ChevronRight size={16} className="rotate-90" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {setting.type === 'toggle' && (
+                                                <ToggleSwitch 
+                                                    checked={settingsState[activeSection.id][setting.label] as boolean} 
+                                                    onChange={(val) => updateSetting(activeSection.id, setting.label, val)} 
+                                                />
+                                            )}
+                                            {setting.type === 'info' && (
+                                                <span className="text-base text-gray-400 font-mono bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
+                                                    {settingsState[activeSection.id][setting.label]}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );

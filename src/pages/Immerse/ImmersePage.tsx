@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { 
     Zap, Settings, Search, ChevronRight, ChevronDown, Play, 
     Bookmark, Volume2, Maximize2, Menu, Bell, Check
@@ -11,67 +12,66 @@ const fadeUp = {
     transition: { duration: 0.35, ease: 'easeOut' },
 };
 
+const fallbackImage = '/continue_learning.png';
+
 export default function ImmersePage() {
+    const handleImageError = (e: any) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = fallbackImage;
+    };
+
     return (
-        <div className="max-w-[1200px] mx-auto pb-24 relative mt-4">
-            {/* Header Area */}
-            <div className="flex justify-between items-center mb-6 pl-2">
-                <div>
-                    <h1 className="text-[32px] font-bold tracking-tight text-white mb-1">Immerse</h1>
-                    <p className="text-[14px] text-dim font-medium">Immerse your content from story for Spanish language details.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-5 py-2 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold text-[14px] hover:bg-blue-600/30 transition-colors cursor-pointer">
-                        <Zap size={16} fill="currentColor" /> Smart Review
-                    </button>
-                    <button className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-dim hover:text-white transition-colors cursor-pointer">
-                        <Settings size={18} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Sticky Search & Filter Bar */}
-            <div className="sticky top-0 z-20 bg-[#050816]/90 backdrop-blur-xl py-4 flex flex-col items-start gap-4 mb-8 pl-2">
-                <div className="flex w-full gap-4">
-                    <div className="flex-1 flex items-center gap-3 bg-[#161B2C]/80 border border-white/10 rounded-xl px-4 py-2.5">
-                        <Search size={18} className="text-dim" />
-                        <input 
-                            type="text" 
-                            placeholder="Search" 
-                            className="bg-transparent border-none outline-none text-white text-[14px] w-full placeholder:text-dim"
-                        />
-                    </div>
-                    <div className="flex items-center gap-3 px-4 py-2.5 bg-[#161B2C]/40 border border-transparent rounded-xl cursor-pointer hover:bg-white/5 transition-colors">
-                        <span className="text-[14px] text-dim font-medium">Sort:</span>
-                        <span className="text-[14px] text-mist font-bold">Latest</span>
-                        <ChevronDown size={16} className="text-dim" />
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-                        {['Stories', 'Dialogues', 'Podcasts', 'Clips'].map((pill, i) => (
-                            <button key={pill} className={`px-5 py-2 rounded-full text-[14px] font-bold whitespace-nowrap transition-colors ${i === 0 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-dim hover:text-white hover:bg-white/5'}`}>
-                                {pill}
-                            </button>
-                        ))}
-                    </div>
-                    <button className="w-8 h-8 flex items-center justify-center text-dim hover:text-white transition-colors">
-                        <ChevronRight size={18} />
-                    </button>
-                </div>
-            </div>
+        <PageContent className="pb-24 relative">
+            <PageActions>
+                <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
+                    <Zap size={16} fill="currentColor" /> Smart Review
+                </button>
+                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-dim transition-colors hover:text-white cursor-pointer">
+                    <Settings size={18} />
+                </button>
+            </PageActions>
 
             {/* Main Two-Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-10 lg:gap-14">
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
                 
                 {/* LEFT COLUMN: Content Discovery */}
                 <div className="flex flex-col gap-10">
+                    {/* Sticky Search & Filter Bar */}
+                    <div className="sticky top-0 z-20 rounded-2xl border border-white/5 bg-[#0F172A]/80 backdrop-blur-xl p-4 flex flex-col items-start gap-4">
+                        <div className="flex w-full gap-4">
+                            <div className="flex-1 flex items-center gap-3 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5">
+                                <Search size={18} className="text-dim" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search stories, clips, phrases..." 
+                                    className="bg-transparent border-none outline-none text-white text-[14px] w-full placeholder:text-dim"
+                                />
+                            </div>
+                            <div className="flex items-center gap-3 px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition-colors">
+                                <span className="text-[14px] text-dim font-medium">Sort:</span>
+                                <span className="text-[14px] text-mist font-bold">Latest</span>
+                                <ChevronDown size={16} className="text-dim" />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                {['Stories', 'Dialogues', 'Podcasts', 'Clips'].map((pill, i) => (
+                                    <button key={pill} className={`px-5 py-2 rounded-full text-[14px] font-bold whitespace-nowrap transition-colors ${i === 0 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-dim border border-transparent hover:text-white hover:bg-white/5 hover:border-white/10'}`}>
+                                        {pill}
+                                    </button>
+                                ))}
+                            </div>
+                            <button className="w-8 h-8 flex items-center justify-center text-dim hover:text-white transition-colors">
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
+                    </div>
                     
                     {/* Featured Hero Story */}
                     <motion.div {...fadeUp}>
                         <SpotlightCard interactive className="p-0 border border-white/10 overflow-hidden w-full h-[280px] group cursor-pointer relative shadow-[0_0_40px_rgba(0,0,0,0.3)]">
-                            <img src="https://images.unsplash.com/photo-1583422409516-15ep9a6b4p56?q=80&w=1200&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Barcelona" />
+                            <img src="https://images.unsplash.com/photo-1583422409516-15ep9a6b4p56?q=80&w=1200&auto=format&fit=crop" onError={handleImageError} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Barcelona" />
                             <div className="absolute inset-0 bg-gradient-to-t from-[#0B1020] via-[#0B1020]/40 to-transparent" />
                             
                             <div className="absolute bottom-0 left-0 w-full p-8 flex flex-col">
@@ -97,7 +97,7 @@ export default function ImmersePage() {
                             {/* Card 1 */}
                             <SpotlightCard interactive className="p-0 border border-white/5 overflow-hidden flex flex-col group cursor-pointer">
                                 <div className="h-[140px] w-full overflow-hidden relative">
-                                    <img src="https://images.unsplash.com/photo-1539037116277-4db20d00923d?q=80&w=600&auto=format&fit=crop" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Madrid" />
+                                    <img src="https://images.unsplash.com/photo-1539037116277-4db20d00923d?q=80&w=600&auto=format&fit=crop" onError={handleImageError} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Madrid" />
                                 </div>
                                 <div className="p-5 flex flex-col bg-[#0F172A]/70 flex-1">
                                     <h4 className="text-[16px] font-bold text-white mb-3 tracking-tight">Walk through Madrid</h4>
@@ -120,7 +120,7 @@ export default function ImmersePage() {
                             {/* Card 2 */}
                             <SpotlightCard interactive className="p-0 border border-white/5 overflow-hidden flex flex-col group cursor-pointer">
                                 <div className="h-[140px] w-full overflow-hidden relative">
-                                    <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=600&auto=format&fit=crop" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Cafe" />
+                                    <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=600&auto=format&fit=crop" onError={handleImageError} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Cafe" />
                                 </div>
                                 <div className="p-5 flex flex-col bg-[#0F172A]/70 flex-1">
                                     <h4 className="text-[16px] font-bold text-white mb-3 tracking-tight">Working from the Cafe</h4>
@@ -145,7 +145,7 @@ export default function ImmersePage() {
                         <div className="mt-5">
                             <SpotlightCard interactive className="p-0 border border-white/5 overflow-hidden flex flex-col group cursor-pointer w-full">
                                 <div className="h-[180px] w-full overflow-hidden relative">
-                                    <img src="https://plus.unsplash.com/premium_photo-1661962360541-0b5c192997bf?q=80&w=1200&auto=format&fit=crop" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt="Night street" />
+                                    <img src="https://plus.unsplash.com/premium_photo-1661962360541-0b5c192997bf?q=80&w=1200&auto=format&fit=crop" onError={handleImageError} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt="Night street" />
                                 </div>
                                 <div className="p-5 flex flex-col bg-[#0F172A]/70 h-auto">
                                     <h4 className="text-[16px] font-bold text-white mb-3 tracking-tight">Conversational Flow</h4>
@@ -174,7 +174,7 @@ export default function ImmersePage() {
                                 { title: 'Cultural Faux Pas', time: '2 min', lvl: 'Upper Beginner', p: '28%', img: 'https://images.unsplash.com/photo-1544148103-0773bf10d330?q=80&w=600' }
                             ].map((clip, i) => (
                                 <SpotlightCard key={i} interactive className="p-0 border border-white/5 overflow-hidden flex flex-col group cursor-pointer relative aspect-video">
-                                    <img src={clip.img} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity" />
+                                    <img src={clip.img} onError={handleImageError} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-[#0B1020]/90 to-transparent" />
                                     
                                     {/* Centered Play Button for Clips */}
@@ -204,7 +204,7 @@ export default function ImmersePage() {
                     {/* Active Media Header */}
                     <SpotlightCard className="p-0 border border-indigo-500/20 overflow-hidden shadow-[0_0_30px_rgba(99,102,241,0.1)]">
                         <div className="h-[220px] w-full relative">
-                            <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600&auto=format&fit=crop" className="w-full h-full object-cover" />
+                            <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600&auto=format&fit=crop" onError={handleImageError} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/30 to-transparent" />
                         </div>
                         <div className="p-5 flex flex-col bg-[#0F172A]">
@@ -325,6 +325,6 @@ export default function ImmersePage() {
 
                 </motion.div>
             </div>
-        </div>
+        </PageContent>
     );
 }
