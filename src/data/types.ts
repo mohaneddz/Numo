@@ -41,6 +41,10 @@ export interface ReviewItem {
   strength: 'very solid' | 'solid' | 'needs work' | 'weak' | 'critical';
   dueDate: string;
   lastReviewed?: string;
+  nextDueAt?: string;
+  intervalDays?: number;
+  ease?: number;
+  lastResult?: 'correct' | 'incorrect';
 }
 
 export interface RecommendedCard {
@@ -133,6 +137,8 @@ export interface WritingDraft {
   createdAt: string;
   updatedAt: string;
   wordCount: number;
+  analysis?: WritingCorrection[];
+  lastAnalyzedAt?: string;
 }
 
 export interface NotebookEntry {
@@ -145,6 +151,35 @@ export interface NotebookEntry {
   tags: string[];
   createdAt: string;
   mastery: number;
+  source?: 'immerse' | 'review' | 'write' | 'manual';
+  favorited?: boolean;
+  updatedAt?: string;
+}
+
+export interface WritingCorrection {
+  original: string;
+  corrected: string;
+  type: 'grammar' | 'spelling' | 'correct' | 'style';
+  explanation: string;
+}
+
+export interface SpeakingSessionRun {
+  id: string;
+  sessionId: string;
+  recordedAt: string;
+  transcript: string;
+  accuracy: number;
+  fluency: number;
+  tip: string;
+  feedbackSource: 'ai' | 'fallback';
+}
+
+export interface ImmersionProgress {
+  contentId: string;
+  positionSec: number;
+  completed: boolean;
+  savedPhrases: string[];
+  updatedAt: string;
 }
 
 export interface AnalyticsData {
