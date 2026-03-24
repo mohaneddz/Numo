@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Tomo Bossa';
+  src: url('/fonts/TOMO Bossa Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@theme {
+  /* Background / Base */
+  --color-obsidian: #050816;
+  --color-night: #090d1f;
+  --color-graphite: rgba(11, 16, 38, 0.5); /* Glassmorphism surface */
+  --color-slate: rgba(139, 92, 246, 0.15); /* Subtle glowing border */
+  --color-slate-light: rgba(139, 92, 246, 0.3);
+
+  /* Text */
+  --color-mist: #D9E1EE;
+  --color-dim: #93A0B4;
+
+  /* Accents */
+  --color-violet: #8B5CF6;
+  --color-violet-dim: rgba(139, 92, 246, 0.15);
+  --color-violet-glow: rgba(139, 92, 246, 0.25);
+  --color-cyan: #22D3EE;
+  --color-cyan-dim: rgba(34, 211, 238, 0.15);
+  --color-mint: #34D399;
+  --color-mint-dim: rgba(52, 211, 153, 0.15);
+  --color-amber: #F59E0B;
+  --color-amber-dim: rgba(245, 158, 11, 0.15);
+  --color-coral: #F87171;
+  --color-coral-dim: rgba(248, 113, 113, 0.15);
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Font */
+  --font-sans: 'Roboto', system-ui, -apple-system, sans-serif;
+  --font-heading: "Tomo Bossa", var(--font-sans);
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: 1px;
+}
+
+@keyframes ambient-drift {
+  0% {
+    background-position: 0% 0%;
+  }
+
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-slate);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dim-dark);
+}
