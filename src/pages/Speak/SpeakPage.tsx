@@ -8,6 +8,7 @@ import {
   Volume2, Edit3
 } from 'lucide-react';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
+import { PageContent, PageActions } from '../../components/layout/PageLayout';
 
 const TABS = [
   { id: 'stories', label: 'Stories', icon: BookOpen },
@@ -20,27 +21,21 @@ export default function SpeakPage() {
   const [activeTab, setActiveTab] = useState('stories');
 
   return (
-    <div className="flex gap-8 w-full max-w-[1300px] mx-auto pb-12">
+    <PageContent className="pb-12" width="wide">
+    <div className="flex flex-col gap-8 lg:flex-row">
       {/* ============ MAIN CONTENT (LEFT) ============ */}
       <div className="flex-1 min-w-0 flex flex-col gap-8">
         
-        {/* Header */}
-        <header className="flex justify-between items-center mb-2">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-mist mb-2">Speaking</h1>
-            <p className="text-dim text-[14px]">Enhance your pronunciation and fluency through interactive speaking challenges.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 bg-violet/10 hover:bg-violet/20 border border-violet/20 px-4 py-2 rounded-xl transition-all group">
-              <Zap size={16} className="text-violet group-hover:scale-110 transition-transform" />
-              <span className="text-[13px] font-bold text-mist">Quick Practice</span>
-              <ChevronDown size={14} className="text-dim" />
-            </button>
-            <button className="p-2.5 rounded-xl bg-graphite border border-white/5 text-dim hover:text-mist transition-colors">
-              <Globe size={18} />
-            </button>
-          </div>
-        </header>
+        <PageActions>
+          <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer group">
+            <Zap size={16} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+            <span>Quick Practice</span>
+            <ChevronDown size={14} className="opacity-80" />
+          </button>
+          <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-dim transition-colors hover:text-white cursor-pointer">
+            <Globe size={18} />
+          </button>
+        </PageActions>
 
         {/* Tab Navigation & Search/Filter */}
         <div className="flex justify-between items-center bg-graphite/30 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
@@ -276,7 +271,7 @@ export default function SpeakPage() {
       </div>
 
       {/* ============ SIDEBAR (RIGHT) ============ */}
-      <aside className="w-[340px] shrink-0 flex flex-col gap-6 pt-2">
+      <aside className="w-80 shrink-0 flex flex-col gap-6 pt-2">
         
         {/* Echo's Feedback */}
         <section>
@@ -427,5 +422,6 @@ export default function SpeakPage() {
 
       </aside>
     </div>
+    </PageContent>
   );
 }
