@@ -15,6 +15,7 @@ import NotebookPage from './pages/Notebook/NotebookPage';
 import NotebookDetail from './pages/Notebook/NotebookDetail';
 import InsightsPage from './pages/Insights';
 import LibraryPage from './pages/Library';
+import ReferencesPage from './pages/References';
 import SettingsPage from './pages/Settings';
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/notebook/:itemId" element={<NotebookDetail />} />
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/library" element={<LibraryPage />} />
+        <Route path="/references" element={<ReferencesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>
