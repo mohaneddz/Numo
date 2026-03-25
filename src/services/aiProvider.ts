@@ -94,6 +94,22 @@ function requireApiKey(): void {
   }
 }
 
+function hasApiKey(): boolean {
+  return Boolean(aiConfig.apiKey);
+}
+
+function mockEchoResponse(messages: ChatMessage[], mode: EchoMode): string {
+  const lastUser = [...messages].reverse().find((message) => message.role === 'user')?.content?.trim() ?? '';
+  const compact = lastUser.slice(0, 140);
+  if (mode === 'analyst') {
+    return `Fallback analysis: focus on tense consistency and concise corrections for "${compact || 'your input'}".`;
+  }
+  if (mode === 'coach') {
+    return 'Fallback coach: repeat once slowly, once naturally, then continue the conversation.';
+  }
+  return `Fallback Echo (${mode}): received "${compact || 'your message'}". Keep practicing and send your next line.`;
+}
+
 async function parseFailedResponse(response: Response): Promise<never> {
   let payload: unknown = null;
   try {
@@ -140,20 +156,27 @@ export function getQuotaSnapshot(): ApiQuotaSnapshot | null {
 export async function completeWithEcho(
   messages: ChatMessage[],
   mode: EchoMode = "advisor",
+  options?: { maxTokens?: number; responseFormat?: { type: string } }
 ): Promise<string> {
-  requireApiKey();
+  if (!hasApiKey()) {
+    return mockEchoResponse(messages, mode);
+  }
 
   const endpoint = `${aiConfig.baseUrl}/chat/completions`;
   const modeConfig = MODE_CONFIG[mode] ?? MODE_CONFIG.advisor;
-  const payload = {
+  const payload: any = {
     model: aiConfig.models.chat,
     temperature: modeConfig.temperature,
-    max_tokens: modeConfig.maxTokens,
+    max_tokens: options?.maxTokens ?? modeConfig.maxTokens,
     messages: [
       { role: "system", content: `${BASE_SYSTEM_PROMPT} ${modeConfig.prompt}` },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ],
   };
+
+  if (options?.responseFormat) {
+    payload.response_format = options.responseFormat;
+  }
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -175,7 +198,10 @@ export async function completeWithEcho(
 }
 
 export async function transcribeSpeech(audioBlob: Blob): Promise<string> {
-  requireApiKey();
+  if (!hasApiKey()) {
+    void audioBlob;
+    return "Buenos dias, como esta usted";
+  }
 
   const endpoint = `${aiConfig.baseUrl}/audio/transcriptions`;
   const formData = new FormData();
