@@ -17,6 +17,9 @@ import InsightsPage from './pages/Insights';
 import LibraryPage from './pages/Library';
 import ReferencesPage from './pages/References';
 import SettingsPage from './pages/Settings';
+import ChatPage from './pages/Chat';
+import WebSearchPage from './pages/WebSearch';
+import TemplateActionPage from './pages/templates/TemplateActionPage';
 
 export default function App() {
   return (
@@ -38,6 +41,9 @@ export default function App() {
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/references" element={<ReferencesPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/web-search" element={<WebSearchPage />} />
+        <Route path="/templates/:templateId/:entityId?" element={<TemplateActionPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

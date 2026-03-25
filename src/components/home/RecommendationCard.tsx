@@ -1,6 +1,9 @@
 import { Headphones, Mic, BookOpen, Target, Zap, ArrowRight } from 'lucide-react';
 import { SpotlightCard } from '../ui/SpotlightCard';
 import { RecommendedCard } from '../../data/types';
+import { useNavigate } from 'react-router-dom';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface RecommendationCardProps {
     card: RecommendedCard;
@@ -17,6 +20,8 @@ const getRecommendIcon = (icon: string) => {
 };
 
 export function RecommendationCard({ card }: RecommendationCardProps) {
+    const navigate = useNavigate();
+    const { activeLanguage } = useLanguage();
     const Icon = getRecommendIcon(card.icon);
     // Matching the blue/violet glow in screenshot
     const isBlue = card.accentColor === 'cyan' || card.accentColor === 'violet';
@@ -25,7 +30,19 @@ export function RecommendationCard({ card }: RecommendationCardProps) {
     const iconColor = isBlue ? 'text-[#38BDF8]' : 'text-[#A78BFA]';
 
     return (
-        <SpotlightCard interactive className="group h-full w-full">
+        <SpotlightCard
+            interactive
+            className="group h-full w-full"
+            onClick={() =>
+                navigate(
+                    buildTemplateUrl({
+                        templateId: 'home-recommendation',
+                        entityId: card.id,
+                        params: { from: '/', lang: activeLanguage.code, type: card.type },
+                    }),
+                )
+            }
+        >
             {/* Inner Wrapper: Isolates layout from the SpotlightCard's internal structural divs */}
             <div className="relative p-5 px-5 pt-5 pb-0 flex  items-start h-full min-h-[170px] w-full gap-4">
 

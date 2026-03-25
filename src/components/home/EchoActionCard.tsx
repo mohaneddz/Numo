@@ -1,13 +1,36 @@
 import { motion } from 'framer-motion';
 import { Mic, Zap, AlertTriangle, ChevronRight } from 'lucide-react';
 import { SpotlightCard } from '../ui/SpotlightCard';
+import { useNavigate } from 'react-router-dom';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export function EchoActionCard() {
     const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
+    const navigate = useNavigate();
+    const { activeLanguage } = useLanguage();
 
-    const startQuickPractice = () => console.log('Starting Quick Practice...');
-    const startSpeakingSession = () => console.log('Starting Speaking Session...');
-    const analyzeRecentMistakes = () => console.log('Analyzing Recent Mistakes...');
+    const startQuickPractice = () =>
+        navigate(
+            buildTemplateUrl({
+                templateId: 'echo-quick-practice',
+                params: { from: '/', lang: activeLanguage.code, mode: 'quick-practice' },
+            }),
+        );
+    const startSpeakingSession = () =>
+        navigate(
+            buildTemplateUrl({
+                templateId: 'echo-live-conversation',
+                params: { from: '/', lang: activeLanguage.code, mode: 'live-conversation' },
+            }),
+        );
+    const analyzeRecentMistakes = () =>
+        navigate(
+            buildTemplateUrl({
+                templateId: 'echo-mistake-analysis',
+                params: { from: '/', lang: activeLanguage.code, mode: 'mistakes' },
+            }),
+        );
 
     return (
         <motion.div {...fadeUp} transition={{ delay: 0.05 }} className="relative group">

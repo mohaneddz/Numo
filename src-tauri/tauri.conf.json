@@ -15,7 +15,8 @@
         "decorations": false,
         "title": "Numo",
         "width": 1024,
-        "height": 768
+        "height": 768,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,OutOfBlinkCors,OpaqueResponseBlocking --disable-web-security"
       }
     ],
     "security": {

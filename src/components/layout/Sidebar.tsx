@@ -1,30 +1,34 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     Home, GraduationCap, RotateCcw, Play, Mic, PenLine,
-    BookMarked, BarChart3, Library, BookCopy, Settings, Star
+    BookMarked, BarChart3, Library, BookCopy, Settings, Star, MessageCircle
 } from 'lucide-react';
-import { dailyMission } from '../../data/learner';
-
-const primaryNav = [
-    { to: '/', icon: Home, label: 'Home' },
-    { to: '/learn', icon: GraduationCap, label: 'Learn' },
-    { to: '/review', icon: RotateCcw, label: 'Review', badge: 12 },
-    { to: '/immerse', icon: Play, label: 'Immerse' },
-    { to: '/speak', icon: Mic, label: 'Speak' },
-    { to: '/write', icon: PenLine, label: 'Write' },
-    { to: '/notebook', icon: BookMarked, label: 'Notebook' },
-    { to: '/insights', icon: BarChart3, label: 'Insights' },
-];
+import { useCurriculum } from '../../contexts/CurriculumContext';
+import { useAppData } from '../../contexts/AppDataContext';
 
 const secondaryNav = [
     { to: '/library', icon: Library, label: 'Library' },
     { to: '/references', icon: BookCopy, label: 'References' },
+    { to: '/chat', icon: MessageCircle, label: 'Chat' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export default function Sidebar() {
+    const { dailyMission } = useCurriculum();
     const missionProgress = (dailyMission.progress / dailyMission.total) * 100;
+    const location = useLocation();
+    const { dueCount } = useAppData();
+    const primaryNav = [
+        { to: '/', icon: Home, label: 'Home' },
+        { to: '/learn', icon: GraduationCap, label: 'Learn' },
+        { to: '/review', icon: RotateCcw, label: 'Review', badge: dueCount },
+        { to: '/immerse', icon: Play, label: 'Immerse' },
+        { to: '/speak', icon: Mic, label: 'Speak' },
+        { to: '/write', icon: PenLine, label: 'Write' },
+        { to: '/notebook', icon: BookMarked, label: 'Notebook' },
+        { to: '/insights', icon: BarChart3, label: 'Insights' },
+    ];
 
     return (
         <aside className="w-64 shrink-0 h-full flex flex-col pt-7 pb-5 px-4 z-50 bg-black/10 backdrop-blur-sm border-r border-white/5">
@@ -41,54 +45,88 @@ export default function Sidebar() {
             </div>
 
             {/* Primary Nav */}
-            <nav className="flex flex-col gap-0.5 flex-1 px-0">
-                {primaryNav.map(item => (
-                    <NavLink
-                        key={item.to}
-                        to={item.to}
-                        end={item.to === '/'}
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline text-[14px] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] relative ${isActive
-                                ? 'font-bold text-white bg-violet-dim/40 shadow-[inset_0_0_12px_rgba(139,92,246,0.2)] border border-[#8B5CF6]/30'
+            <nav className="flex flex-col gap-1 flex-1 px-0 relative">
+                {primaryNav.map(item => {
+                    const isActive = location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to));
+                    return (
+                        <NavLink
+                            key={item.to}
+                            to={item.to}
+                            end={item.to === '/'}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline text-[14px] transition-colors duration-200 relative group ${isActive
+                                ? 'font-bold text-white'
                                 : 'font-medium text-dim hover:text-mist hover:bg-white/[0.04]'
-                            }`}
-                    >
-                        {({ isActive }) => (
-                            <>
-                                <item.icon size={18} strokeWidth={isActive ? 2.5 : 1.75} className={isActive ? 'text-white' : 'text-dim'} />
+                                }`}
+                        >
+                            {isActive && (
+                                <motion.div
+                                    layoutId="sidebar-active-indicator"
+                                    className="absolute inset-0 bg-white/[0.08] border border-white/10 rounded-xl"
+                                    initial={false}
+                                    transition={{
+                                        type: "spring",
+                                        stiffness: 400,
+                                        damping: 30,
+                                        mass: 0.8
+                                    }}
+                                />
+                            )}
+                            <div className="relative flex items-center gap-3 w-full z-10">
+                                <item.icon 
+                                    size={18} 
+                                    strokeWidth={isActive ? 2.5 : 2} 
+                                    className={`transition-colors duration-200 ${isActive ? 'text-[#8B5CF6]' : 'text-dim group-hover:text-mist'}`} 
+                                />
                                 <span>{item.label}</span>
                                 {item.badge && (
                                     <span className="ml-auto bg-coral text-white text-[11px] font-extrabold rounded-full px-2 min-w-[22px] h-[22px] flex items-center justify-center shadow-[0_2px_8px_rgba(248,113,113,0.3)]">
                                         {item.badge}
                                     </span>
                                 )}
-                            </>
-                        )}
-                    </NavLink>
-                ))}
+                            </div>
+                        </NavLink>
+                    );
+                })}
 
                 {/* Separator */}
-                <div className="my-2 border-t border-white/5" />
+                <div className="my-3 border-t border-white/5 mx-2" />
 
                 {/* Secondary Nav */}
-                {secondaryNav.map(item => (
-                    <NavLink
-                        key={item.to}
-                        to={item.to}
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline text-[14px] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isActive
-                                ? 'font-bold text-white bg-violet-dim/40 shadow-[inset_0_0_12px_rgba(139,92,246,0.2)] border border-[#8B5CF6]/30'
+                {secondaryNav.map(item => {
+                    const isActive = location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to));
+                    return (
+                        <NavLink
+                            key={item.to}
+                            to={item.to}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline text-[14px] transition-colors duration-200 relative group ${isActive
+                                ? 'font-bold text-white'
                                 : 'font-medium text-dim hover:text-mist hover:bg-white/[0.04]'
-                            }`}
-                    >
-                        {({ isActive }) => (
-                            <>
-                                <item.icon size={18} strokeWidth={isActive ? 2.5 : 1.75} className={isActive ? 'text-white' : 'text-dim'} />
+                                }`}
+                        >
+                            {isActive && (
+                                <motion.div
+                                    layoutId="sidebar-active-indicator"
+                                    className="absolute inset-0 bg-white/[0.08] border border-white/10 rounded-xl"
+                                    initial={false}
+                                    transition={{
+                                        type: "spring",
+                                        stiffness: 400,
+                                        damping: 30,
+                                        mass: 0.8
+                                    }}
+                                />
+                            )}
+                            <div className="relative flex items-center gap-3 w-full z-10">
+                                <item.icon 
+                                    size={18} 
+                                    strokeWidth={isActive ? 2.5 : 2} 
+                                    className={`transition-colors duration-200 ${isActive ? 'text-[#8B5CF6]' : 'text-dim group-hover:text-mist'}`} 
+                                />
                                 <span>{item.label}</span>
-                            </>
-                        )}
-                    </NavLink>
-                ))}
+                            </div>
+                        </NavLink>
+                    );
+                })}
             </nav>
 
             {/* Today's Mission Card — bottom of sidebar */}

@@ -2,18 +2,48 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, CheckCircle, Lock, Play, Clock, Zap } from 'lucide-react';
 import { modules, lessons } from '../../data/lessons';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { useNavigate } from 'react-router-dom';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function ModuleDetail() {
     const { moduleId } = useParams();
+    const navigate = useNavigate();
+    const { activeLanguage } = useLanguage();
     const mod = modules.find(m => m.id === moduleId);
     const moduleLessons = lessons.filter(l => l.moduleId === moduleId);
 
     if (!mod) {
         return (
-            <div style={{ padding: 40, textAlign: 'center' }}>
-                <p style={{ color: 'var(--color-dim)' }}>Module not found.</p>
-                <Link to="/learn" style={{ color: '#8B5CF6', textDecoration: 'none', marginTop: 12, display: 'inline-block' }}>← Back to Learn</Link>
-            </div>
+            <PageContent width="narrow">
+                <PageActions>
+                    <div className="flex gap-2">
+                        <Link to="/learn" className="no-underline">
+                            <button className="page-primary-action">
+                                <ArrowLeft size={16} /> Back to Learn
+                            </button>
+                        </Link>
+                        <button
+                            className="page-primary-action"
+                            onClick={() =>
+                                navigate(
+                                    buildTemplateUrl({
+                                        templateId: 'learn-module-fallback',
+                                        entityId: moduleId,
+                                        params: { from: '/learn', lang: activeLanguage.code },
+                                    }),
+                                )
+                            }
+                        >
+                            Open Template
+                        </button>
+                    </div>
+                </PageActions>
+                <div style={{ padding: 40, textAlign: 'center' }}>
+                    <p style={{ color: 'var(--color-dim)' }}>Module not found.</p>
+                </div>
+            </PageContent>
         );
     }
 
@@ -27,10 +57,14 @@ export default function ModuleDetail() {
     };
 
     return (
-        <div style={{ maxWidth: 900 }}>
-            <Link to="/learn" style={{ color: 'var(--color-dim)', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-                <ArrowLeft size={14} /> Back to Learn
-            </Link>
+        <PageContent width="narrow" className="pb-12">
+            <PageActions>
+                <Link to="/learn" className="no-underline">
+                    <button className="page-primary-action">
+                        <ArrowLeft size={16} /> Back to Learn
+                    </button>
+                </Link>
+            </PageActions>
 
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <div className="card" style={{ padding: 24, marginBottom: 24, borderLeft: `3px solid ${mod.accentColor}` }}>
@@ -71,6 +105,23 @@ export default function ModuleDetail() {
                                     opacity: lesson.status === 'locked' ? 0.5 : 1,
                                     cursor: lesson.status !== 'locked' ? 'pointer' : 'default',
                                 }}
+                                onClick={() => {
+                                    if (lesson.status === 'locked') {
+                                        return;
+                                    }
+                                    navigate(
+                                        buildTemplateUrl({
+                                            templateId: 'learn-lesson',
+                                            entityId: lesson.id,
+                                            params: {
+                                                from: `/learn/${mod.id}`,
+                                                lang: activeLanguage.code,
+                                                module: mod.id,
+                                                status: lesson.status,
+                                            },
+                                        }),
+                                    );
+                                }}
                             >
                                 <div style={{
                                     width: 32, height: 32, borderRadius: 8,
@@ -98,6 +149,6 @@ export default function ModuleDetail() {
                     );
                 })}
             </div>
-        </div>
+        </PageContent>
     );
 }

@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
 import {
     Zap,
-    Settings,
     Flame,
     RotateCcw,
     Play,
@@ -17,7 +18,10 @@ import {
     Target,
     Brain,
 } from 'lucide-react';
-import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { PageActions, PageContent, PageMainColumn, PageMainSidebarLayout, PageSidebar } from '../../components/layout/PageLayout';
+import { useAppData, type ReviewMode } from '../../contexts/AppDataContext';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const fadeUp = {
     initial: { opacity: 0, y: 10 },
@@ -26,19 +30,47 @@ const fadeUp = {
 };
 
 export default function ReviewPage() {
+    const navigate = useNavigate();
+    const { activeLanguage } = useLanguage();
+    const { dueCount, weakCount, flashCardCount } = useAppData();
+    const [showAllForgotten, setShowAllForgotten] = useState(false);
+    const modeCards: Array<{
+        mode: ReviewMode;
+        title: string;
+        desc: string;
+        count: string;
+        icon: typeof RotateCcw;
+        color: string;
+        bg: string;
+        border: string;
+        active?: boolean;
+    }> = [
+        { mode: 'due-now', title: 'Due Now', desc: 'Review all due flash cards', count: `${dueCount} cards`, icon: RotateCcw, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/30', active: true },
+        { mode: 'weak', title: 'Weak Points', desc: 'Focus on difficult cards', count: `${weakCount} weak`, icon: AlertCircle, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/10' },
+        { mode: 'mistakes', title: 'Mistakes', desc: 'Redo incorrect answers', count: 'Auto queue', icon: RotateCcw, color: 'text-indigo-400', bg: 'bg-indigo-400/10', border: 'border-indigo-400/10' },
+        { mode: 'cram', title: 'Cram', desc: 'Quick review session', count: '15 max', icon: Zap, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/10' },
+    ];
+    const forgottenItems = [
+        { word: 'أين', translit: "'Ayna", meaning: 'Where', error: 'Wrong 2x', time: '10m ago', iconBg: 'bg-blue-600/20', iconColor: 'text-blue-400' },
+        { word: 'كل', translit: 'Kullu', meaning: 'Every / All', error: 'Wrong 1x', time: '1h ago', iconBg: 'bg-violet-600/20', iconColor: 'text-violet-400' },
+        { word: 'شكراً', translit: 'Shukran', meaning: 'Thank you', error: 'Wrong 1x', time: 'Yesterday', iconBg: 'bg-amber-600/20', iconColor: 'text-amber-400' },
+        { word: 'أريد', translit: 'Ureed', meaning: 'I want', error: 'Wrong 3x', time: 'Yesterday', iconBg: 'bg-cyan-600/20', iconColor: 'text-cyan-400' },
+        { word: 'متى', translit: 'Mata', meaning: 'When', error: 'Wrong 1x', time: '2d ago', iconBg: 'bg-rose-600/20', iconColor: 'text-rose-400' },
+        { word: 'كيف', translit: 'Kayfa', meaning: 'How', error: 'Wrong 2x', time: '2d ago', iconBg: 'bg-emerald-600/20', iconColor: 'text-emerald-400' },
+    ];
+
     return (
         <PageContent className="pb-24" width="wide">
             <PageActions>
-                <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
-                    <Zap size={16} fill="currentColor" /> Smart Review
-                </button>
-                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-dim transition-colors hover:text-white cursor-pointer">
-                    <Settings size={18} />
-                </button>
+                <Link to="/review/session?mode=due-now" className="no-underline">
+                    <button className="page-primary-action">
+                        <Zap size={16} fill="currentColor" /> Smart Flash Cards
+                    </button>
+                </Link>
             </PageActions>
 
-            <div className="grid grid-cols-1 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
-                <section className="min-w-0">
+            <PageMainSidebarLayout>
+                <PageMainColumn>
                     <motion.div {...fadeUp}>
                         <SpotlightCard className="mb-10 w-full border border-white/5 bg-[#0B1020]/60 overflow-hidden">
                             <div className="relative z-10 flex flex-col items-center justify-between gap-8 p-8 md:flex-row md:p-10">
@@ -61,12 +93,12 @@ export default function ReviewPage() {
                                             />
                                         </svg>
                                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                            <span className="text-[38px] font-extrabold leading-none text-white">22</span>
+                                            <span className="text-[38px] font-extrabold leading-none text-white">{dueCount}</span>
                                         </div>
                                     </div>
 
                                     <div className="flex flex-col gap-3">
-                                        <h3 className="mb-1 text-[18px] font-bold text-white">Items Due</h3>
+                                        <h3 className="mb-1 text-[18px] font-bold text-white">Flash Cards Due</h3>
                                         <div className="flex flex-col gap-2 text-[13px]">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-2.5 w-2.5 rounded-sm bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
@@ -75,7 +107,7 @@ export default function ReviewPage() {
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <div className="h-2.5 w-2.5 rounded-sm bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
-                                                <span className="font-bold text-white">12</span>
+                                                <span className="font-bold text-white">{dueCount}</span>
                                                 <span className="font-medium uppercase tracking-[0.02em] text-dim">Due Today</span>
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -101,12 +133,7 @@ export default function ReviewPage() {
 
                     <h3 className="mb-5 pl-2 text-[14px] font-bold uppercase tracking-wider text-dim">Review Mode</h3>
                     <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-4">
-                        {[
-                            { title: 'Due Now', desc: 'Review all due items', count: '22 items', icon: RotateCcw, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/30', active: true },
-                            { title: 'Weak Points', desc: 'Focus on mistakes', count: '8 weak', icon: AlertCircle, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/10' },
-                            { title: 'Mistakes', desc: 'Redo incorrect answers', count: '3 sets', icon: RotateCcw, color: 'text-indigo-400', bg: 'bg-indigo-400/10', border: 'border-indigo-400/10' },
-                            { title: 'Cram', desc: 'Quick review session', count: '15 min', icon: Zap, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/10' },
-                        ].map((mode, i) => (
+                        {modeCards.map((mode, i) => (
                             <motion.div key={mode.title} {...fadeUp} transition={{ delay: 0.08 + i * 0.05 }}>
                                 <SpotlightCard interactive className={`border ${mode.border} p-6 ${mode.active ? 'bg-blue-600/5 ring-1 ring-blue-500/20' : 'bg-transparent'}`}>
                                     <div className="relative z-10 flex flex-col items-center text-center">
@@ -116,6 +143,12 @@ export default function ReviewPage() {
                                         <h4 className="mb-1.5 text-[16px] font-bold text-white">{mode.title}</h4>
                                         <p className="mb-4 text-[12px] leading-tight text-dim">{mode.desc}</p>
                                         <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${mode.bg} ${mode.color}`}>• {mode.count}</span>
+                                        <button
+                                            className="mt-4 rounded-lg border border-white/10 px-3 py-1.5 text-[12px] font-bold text-mist hover:bg-white/5"
+                                            onClick={() => navigate(`/review/session?mode=${mode.mode}`)}
+                                        >
+                                            Start
+                                        </button>
                                     </div>
                                 </SpotlightCard>
                             </motion.div>
@@ -126,30 +159,32 @@ export default function ReviewPage() {
                         <SpotlightCard interactive className="mb-10 border border-indigo-500/30 p-0 shadow-[0_0_30px_rgba(99,102,241,0.1)]">
                             <div className="relative z-10 flex items-center justify-between bg-gradient-to-r from-blue-600/20 via-indigo-600/10 to-transparent p-4 md:p-6">
                                 <div className="pl-2 md:pl-6">
-                                    <h3 className="mb-1 text-[19px] font-bold text-white">Start Review Session</h3>
+                                    <h3 className="mb-1 text-[19px] font-bold text-white">Start Flash Cards Session</h3>
                                     <p className="text-[12.5px] font-medium tracking-wide text-dim">Adaptive questions • Spaced repetition • Instant feedback</p>
                                 </div>
-                                <div className="mr-2 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.6)] transition-transform hover:scale-105 md:mr-4">
+                                <button
+                                    className="mr-2 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.6)] transition-transform hover:scale-105 md:mr-4"
+                                    onClick={() => navigate('/review/session?mode=due-now')}
+                                >
                                     <Play size={24} fill="currentColor" strokeWidth={0} className="ml-1" />
-                                </div>
+                                </button>
                             </div>
                         </SpotlightCard>
                     </motion.div>
 
-                    <div className="mb-12">
+                    <div className="">
                         <div className="mb-6 flex items-center justify-between">
                             <h3 className="text-[17px] font-bold text-white">Recently Forgotten</h3>
-                            <button className="flex items-center gap-1 text-[12px] font-bold text-dim transition-colors hover:text-white">
-                                View All <ChevronRight size={14} />
+                            <button
+                                className="flex items-center gap-1 text-[12px] font-bold text-dim transition-colors hover:text-white"
+                                onClick={() => setShowAllForgotten((prev) => !prev)}
+                            >
+                                {showAllForgotten ? 'Show Less' : 'View All'} <ChevronRight size={14} />
                             </button>
                         </div>
 
                         <div className="flex flex-col gap-3">
-                            {[
-                                { word: 'أين', translit: "'Ayna", meaning: 'Where', error: 'Wrong 2x', time: '10m ago', iconBg: 'bg-blue-600/20', iconColor: 'text-blue-400' },
-                                { word: 'كل', translit: 'Kullu', meaning: 'Every / All', error: 'Wrong 1x', time: '1h ago', iconBg: 'bg-violet-600/20', iconColor: 'text-violet-400' },
-                                { word: 'شكراً', translit: 'Shukran', meaning: 'Thank you', error: 'Wrong 1x', time: 'Yesterday', iconBg: 'bg-amber-600/20', iconColor: 'text-amber-400' },
-                            ].map((item, i) => (
+                            {(showAllForgotten ? forgottenItems : forgottenItems.slice(0, 3)).map((item, i) => (
                                 <motion.div key={item.word} {...fadeUp} transition={{ delay: 0.3 + i * 0.05 }}>
                                     <SpotlightCard interactive className="flex items-center gap-5 border border-white/5 bg-[#0F172A]/40 p-4">
                                         <div className={`flex h-12 w-12 items-center justify-center rounded-[14px] text-[18px] font-bold ${item.iconBg} ${item.iconColor}`}>
@@ -172,7 +207,7 @@ export default function ReviewPage() {
                         </div>
                     </div>
 
-                    <div className="mt-14 grid grid-cols-1 gap-10 border-t border-white/5 pt-10 lg:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-10 border-t border-white/5 pt-10 lg:grid-cols-2">
                         <div>
                             <h3 className="mb-2 text-[18px] font-bold text-white">Weak Points to Improve</h3>
                             <p className="mb-8 text-[13px] text-dim">Focus on your most difficult categories.</p>
@@ -199,7 +234,18 @@ export default function ReviewPage() {
                                                 <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.progress}%` }} />
                                             </div>
                                         </div>
-                                        <button className="cursor-pointer rounded-xl border border-white/10 px-5 py-2.5 text-[13px] font-bold text-mist transition-colors hover:bg-white/5">
+                                        <button
+                                            className="cursor-pointer rounded-xl border border-white/10 px-5 py-2.5 text-[13px] font-bold text-mist transition-colors hover:bg-white/5"
+                                            onClick={() =>
+                                                navigate(
+                                                    buildTemplateUrl({
+                                                        templateId: 'review-practice-weak-point',
+                                                        entityId: item.title.toLowerCase(),
+                                                        params: { from: '/review', lang: activeLanguage.code },
+                                                    }),
+                                                )
+                                            }
+                                        >
                                             Practice
                                         </button>
                                     </SpotlightCard>
@@ -255,12 +301,12 @@ export default function ReviewPage() {
                             </SpotlightCard>
                         </div>
                     </div>
-                </section>
+                </PageMainColumn>
 
-                <aside className="flex flex-col gap-5 xl:sticky xl:top-4">
+                <PageSidebar className="gap-5">
                     <SpotlightCard className="p-5">
                         <p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-dim">Today Queue</p>
-                        <h4 className="mb-1 text-[20px] font-bold text-white">22 cards</h4>
+                        <h4 className="mb-1 text-[20px] font-bold text-white">{dueCount} cards</h4>
                         <p className="mb-4 text-[13px] text-dim">Estimated session time: 18 minutes for full completion.</p>
                         <div className="mb-4 h-2 overflow-hidden rounded-full bg-white/10">
                             <div className="h-full w-[58%] bg-gradient-to-r from-amber-500 to-cyan-400" />
@@ -268,15 +314,15 @@ export default function ReviewPage() {
                         <div className="space-y-2 text-[12px] text-dim">
                             <div className="flex items-center justify-between">
                                 <span className="inline-flex items-center gap-2"><Clock3 size={13} className="text-amber-400" /> Due now</span>
-                                <span className="font-bold text-white">12</span>
+                                <span className="font-bold text-white">{dueCount}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="inline-flex items-center gap-2"><Target size={13} className="text-red-400" /> Overdue</span>
-                                <span className="font-bold text-white">5</span>
+                                <span className="font-bold text-white">{Math.max(0, dueCount - weakCount)}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="inline-flex items-center gap-2"><Brain size={13} className="text-cyan-400" /> New cards</span>
-                                <span className="font-bold text-white">5</span>
+                                <span className="font-bold text-white">{Math.min(5, flashCardCount)}</span>
                             </div>
                         </div>
                     </SpotlightCard>
@@ -319,7 +365,19 @@ export default function ReviewPage() {
                         <p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-dim">Recommended Flow</p>
                         <div className="space-y-3">
                             {['Due Now Sprint', 'Weak Points Focus', 'Checkpoint Mix'].map((item) => (
-                                <button key={item} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition-colors hover:bg-white/10">
+                                <button
+                                    key={item}
+                                    className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left transition-colors hover:bg-white/10"
+                                    onClick={() =>
+                                        navigate(
+                                            buildTemplateUrl({
+                                                templateId: 'review-flow',
+                                                entityId: item.toLowerCase().replace(/\s+/g, '-'),
+                                                params: { from: '/review', lang: activeLanguage.code },
+                                            }),
+                                        )
+                                    }
+                                >
                                     <span className="text-[13px] text-mist">{item}</span>
                                     <ChevronRight size={14} className="text-dim" />
                                 </button>
@@ -334,8 +392,8 @@ export default function ReviewPage() {
                         </div>
                         <p className="text-[13px] leading-relaxed text-dim">After every wrong answer, say the corrected sentence out loud once. This boosts retention and pronunciation together.</p>
                     </SpotlightCard>
-                </aside>
-            </div>
+                </PageSidebar>
+            </PageMainSidebarLayout>
         </PageContent>
     );
 }

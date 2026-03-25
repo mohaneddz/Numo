@@ -2,9 +2,12 @@ import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Mic, RotateCcw } from 'lucide-react';
 import { SpotlightCard } from '../ui/SpotlightCard';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNavigate } from 'react-router-dom';
+import { buildActionUrl } from '../../navigation/actionTemplates';
 
 export function NextActionCard() {
   const { activeLanguage } = useLanguage();
+  const navigate = useNavigate();
   
   // Simulated AI logic for "Next Action"
   const getNextAction = () => {
@@ -64,7 +67,21 @@ export function NextActionCard() {
           </div>
         </div>
 
-        <button className="mt-6 w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 transition-all group font-bold text-[14px]">
+        <button
+          className="mt-6 w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 transition-all group font-bold text-[14px]"
+          onClick={() =>
+            navigate(
+              buildActionUrl('home_next_action', {
+                params: {
+                  from: '/',
+                  lang: activeLanguage.code,
+                  action: action.action,
+                  title: action.title,
+                },
+              }),
+            )
+          }
+        >
           {action.action}
           <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
         </button>
