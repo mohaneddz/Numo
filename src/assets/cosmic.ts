@@ -27,6 +27,7 @@ const FRAG_SRC = /* glsl */ `#version 300 es
 precision highp float;
 
 uniform float u_time;
+uniform vec2 u_mouse;
 
 in  vec2 v_uv;
 out vec4 fragColor;
@@ -84,6 +85,7 @@ vec3 backgroundGradient(vec2 uv) {
 
   // Subtle shift in the background center
   vec2 origin = vec2(0.5 + 0.05 * sin(u_time * 0.4), 0.62 + 0.03 * cos(u_time * 0.3));
+
   float d = length((uv - origin) * vec2(1.0, 0.7));
   float t = smoothstep(0.0, 0.9, 1.0 - d);
 
@@ -131,7 +133,8 @@ vec3 nebulaLayer(vec2 uv) {
 
 vec3 auroraLayer(vec2 uv) {
   float t = u_time * 0.25;
-  vec2 p = uv * vec2(1.0, 3.0);
+  vec2 m = (u_mouse - 0.5) * 0.04; // Very subtle shift on the lights
+  vec2 p = (uv + m) * vec2(1.0, 3.0);
   
   // Wavy vertical bands at the top
   float noise = fbm(p + vec2(t, -t * 0.4));
@@ -151,7 +154,7 @@ vec3 auroraLayer(vec2 uv) {
 
 float starField(vec2 uv) {
   const float GRID = 160.0;
-  vec2  drift = u_time * vec2(-0.035, 0.015); 
+  vec2  drift = u_time * vec2(-0.035, 0.015);
   vec2  p     = uv * GRID + drift;
   vec2  cell  = floor(p);
   vec2  local = fract(p);
@@ -179,7 +182,8 @@ float starField(vec2 uv) {
 // ════════════════════════════════════════════════════════
 
 vec3 horizonBloom(vec2 uv) {
-  vec2  origin = vec2(0.5, 1.05);
+  vec2 m = (u_mouse - 0.5) * 0.03; // Extremely subtle sway toward cursor
+  vec2  origin = vec2(0.5, 1.05) - m;
   vec2  delta  = (uv - origin) * vec2(0.6, 1.0); // horizontal stretch
   float dist   = length(delta);
   
@@ -246,6 +250,10 @@ export class CosmicShader {
   private vao: WebGLVertexArrayObject;
 
   private uTime: WebGLUniformLocation | null = null;
+  private uMouse: WebGLUniformLocation | null = null;
+  private targetMouseVec: Float32Array = new Float32Array([0.5, 0.5]);
+  private currentMouseVec: Float32Array = new Float32Array([0.5, 0.5]);
+
   private rafId: number | null = null;
   private offset = 0;
   private lastTs: number | null = null;
@@ -265,12 +273,20 @@ export class CosmicShader {
     this.program     = this.buildProgram();
     this.vao         = this.buildQuad();
     this.uTime       = this.requireUniform('u_time');
+    this.uMouse      = this.requireUniform('u_mouse');
 
     // Keep canvas pixel size in sync with its CSS size automatically
     this.resizeObserver = new ResizeObserver(() => this.syncSize());
     this.resizeObserver.observe(canvas);
     this.syncSize();
+
+    window.addEventListener('mousemove', this.onMouseMove);
   }
+
+  private readonly onMouseMove = (e: MouseEvent) => {
+    this.targetMouseVec[0] = e.clientX / window.innerWidth;
+    this.targetMouseVec[1] = 1.0 - (e.clientY / window.innerHeight);
+  };
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -299,6 +315,7 @@ export class CosmicShader {
   destroy(): void {
     this.stop();
     this.resizeObserver.disconnect();
+    window.removeEventListener('mousemove', this.onMouseMove);
     this.gl.deleteVertexArray(this.vao);
     this.gl.deleteProgram(this.program);
   }
@@ -318,9 +335,17 @@ export class CosmicShader {
 
   private render(): void {
     const { gl } = this;
+    
+    // Smoothly interpolate mouse position
+    this.currentMouseVec[0] += (this.targetMouseVec[0] - this.currentMouseVec[0]) * 0.05;
+    this.currentMouseVec[1] += (this.targetMouseVec[1] - this.currentMouseVec[1]) * 0.05;
+
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
     gl.uniform1f(this.uTime, this.offset);
+    if (this.uMouse) {
+      gl.uniform2fv(this.uMouse, this.currentMouseVec);
+    }
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
