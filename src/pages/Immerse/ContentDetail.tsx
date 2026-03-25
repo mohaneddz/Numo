@@ -3,6 +3,10 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Play, Pause, SkipBack, SkipForward, Volume2, BookmarkPlus, Languages } from 'lucide-react';
 import { useState } from 'react';
 import { immersionContent } from '../../data/immersion';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const fakeTranscript = [
   { time: '0:00', es: 'María llegó al mercado temprano por la mañana.', en: 'María arrived at the market early in the morning.' },
@@ -15,25 +19,56 @@ const fakeTranscript = [
 
 export default function ContentDetail() {
   const { contentId } = useParams();
+  const navigate = useNavigate();
+  const { activeLanguage } = useLanguage();
   const content = immersionContent.find(c => c.id === contentId);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   const [activeLineIndex, setActiveLineIndex] = useState(1);
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (!content) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: 'var(--color-dim)' }}>Content not found.</p>
-        <Link to="/immerse" style={{ color: '#8B5CF6' }}>← Back to Immerse</Link>
-      </div>
+      <PageContent width="narrow">
+        <PageActions>
+          <div className="flex gap-2">
+            <Link to="/immerse" className="no-underline">
+              <button className="page-primary-action">
+                <ArrowLeft size={16} /> Back to Immerse
+              </button>
+            </Link>
+            <button
+              className="page-primary-action"
+              onClick={() =>
+                navigate(
+                  buildTemplateUrl({
+                    templateId: 'immerse-content-fallback',
+                    entityId: contentId,
+                    params: { from: '/immerse', lang: activeLanguage.code },
+                  }),
+                )
+              }
+            >
+              Open Template
+            </button>
+          </div>
+        </PageActions>
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <p style={{ color: 'var(--color-dim)' }}>Content not found.</p>
+        </div>
+      </PageContent>
     );
   }
 
   return (
-    <div style={{ maxWidth: 900 }}>
-      <Link to="/immerse" style={{ color: 'var(--color-dim)', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-        <ArrowLeft size={14} /> Back to Immerse
-      </Link>
+    <PageContent width="narrow" className="pb-12">
+      <PageActions>
+        <Link to="/immerse" className="no-underline">
+          <button className="page-primary-action">
+            <ArrowLeft size={16} /> Back to Immerse
+          </button>
+        </Link>
+      </PageActions>
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="card" style={{ padding: 24, marginBottom: 24 }}>
@@ -58,7 +93,10 @@ export default function ContentDetail() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 12, color: 'var(--color-dim)' }}>0:22</span>
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <button onClick={() => {}} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-dim)' }}>
+                <button
+                  onClick={() => setActiveLineIndex((prev) => Math.max(0, prev - 1))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-dim)' }}
+                >
                   <SkipBack size={18} />
                 </button>
                 <button
@@ -71,7 +109,10 @@ export default function ContentDetail() {
                 >
                   {isPlaying ? <Pause size={18} /> : <Play size={18} />}
                 </button>
-                <button onClick={() => {}} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-dim)' }}>
+                <button
+                  onClick={() => setActiveLineIndex((prev) => Math.min(fakeTranscript.length - 1, prev + 1))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-dim)' }}
+                >
                   <SkipForward size={18} />
                 </button>
               </div>
@@ -125,7 +166,17 @@ export default function ContentDetail() {
                   )}
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); }}
+                  onClick={e => {
+                    e.stopPropagation();
+                    setNotice(`Saved phrase at ${line.time}`);
+                    navigate(
+                      buildTemplateUrl({
+                        templateId: 'immerse-save-line',
+                        entityId: content.id,
+                        params: { from: `/immerse/${content.id}`, lang: activeLanguage.code, time: line.time },
+                      }),
+                    );
+                  }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-dim-dark)', padding: 4 }}
                 >
                   <BookmarkPlus size={14} />
@@ -134,7 +185,8 @@ export default function ContentDetail() {
             </div>
           ))}
         </div>
+        {notice && <p style={{ fontSize: 12, color: '#22D3EE', marginTop: 12 }}>{notice}</p>}
       </motion.div>
-    </div>
+    </PageContent>
   );
 }

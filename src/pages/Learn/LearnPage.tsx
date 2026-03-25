@@ -1,7 +1,11 @@
 import { motion } from 'framer-motion';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
+import RemoteImage from '../../components/ui/RemoteImage';
 import { Check, ChevronDown, ChevronRight, Play, User, Zap } from 'lucide-react';
-import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { PageActions, PageContent, PageMainColumn, PageMainSidebarLayout, PageSidebar } from '../../components/layout/PageLayout';
+import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { buildActionUrl, buildTemplateUrl } from '../../navigation/actionTemplates';
 
 const fadeUp = {
     initial: { opacity: 0, y: 12 },
@@ -10,16 +14,28 @@ const fadeUp = {
 };
 
 export default function LearnPage() {
+    const navigate = useNavigate();
+    const { activeLanguage } = useLanguage();
+
     return (
         <PageContent className="pb-24 relative" width="wide">
             <PageActions>
-                <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
+                <button
+                    className="page-primary-action"
+                    onClick={() =>
+                        navigate(
+                            buildActionUrl('learn_quick_start', {
+                                params: { from: '/learn', lang: activeLanguage.code },
+                            }),
+                        )
+                    }
+                >
                     <Zap size={16} fill="currentColor" /> Quick Start
                 </button>
             </PageActions>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
-            <div className="min-w-0">
+            <PageMainSidebarLayout>
+            <PageMainColumn>
             {/* Top Hero Progress Banner */}
             <motion.div {...fadeUp}>
                 <SpotlightCard className="mb-14 w-full border border-white/5">
@@ -146,7 +162,7 @@ export default function LearnPage() {
                                 </div>
                                 
                                 <div className="w-full md:w-[100px] h-[100px] rounded-[18px] overflow-hidden shrink-0 shadow-lg mt-6 md:mt-0">
-                                    <img src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=300&auto=format&fit=crop" alt="Restaurant" className="w-full h-full object-cover" />
+                                    <RemoteImage src="https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=300&auto=format&fit=crop" alt="Restaurant" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="flex-1 w-full py-1">
                                     <div className="flex justify-between items-start mb-1.5">
@@ -159,7 +175,10 @@ export default function LearnPage() {
                                         <div className="text-[13px] text-[#94a3b8] font-medium">
                                             Target: 8 of 12 <span className="mx-2 text-dim">•</span> 1 min
                                         </div>
-                                        <button className="bg-gradient-to-r from-violet-600 to-indigo-600 border border-violet-400/30 text-white text-[13px] font-bold px-6 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:scale-105 transition-transform cursor-pointer">
+                                        <button
+                                            className="bg-gradient-to-r from-violet-600 to-indigo-600 border border-violet-400/30 text-white text-[13px] font-bold px-6 py-2.5 rounded-full flex items-center gap-2 shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:scale-105 transition-transform cursor-pointer"
+                                            onClick={() => navigate('/learn/mod-3')}
+                                        >
                                             <div className="w-1.5 h-1.5 rounded-full bg-white/80" /> Continue <ChevronRight size={14} className="ml-0.5 opacity-80" />
                                         </button>
                                     </div>
@@ -187,7 +206,7 @@ export default function LearnPage() {
                         
                         {/* Mission Item Card */}
                         <div className="bg-[#161B2C] border border-indigo-500/20 rounded-2xl p-2.5 pr-5 flex items-center gap-4 w-full md:w-[280px] cursor-pointer hover:bg-white/5 transition-colors shadow-lg shadow-indigo-500/5">
-                            <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=150&auto=format&fit=crop" className="w-[60px] h-[45px] rounded-lg object-cover" />
+                            <RemoteImage src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=150&auto=format&fit=crop" className="w-[60px] h-[45px] rounded-lg object-cover" />
                             <div className="flex-1">
                                 <h5 className="text-[15px] text-white font-bold tracking-tight">Check-in</h5>
                                 <p className="text-[12.5px] text-[#94a3b8]">Intermediate</p>
@@ -196,7 +215,17 @@ export default function LearnPage() {
                         </div>
 
                         {/* Start Mission Button aside */}
-                        <div className="ml-2 cursor-pointer group mt-4 md:mt-0">
+                        <button
+                            className="ml-2 cursor-pointer group mt-4 md:mt-0 text-left"
+                            onClick={() =>
+                                navigate(
+                                    buildTemplateUrl({
+                                        templateId: 'learn-start-mission-side',
+                                        params: { from: '/learn', lang: activeLanguage.code, mission: 'check-in' },
+                                    }),
+                                )
+                            }
+                        >
                             <div className="flex items-center gap-2 text-mist font-bold text-[16px] mb-1.5 group-hover:text-white transition-colors">
                                 <div className="w-5 h-5 rounded-full border border-mist flex items-center justify-center">
                                     <Play size={10} fill="currentColor" className="ml-0.5" />
@@ -204,7 +233,7 @@ export default function LearnPage() {
                                 Start Mission
                             </div>
                             <p className="text-[13px] text-[#64748B] font-medium ml-7">Your progress 8 of the Encounters</p>
-                        </div>
+                        </button>
                     </div>
                 </div>
 
@@ -226,7 +255,7 @@ export default function LearnPage() {
                             <h2 className="text-[20px] font-bold text-white mb-6 tracking-tight">Mission: <span className="text-mist font-normal">Hotel Stay</span></h2>
                             
                             <div className="w-full aspect-[16/8] md:h-[220px] rounded-2xl overflow-hidden mb-8 border border-white/10 shadow-2xl shrink-0">
-                                <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=800&auto=format&fit=crop" className="w-full h-full object-cover" />
+                                <RemoteImage src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=800&auto=format&fit=crop" className="w-full h-full object-cover" />
                             </div>
                             
                             <div className="flex justify-between items-center mb-1 w-full">
@@ -238,7 +267,17 @@ export default function LearnPage() {
                             </p>
 
                             <div className="flex items-center gap-5 mt-auto w-full">
-                                <button className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold px-8 py-3.5 rounded-[14px] shadow-[0_0_20px_rgba(139,92,246,0.5)] hover:bg-opacity-90 transition-colors cursor-pointer text-[15px]">
+                                <button
+                                    className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold px-8 py-3.5 rounded-[14px] shadow-[0_0_20px_rgba(139,92,246,0.5)] hover:bg-opacity-90 transition-colors cursor-pointer text-[15px]"
+                                    onClick={() =>
+                                        navigate(
+                                            buildTemplateUrl({
+                                                templateId: 'learn-mission-hotel',
+                                                params: { from: '/learn', lang: activeLanguage.code, mission: 'hotel-stay' },
+                                            }),
+                                        )
+                                    }
+                                >
                                     Start Mission
                                 </button>
                                 <span className="text-[#94a3b8] text-[14px] font-medium">- <Check size={14} className="inline pb-0.5"/> 15 min</span>
@@ -287,7 +326,10 @@ export default function LearnPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-4 w-full md:w-auto">
-                            <button className="bg-[#1E293B] hover:bg-[#334155] border border-white/10 text-white font-bold px-10 py-3.5 rounded-[14px] transition-colors cursor-pointer w-full md:w-auto text-[15px] flex items-center justify-center">
+                            <button
+                                className="bg-[#1E293B] hover:bg-[#334155] border border-white/10 text-white font-bold px-10 py-3.5 rounded-[14px] transition-colors cursor-pointer w-full md:w-auto text-[15px] flex items-center justify-center"
+                                onClick={() => navigate('/review/session?mode=due-now')}
+                            >
                                 Start Mission
                             </button>
                             <ChevronRight size={20} className="text-[#94a3b8] hidden md:block ml-2" />
@@ -296,9 +338,9 @@ export default function LearnPage() {
                 </SpotlightCard>
 
             </motion.div>
-            </div>
+            </PageMainColumn>
 
-            <aside className="flex flex-col gap-5 xl:sticky xl:top-4">
+            <PageSidebar className="gap-5">
                 <SpotlightCard className="p-5">
                     <p className="text-[12px] uppercase tracking-wider text-dim font-bold mb-3">Weekly Plan</p>
                     <h4 className="text-[17px] font-bold text-white mb-2">3 sessions left</h4>
@@ -329,8 +371,8 @@ export default function LearnPage() {
                     <p className="text-[13px] text-dim leading-relaxed">Alternate mission and review blocks in the same session for better long-term retention.</p>
                     <img src="/figure/excited.png" alt="Echo tip" className="w-16 h-16 object-contain mt-4 ml-auto" />
                 </SpotlightCard>
-            </aside>
-            </div>
+            </PageSidebar>
+            </PageMainSidebarLayout>
         </PageContent>
     );
 }
