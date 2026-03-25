@@ -7,15 +7,18 @@ import './index.css';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AppDataProvider } from './contexts/AppDataContext';
 import { CurriculumProvider } from './contexts/CurriculumContext';
+import { RuntimeProvider } from './contexts/RuntimeContext';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <AppDataProvider>
       <LanguageProvider>
         <CurriculumProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <RuntimeProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </RuntimeProvider>
         </CurriculumProvider>
       </LanguageProvider>
     </AppDataProvider>
