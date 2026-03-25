@@ -1,11 +1,15 @@
 import { motion } from 'framer-motion';
 import { Zap, Bell, Gift } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { learner } from '../../data/learner';
+import { useCurriculum } from '../../contexts/CurriculumContext';
 import { LanguageSelector } from '../ui/LanguageSelector';
+import { useNavigate } from 'react-router-dom';
+import { buildActionUrl } from '../../navigation/actionTemplates';
 
 export function GreetingHero() {
     const { activeLanguage } = useLanguage();
+    const { learner } = useCurriculum();
+    const navigate = useNavigate();
     const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -35,13 +39,38 @@ export function GreetingHero() {
                         whileHover={{ scale: 1.05, boxShadow: '0 0 24px rgba(139, 92, 246, 0.6), inset 0 1px 1px rgba(255,255,255,0.3)' }}
                         whileTap={{ scale: 0.95 }}
                         className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[linear-gradient(135deg,#8B5CF6,#06b6d4)] text-white text-[13px] font-bold shadow-[0_0_12px_rgba(139,92,246,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] border border-white/10 cursor-pointer"
+                        onClick={() =>
+                            navigate(
+                                buildActionUrl('home_quick_session', {
+                                    params: { from: '/', lang: activeLanguage.code },
+                                }),
+                            )
+                        }
                     >
                         <Zap size={14} fill="currentColor" /> Quick Start
                     </motion.button>
-                    <button className="w-9 h-9 rounded-xl bg-graphite border border-slate flex items-center justify-center cursor-pointer text-dim hover:text-mist transition-colors">
+                    <button
+                        className="w-9 h-9 rounded-xl bg-graphite border border-slate flex items-center justify-center cursor-pointer text-dim hover:text-mist transition-colors"
+                        onClick={() =>
+                            navigate(
+                                buildActionUrl('app_profile', {
+                                    params: { from: '/', lang: activeLanguage.code, panel: 'rewards' },
+                                }),
+                            )
+                        }
+                    >
                         <Gift size={16} />
                     </button>
-                    <button className="relative w-9 h-9 rounded-xl bg-graphite border border-slate flex items-center justify-center cursor-pointer text-dim hover:text-mist transition-colors">
+                    <button
+                        className="relative w-9 h-9 rounded-xl bg-graphite border border-slate flex items-center justify-center cursor-pointer text-dim hover:text-mist transition-colors"
+                        onClick={() =>
+                            navigate(
+                                buildActionUrl('app_notifications', {
+                                    params: { from: '/', lang: activeLanguage.code },
+                                }),
+                            )
+                        }
+                    >
                         <Bell size={16} />
                     </button>
                 </div>
