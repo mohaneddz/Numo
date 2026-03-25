@@ -7,6 +7,7 @@ import { GuideCard } from '../components/home/GuideCard';
 import { DueReviewCard } from '../components/home/DueReviewCard';
 import { FocusAreasCard } from '../components/home/FocusAreasCard';
 import { RecentlySavedCard } from '../components/home/RecentlySavedCard';
+import { RuntimeStatusCard } from '../components/home/RuntimeStatusCard';
 import { PageContent, PageActions, PageMainColumn, PageMainSidebarLayout, PageSidebar } from '../components/layout/PageLayout';
 import { Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +48,7 @@ export default function HomePage() {
                 {/* ============ RIGHT COLUMN ============ */}
                 <PageSidebar className="gap-4">
                     <GuideCard />
+                    <RuntimeStatusCard />
                     <DueReviewCard />
                     <FocusAreasCard />
                     <RecentlySavedCard />

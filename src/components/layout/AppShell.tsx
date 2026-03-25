@@ -13,6 +13,7 @@ import {
 } from '../../config/preferences';
 import { buildActionUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useRuntime } from '../../contexts/RuntimeContext';
 
 const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     '/': { title: 'Home', subtitle: 'Track your daily momentum and jump into the next best action.' },
@@ -34,6 +35,7 @@ export default function AppShell() {
     const location = useLocation();
     const navigate = useNavigate();
     const { activeLanguage } = useLanguage();
+    const { setForegroundSurface } = useRuntime();
     const basePath = '/' + (location.pathname.split('/')[1] || '');
     const meta = pageMeta[basePath] || { title: '' };
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,6 +64,10 @@ export default function AppShell() {
         ],
         [],
     );
+
+    useEffect(() => {
+        setForegroundSurface(location.pathname);
+    }, [location.pathname, setForegroundSurface]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
