@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { learner as initialLearner } from '../data/learner';
 
 export interface Progress {
@@ -26,216 +26,385 @@ export interface Language {
   continueLearning: ContinueLearning;
 }
 
+export interface LanguageCatalogEntry {
+  code: string;
+  name: string;
+  flag: string;
+  starterModule: string;
+  starterLesson: string;
+  starterDescription: string;
+}
+
 interface LanguageContextType {
   activeLanguage: Language;
   languages: Language[];
+  availableLanguages: LanguageCatalogEntry[];
   setActiveLanguage: (code: string) => void;
+  addLanguage: (code: string) => boolean;
+  removeLanguage: (code: string) => void;
+  moveLanguage: (code: string, direction: 'up' | 'down') => void;
   updateProgress: (minutes: number, xp: number) => void;
+  updateContinueLearning: (data: Partial<ContinueLearning>) => void;
 }
 
-const defaultLanguages: Language[] = [
+export const languageCatalog: LanguageCatalogEntry[] = [
   {
     code: 'es',
     name: 'Spanish',
     flag: '🇪🇸',
-    progress: {
-      dailyGoalMinutes: initialLearner.dailyGoalMinutes,
-      currentStreak: initialLearner.currentStreak,
-      longestStreak: initialLearner.longestStreak,
-      todayMinutes: initialLearner.todayMinutes,
-      totalXP: initialLearner.totalXP,
-    },
-    continueLearning: {
-      moduleName: 'Traveler Dialogues — Module 3',
-      lessonTitle: 'Ordering food & casual dining',
-      description: 'Ordering food & casual dining',
-      currentLesson: 8,
-      totalLessons: 12,
-      progress: 67,
-    },
+    starterModule: 'Traveler Dialogues — Module 3',
+    starterLesson: 'Ordering food & casual dining',
+    starterDescription: 'Ordering food & casual dining',
+  },
+  {
+    code: 'en',
+    name: 'English',
+    flag: '🇬🇧',
+    starterModule: 'English Foundations',
+    starterLesson: 'Daily Conversation Basics',
+    starterDescription: 'Build practical fluency with high-frequency conversation patterns.',
   },
   {
     code: 'fr',
     name: 'French',
     flag: '🇫🇷',
-    progress: {
-      dailyGoalMinutes: 30,
-      currentStreak: 0,
-      longestStreak: 5,
-      todayMinutes: 0,
-      totalXP: 1200,
-    },
-    continueLearning: {
-      moduleName: 'Basic French — Module 1',
-      lessonTitle: 'Greetings and Introductions',
-      description: 'Learn how to say hello and introduce yourself.',
-      currentLesson: 2,
-      totalLessons: 10,
-      progress: 20,
-    },
+    starterModule: 'Basic French — Module 1',
+    starterLesson: 'Greetings and Introductions',
+    starterDescription: 'Learn how to say hello and introduce yourself.',
   },
   {
     code: 'de',
     name: 'German',
     flag: '🇩🇪',
-    progress: {
-      dailyGoalMinutes: 30,
-      currentStreak: 0,
-      longestStreak: 3,
-      todayMinutes: 0,
-      totalXP: 800,
-    },
-    continueLearning: {
-      moduleName: 'German for Beginners',
-      lessonTitle: 'Common Phrases',
-      description: 'Master everyday German expressions.',
-      currentLesson: 1,
-      totalLessons: 15,
-      progress: 6,
-    },
+    starterModule: 'German for Beginners',
+    starterLesson: 'Common Phrases',
+    starterDescription: 'Master everyday German expressions.',
+  },
+  {
+    code: 'zh',
+    name: 'Chinese',
+    flag: '🇨🇳',
+    starterModule: 'Mandarin Basics',
+    starterLesson: 'Core Tones and Greetings',
+    starterDescription: 'Start with practical Mandarin sounds and expressions.',
   },
   {
     code: 'ja',
     name: 'Japanese',
     flag: '🇯🇵',
-    progress: {
-      dailyGoalMinutes: 45,
-      currentStreak: 12,
-      longestStreak: 12,
-      todayMinutes: 15,
-      totalXP: 2450,
-    },
-    continueLearning: {
-      moduleName: 'Hiragana Mastery',
-      lessonTitle: 'Writing Basics',
-      description: 'Master the first set of the Japanese alphabet.',
-      currentLesson: 4,
-      totalLessons: 8,
-      progress: 50,
-    },
+    starterModule: 'Hiragana Mastery',
+    starterLesson: 'Writing Basics',
+    starterDescription: 'Master the first set of the Japanese alphabet.',
   },
   {
     code: 'it',
     name: 'Italian',
     flag: '🇮🇹',
-    progress: {
-      dailyGoalMinutes: 20,
-      currentStreak: 2,
-      longestStreak: 2,
-      todayMinutes: 0,
-      totalXP: 300,
-    },
-    continueLearning: {
-      moduleName: 'Cafe Italian',
-      lessonTitle: 'Coffee Culture',
-      description: 'Order your first espresso like a local.',
-      currentLesson: 1,
-      totalLessons: 5,
-      progress: 20,
-    },
+    starterModule: 'Cafe Italian',
+    starterLesson: 'Coffee Culture',
+    starterDescription: 'Order your first espresso like a local.',
   },
   {
     code: 'pt',
     name: 'Portuguese',
     flag: '🇧🇷',
-    progress: {
-      dailyGoalMinutes: 30,
-      currentStreak: 0,
-      longestStreak: 0,
-      todayMinutes: 0,
-      totalXP: 0,
-    },
-    continueLearning: {
-      moduleName: 'Brazilian Portuguese 101',
-      lessonTitle: 'Nasal Vowels',
-      description: 'Get the sounds right from the start.',
-      currentLesson: 1,
-      totalLessons: 10,
-      progress: 10,
-    },
+    starterModule: 'Brazilian Portuguese 101',
+    starterLesson: 'Nasal Vowels',
+    starterDescription: 'Get the sounds right from the start.',
   },
   {
     code: 'ru',
     name: 'Russian',
     flag: '🇷🇺',
-    progress: {
-      dailyGoalMinutes: 40,
-      currentStreak: 5,
-      longestStreak: 10,
-      todayMinutes: 10,
-      totalXP: 1500,
-    },
-    continueLearning: {
-      moduleName: 'Cyrillic Script',
-      lessonTitle: 'The Alphabet',
-      description: 'Read and write in Russian.',
-      currentLesson: 3,
-      totalLessons: 12,
-      progress: 25,
-    },
+    starterModule: 'Cyrillic Script',
+    starterLesson: 'The Alphabet',
+    starterDescription: 'Read and write in Russian.',
+  },
+  {
+    code: 'ko',
+    name: 'Korean',
+    flag: '🇰🇷',
+    starterModule: 'Hangul Core',
+    starterLesson: 'Consonants and Vowels',
+    starterDescription: 'Learn to read and sound out Hangul quickly.',
+  },
+  {
+    code: 'ar',
+    name: 'Arabic',
+    flag: '🇸🇦',
+    starterModule: 'Modern Standard Arabic',
+    starterLesson: 'Script and Short Vowels',
+    starterDescription: 'Start decoding Arabic script and frequent roots.',
+  },
+  {
+    code: 'tr',
+    name: 'Turkish',
+    flag: '🇹🇷',
+    starterModule: 'Turkish Kickstart',
+    starterLesson: 'Vowel Harmony Basics',
+    starterDescription: 'Learn useful sentence blocks with clean pronunciation.',
+  },
+  {
+    code: 'nl',
+    name: 'Dutch',
+    flag: '🇳🇱',
+    starterModule: 'Dutch Everyday',
+    starterLesson: 'Introductions and Essentials',
+    starterDescription: 'Master practical Dutch for daily situations.',
+  },
+  {
+    code: 'sv',
+    name: 'Swedish',
+    flag: '🇸🇪',
+    starterModule: 'Swedish Survival',
+    starterLesson: 'Rhythm and Word Stress',
+    starterDescription: 'Develop pronunciation and core travel phrases.',
+  },
+  {
+    code: 'pl',
+    name: 'Polish',
+    flag: '🇵🇱',
+    starterModule: 'Polish Core Patterns',
+    starterLesson: 'Consonant Clusters',
+    starterDescription: 'Tackle tricky sounds and high-value expressions.',
+  },
+  {
+    code: 'hi',
+    name: 'Hindi',
+    flag: '🇮🇳',
+    starterModule: 'Hindi Basics',
+    starterLesson: 'Devanagari Starter Set',
+    starterDescription: 'Read simple words and build daily vocabulary.',
+  },
+  {
+    code: 'vi',
+    name: 'Vietnamese',
+    flag: '🇻🇳',
+    starterModule: 'Vietnamese Essentials',
+    starterLesson: 'Tone Patterns',
+    starterDescription: 'Learn clean tones and practical conversation starters.',
+  },
+  {
+    code: 'id',
+    name: 'Indonesian',
+    flag: '🇮🇩',
+    starterModule: 'Indonesian Core',
+    starterLesson: 'Everyday Expressions',
+    starterDescription: 'Build confidence with straightforward grammar and vocabulary.',
   },
 ];
+
+const starterLanguageCodes = ['es', 'fr', 'de', 'zh', 'ja'];
+
+const languageCatalogMap = new Map(languageCatalog.map((entry) => [entry.code, entry]));
+
+const defaultProgress: Progress = {
+  dailyGoalMinutes: 30,
+  currentStreak: 0,
+  longestStreak: 0,
+  todayMinutes: 0,
+  totalXP: 0,
+};
+
+function createLanguageFromCatalog(entry: LanguageCatalogEntry): Language {
+  return {
+    code: entry.code,
+    name: entry.name,
+    flag: entry.flag,
+    progress: {
+      ...defaultProgress,
+      dailyGoalMinutes: entry.code === 'es' ? initialLearner.dailyGoalMinutes : 30,
+      currentStreak: entry.code === 'es' ? initialLearner.currentStreak : 0,
+      longestStreak: entry.code === 'es' ? initialLearner.longestStreak : 0,
+      todayMinutes: entry.code === 'es' ? initialLearner.todayMinutes : 0,
+      totalXP: entry.code === 'es' ? initialLearner.totalXP : 0,
+    },
+    continueLearning: {
+      moduleName: entry.starterModule,
+      lessonTitle: entry.starterLesson,
+      description: entry.starterDescription,
+      currentLesson: 1,
+      totalLessons: 10,
+      progress: 10,
+    },
+  };
+}
+
+function getStarterLanguages(): Language[] {
+  return starterLanguageCodes
+    .map((code) => languageCatalogMap.get(code))
+    .filter((entry): entry is LanguageCatalogEntry => Boolean(entry))
+    .map((entry) => createLanguageFromCatalog(entry));
+}
+
+function mergeSavedLanguage(savedLanguage: Language): Language | null {
+  const catalogEntry = languageCatalogMap.get(savedLanguage.code);
+  if (!catalogEntry) {
+    return null;
+  }
+
+  const fallback = createLanguageFromCatalog(catalogEntry);
+
+  return {
+    ...fallback,
+    ...savedLanguage,
+    code: catalogEntry.code,
+    name: catalogEntry.name,
+    flag: catalogEntry.flag,
+    progress: {
+      ...fallback.progress,
+      ...(savedLanguage.progress || {}),
+    },
+    continueLearning: {
+      ...fallback.continueLearning,
+      ...(savedLanguage.continueLearning || {}),
+    },
+  };
+}
+
+function getInitialLanguages(): Language[] {
+  const saved = localStorage.getItem('numo_languages');
+  if (!saved) {
+    return getStarterLanguages();
+  }
+
+  try {
+    const parsed = JSON.parse(saved) as Language[];
+    const merged = parsed
+      .map((savedLanguage) => mergeSavedLanguage(savedLanguage))
+      .filter((language): language is Language => Boolean(language));
+
+    if (merged.length === 0) {
+      return getStarterLanguages();
+    }
+
+    return merged;
+  } catch (error) {
+    console.error('Failed to parse languages from localStorage', error);
+    return getStarterLanguages();
+  }
+}
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [languages, setLanguages] = useState<Language[]>(() => {
-    const saved = localStorage.getItem('numo_languages');
-    if (!saved) return defaultLanguages;
-
-    try {
-      const parsed = JSON.parse(saved) as Language[];
-      // CRITICAL: Map over defaultLanguages to ensure all base languages are kept.
-      // Then merge any saved progress/state from localStorage.
-      return defaultLanguages.map(defaultLang => {
-        const savedLang = parsed.find(l => l.code === defaultLang.code);
-        if (!savedLang) return defaultLang;
-        
-        return {
-          ...defaultLang,
-          ...savedLang,
-          progress: {
-            ...defaultLang.progress,
-            ...(savedLang.progress || {})
-          },
-          continueLearning: savedLang.continueLearning || defaultLang.continueLearning
-        };
-      });
-    } catch (e) {
-      console.error('Failed to parse languages from localStorage', e);
-      return defaultLanguages;
-    }
-  });
+  const [languages, setLanguages] = useState<Language[]>(() => getInitialLanguages());
 
   const [activeLanguageCode, setActiveLanguageCode] = useState(() => {
-    return localStorage.getItem('numo_active_language') || 'es';
+    const savedCode = localStorage.getItem('numo_active_language');
+    if (!savedCode) {
+      return starterLanguageCodes[0];
+    }
+
+    return languageCatalogMap.has(savedCode) ? savedCode : starterLanguageCodes[0];
   });
+
+  useEffect(() => {
+    if (languages.length === 0) {
+      const starters = getStarterLanguages();
+      setLanguages(starters);
+      setActiveLanguageCode(starters[0]?.code || 'es');
+      return;
+    }
+
+    const activeExists = languages.some((language) => language.code === activeLanguageCode);
+    if (!activeExists) {
+      setActiveLanguageCode(languages[0].code);
+    }
+  }, [languages, activeLanguageCode]);
 
   useEffect(() => {
     localStorage.setItem('numo_languages', JSON.stringify(languages));
     localStorage.setItem('numo_active_language', activeLanguageCode);
   }, [languages, activeLanguageCode]);
 
-  const activeLanguage = languages.find((l) => l.code === activeLanguageCode) || languages[0];
+  const activeLanguage = languages.find((language) => language.code === activeLanguageCode) || languages[0];
+
+  const availableLanguages = useMemo(
+    () => languageCatalog.filter((entry) => !languages.some((language) => language.code === entry.code)),
+    [languages],
+  );
 
   const setActiveLanguage = (code: string) => {
+    if (!languages.some((language) => language.code === code)) {
+      return;
+    }
     setActiveLanguageCode(code);
+  };
+
+  const addLanguage = (code: string) => {
+    if (languages.some((language) => language.code === code)) {
+      return false;
+    }
+
+    const entry = languageCatalogMap.get(code);
+    if (!entry) {
+      return false;
+    }
+
+    setLanguages((prev) => [...prev, createLanguageFromCatalog(entry)]);
+    setActiveLanguageCode(code);
+    return true;
+  };
+
+  const removeLanguage = (code: string) => {
+    setLanguages((prev) => {
+      if (prev.length <= 1) {
+        return prev;
+      }
+      return prev.filter((language) => language.code !== code);
+    });
+  };
+
+  const moveLanguage = (code: string, direction: 'up' | 'down') => {
+    setLanguages((prev) => {
+      const index = prev.findIndex((language) => language.code === code);
+      if (index === -1) {
+        return prev;
+      }
+
+      const nextIndex = direction === 'up' ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= prev.length) {
+        return prev;
+      }
+
+      const reordered = [...prev];
+      const [item] = reordered.splice(index, 1);
+      reordered.splice(nextIndex, 0, item);
+      return reordered;
+    });
   };
 
   const updateProgress = (minutes: number, xp: number) => {
     setLanguages((prev) =>
-      prev.map((l) =>
-        l.code === activeLanguageCode
+      prev.map((language) =>
+        language.code === activeLanguageCode
           ? {
-            ...l,
-            progress: {
-              ...l.progress,
-              todayMinutes: l.progress.todayMinutes + minutes,
-              totalXP: l.progress.totalXP + xp,
-            },
-          }
-          : l
-      )
+              ...language,
+              progress: {
+                ...language.progress,
+                todayMinutes: language.progress.todayMinutes + minutes,
+                totalXP: language.progress.totalXP + xp,
+              },
+            }
+          : language,
+      ),
+    );
+  };
+
+  const updateContinueLearning = (data: Partial<ContinueLearning>) => {
+    setLanguages((prev) =>
+      prev.map((language) =>
+        language.code === activeLanguageCode
+          ? {
+              ...language,
+              continueLearning: {
+                ...language.continueLearning,
+                ...data,
+              },
+            }
+          : language,
+      ),
     );
   };
 
@@ -244,8 +413,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         activeLanguage,
         languages,
+        availableLanguages,
         setActiveLanguage,
+        addLanguage,
+        removeLanguage,
+        moveLanguage,
         updateProgress,
+        updateContinueLearning,
       }}
     >
       {children}

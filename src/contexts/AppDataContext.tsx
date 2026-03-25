@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import {
-  dueReviewItems,
   recentlySaved as seededRecentlySaved,
 } from '../data/learner';
 import { immersionContent } from '../data/immersion';
@@ -38,7 +37,9 @@ interface AppDataContextValue {
   state: AppDataState;
   dueCount: number;
   weakCount: number;
+  flashCardCount: number;
   recentlySaved: NotebookEntry[];
+  dueReviewPreview: ReviewItem[];
   startReviewSession: (mode: ReviewMode) => ReviewSessionSummary;
   gradeReviewItem: (id: string, result: 'correct' | 'incorrect') => void;
   saveSpeakingResult: (sessionId: string, run: Omit<SpeakingSessionRun, 'id' | 'sessionId' | 'recordedAt'>) => SpeakingSessionRun;
@@ -75,21 +76,99 @@ function shiftStrength(strength: ReviewItem['strength'], direction: 'up' | 'down
   return order[next];
 }
 
-function seedState(): AppDataState {
-  const reviewItems: ReviewItem[] = dueReviewItems.map((item) => ({
-    ...item,
-    nextDueAt: `${item.dueDate}T08:00:00.000Z`,
-    intervalDays: 1,
-    ease: 2.5,
-    lastResult: item.strength === 'very solid' || item.strength === 'solid' ? 'correct' : 'incorrect',
-  }));
+function isFlashCardCandidate(entry: NotebookEntry): boolean {
+  return entry.type === 'word' || entry.type === 'phrase';
+}
 
-  const notebookEntries: NotebookEntry[] = [...vocabularyItems, ...grammarNotes, ...mistakeEntries].map((item) => ({
+function toIsoStartOfDay(dateOnlyValue: string): string {
+  return `${dateOnlyValue}T08:00:00.000Z`;
+}
+
+function fallbackReviewItemFromEntry(entry: NotebookEntry): ReviewItem {
+  const now = todayIso();
+  const dueAt = toIsoStartOfDay(dateOnly(now));
+  return {
+    id: `rev-${entry.id}`,
+    sourceNotebookId: entry.id,
+    origin: 'notebook',
+    term: entry.term,
+    translation: entry.translation,
+    type: entry.type === 'word' ? 'word' : 'phrase',
+    attempts: 0,
+    strength: 'needs work',
+    dueDate: dateOnly(now),
+    nextDueAt: dueAt,
+    intervalDays: 1,
+    ease: 2.3,
+    lastResult: 'incorrect',
+  };
+}
+
+function reconcileReviewItems(
+  existingItems: ReviewItem[],
+  notebookEntries: NotebookEntry[],
+): ReviewItem[] {
+  const existingBySource = new Map<string, ReviewItem>();
+  existingItems.forEach((item) => {
+    if (item.sourceNotebookId) {
+      existingBySource.set(item.sourceNotebookId, item);
+    }
+  });
+
+  return notebookEntries
+    .filter(isFlashCardCandidate)
+    .map((entry) => {
+      const directMatch = existingBySource.get(entry.id);
+      const legacyMatch = existingItems.find((item) => item.id === `rev-${entry.id}`);
+      const item = directMatch ?? legacyMatch ?? fallbackReviewItemFromEntry(entry);
+      const nextDueAt = item.nextDueAt ?? toIsoStartOfDay(item.dueDate ?? entry.createdAt);
+      const dueDate = item.dueDate ?? dateOnly(nextDueAt);
+
+      return {
+        ...item,
+        id: item.id || `rev-${entry.id}`,
+        sourceNotebookId: entry.id,
+        origin: 'notebook',
+        term: entry.term,
+        translation: entry.translation,
+        type: entry.type === 'word' ? 'word' : 'phrase',
+        dueDate,
+        nextDueAt,
+        intervalDays: item.intervalDays ?? 1,
+        ease: item.ease ?? 2.3,
+        attempts: item.attempts ?? 0,
+      };
+    });
+}
+
+function seedState(): AppDataState {
+  const baseNotebookEntries: NotebookEntry[] = [...vocabularyItems, ...grammarNotes, ...mistakeEntries].map((item) => ({
     ...item,
     source: 'manual',
     favorited: seededRecentlySaved.some((saved) => saved.term === item.term),
     updatedAt: item.createdAt,
   }));
+
+  const extraNotebookEntries: NotebookEntry[] = Array.from({ length: 96 }, (_, idx) => {
+    const seed = baseNotebookEntries[idx % baseNotebookEntries.length];
+    const day = String((idx % 24) + 1).padStart(2, '0');
+    return {
+      ...seed,
+      id: `${seed.id}-seed-${idx + 1}`,
+      term: `${seed.term} ${idx + 1}`,
+      translation: `${seed.translation} • pack ${Math.floor(idx / 6) + 1}`,
+      context: seed.context ? `${seed.context} (generated ${idx + 1})` : `Generated practice example ${idx + 1}`,
+      createdAt: `2026-03-${day}`,
+      updatedAt: `2026-03-${day}`,
+      mastery: Math.max(0, Math.min(100, (seed.mastery ?? 50) + ((idx % 6) * 8 - 16))),
+      favorited: idx % 5 === 0 || seed.favorited,
+      tags: [...seed.tags, idx % 2 === 0 ? 'generated' : 'dummy'],
+      source: 'manual',
+    };
+  });
+
+  const notebookEntries: NotebookEntry[] = [...extraNotebookEntries, ...baseNotebookEntries];
+  const reviewItems = reconcileReviewItems([], notebookEntries);
 
   const immersionProgress: Record<string, ImmersionProgress> = {};
   immersionContent.forEach((content) => {
@@ -107,7 +186,22 @@ function seedState(): AppDataState {
     reviewItems,
     speakingRuns: [],
     immersionProgress,
-    writingDrafts: seededDrafts,
+    writingDrafts: [
+      ...Array.from({ length: 40 }, (_, idx) => {
+        const seed = seededDrafts[idx % seededDrafts.length];
+        const day = String((idx % 24) + 1).padStart(2, '0');
+        return {
+          ...seed,
+          id: `${seed.id}-seed-${idx + 1}`,
+          title: `${seed.title} ${idx + 1}`,
+          content: `${seed.content} (generated draft ${idx + 1})`,
+          createdAt: `2026-03-${day}`,
+          updatedAt: `2026-03-${day}`,
+          wordCount: seed.wordCount + (idx % 6) * 10,
+        };
+      }),
+      ...seededDrafts,
+    ],
     notebookEntries,
   };
 }
@@ -123,13 +217,17 @@ function safeLoadState(): AppDataState {
       return seeded;
     }
 
+    const notebookEntries = parsed.notebookEntries ?? seeded.notebookEntries;
+    const existingReviewItems = parsed.reviewItems ?? seeded.reviewItems;
+    const reviewItems = reconcileReviewItems(existingReviewItems, notebookEntries);
+
     return {
       schemaVersion: SCHEMA_VERSION,
-      reviewItems: parsed.reviewItems ?? seeded.reviewItems,
+      reviewItems,
       speakingRuns: parsed.speakingRuns ?? seeded.speakingRuns,
       immersionProgress: parsed.immersionProgress ?? seeded.immersionProgress,
       writingDrafts: parsed.writingDrafts ?? seeded.writingDrafts,
-      notebookEntries: parsed.notebookEntries ?? seeded.notebookEntries,
+      notebookEntries,
     };
   } catch {
     return seeded;
@@ -232,7 +330,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: dateOnly(now),
     };
 
-    persist({ ...state, notebookEntries: [newEntry, ...state.notebookEntries] });
+    const notebookEntries = [newEntry, ...state.notebookEntries];
+    const reviewItems = reconcileReviewItems(state.reviewItems, notebookEntries);
+    persist({ ...state, notebookEntries, reviewItems });
     return newEntry;
   };
 
@@ -257,29 +357,33 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const hasEntry = state.notebookEntries.some((entry) => entry.term.toLowerCase() === phrase.toLowerCase());
 
-    const nextState: AppDataState = {
-      ...state,
-      immersionProgress: {
-        ...state.immersionProgress,
-        [contentId]: nextProgress,
-      },
-      notebookEntries: hasEntry
+    const nextNotebookEntries = hasEntry
         ? state.notebookEntries
         : [
             {
               id: `note-${Date.now()}`,
               term: phrase,
               translation: translation ?? 'Saved from immersion',
-              type: 'phrase',
+              type: 'phrase' as const,
               tags: ['immersion'],
               createdAt: dateOnly(todayIso()),
               updatedAt: dateOnly(todayIso()),
               mastery: 0,
-              source: 'immerse',
+              source: 'immerse' as const,
               favorited: false,
             },
             ...state.notebookEntries,
-          ],
+          ];
+    const reviewItems = reconcileReviewItems(state.reviewItems, nextNotebookEntries);
+
+    const nextState: AppDataState = {
+      ...state,
+      reviewItems,
+      immersionProgress: {
+        ...state.immersionProgress,
+        [contentId]: nextProgress,
+      },
+      notebookEntries: nextNotebookEntries,
     };
 
     persist(nextState);
@@ -393,6 +497,8 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const value = useMemo<AppDataContextValue>(() => {
     const dueCount = queueForMode(state.reviewItems, 'due-now').length;
     const weakCount = queueForMode(state.reviewItems, 'weak').length;
+    const flashCardCount = state.reviewItems.length;
+    const dueReviewPreview = queueForMode(state.reviewItems, 'due-now').slice(0, 3);
     const recentlySaved = [...state.notebookEntries]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 8);
@@ -401,7 +507,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       state,
       dueCount,
       weakCount,
+      flashCardCount,
       recentlySaved,
+      dueReviewPreview,
       startReviewSession,
       gradeReviewItem,
       saveSpeakingResult,

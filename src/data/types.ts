@@ -34,6 +34,8 @@ export interface ContinueLearning {
 
 export interface ReviewItem {
   id: string;
+  sourceNotebookId?: string;
+  origin?: 'notebook' | 'legacy';
   term: string;
   translation: string;
   type: 'word' | 'phrase' | 'grammar';
