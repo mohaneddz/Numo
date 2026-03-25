@@ -1,39 +1,88 @@
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Volume2, Star } from 'lucide-react';
-import { vocabularyItems, grammarNotes, mistakeEntries } from '../../data/vocabulary';
+import { ArrowLeft, Volume2, Star, Sparkles } from 'lucide-react';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { useAppData } from '../../contexts/AppDataContext';
+import { useNavigate } from 'react-router-dom';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function NotebookDetail() {
+  const navigate = useNavigate();
+  const { activeLanguage } = useLanguage();
   const { itemId } = useParams();
-  const allItems = [...vocabularyItems, ...grammarNotes, ...mistakeEntries];
-  const item = allItems.find(i => i.id === itemId);
+  const { state, toggleFavorite } = useAppData();
+  const item = state.notebookEntries.find((i) => i.id === itemId);
 
   if (!item) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: 'var(--color-dim)' }}>Item not found.</p>
-        <Link to="/notebook" style={{ color: '#8B5CF6' }}>← Back to Notebook</Link>
-      </div>
+      <PageContent width="narrow">
+        <PageActions>
+          <div className="flex gap-2">
+            <Link to="/notebook" className="no-underline">
+              <button className="page-primary-action">
+                <ArrowLeft size={16} /> Back to Notebook
+              </button>
+            </Link>
+            <button
+              className="page-primary-action"
+              onClick={() =>
+                navigate(
+                  buildTemplateUrl({
+                    templateId: 'notebook-item-fallback',
+                    entityId: itemId,
+                    params: { from: '/notebook', lang: activeLanguage.code },
+                  }),
+                )
+              }
+            >
+              Open Template
+            </button>
+          </div>
+        </PageActions>
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <p style={{ color: 'var(--color-dim)' }}>Item not found.</p>
+        </div>
+      </PageContent>
     );
   }
 
   const typeColors: Record<string, string> = {
-    word: '#8B5CF6', phrase: '#22D3EE', grammar: '#34D399', mistake: '#F87171',
+    word: '#8B5CF6',
+    phrase: '#22D3EE',
+    grammar: '#34D399',
+    mistake: '#F87171',
   };
   const color = typeColors[item.type] || '#8B5CF6';
+  const canReviewInFlashCards = item.type === 'word' || item.type === 'phrase';
 
   return (
-    <div style={{ maxWidth: 700 }}>
-      <Link to="/notebook" style={{ color: 'var(--color-dim)', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-        <ArrowLeft size={14} /> Back to Notebook
-      </Link>
+    <PageContent width="narrow" className="pb-12">
+      <PageActions>
+        <div className="flex gap-2">
+          <Link to="/notebook" className="no-underline">
+            <button className="page-primary-action">
+              <ArrowLeft size={16} /> Back to Notebook
+            </button>
+          </Link>
+          {canReviewInFlashCards && (
+            <Link to="/review/session?mode=due-now" className="no-underline">
+              <button className="page-primary-action">
+                <Sparkles size={16} /> Review in Flash Cards
+              </button>
+            </Link>
+          )}
+        </div>
+      </PageActions>
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="card" style={{ padding: 28, marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <span className="pill" style={{ background: `${color}15`, color }}>{item.type}</span>
-            {item.tags.map(t => (
-              <span key={t} className="pill" style={{ background: 'var(--color-slate)', color: 'var(--color-dim)' }}>{t}</span>
+            {item.tags.map((t) => (
+              <span key={t} className="pill" style={{ background: 'var(--color-slate)', color: 'var(--color-dim)' }}>
+                {t}
+              </span>
             ))}
           </div>
 
@@ -41,20 +90,68 @@ export default function NotebookDetail() {
           <p style={{ fontSize: 18, color: '#22D3EE', fontWeight: 500, marginBottom: 16 }}>{item.translation}</p>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-            <button style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 8, background: 'var(--color-slate)',
-              color: 'var(--color-dim)', border: 'none', fontSize: 12, cursor: 'pointer',
-            }}>
+            <button
+              onClick={() =>
+                navigate(
+                  buildTemplateUrl({
+                    templateId: 'notebook-listen',
+                    entityId: item.id,
+                    params: { from: `/notebook/${item.id}`, lang: activeLanguage.code },
+                  }),
+                )
+              }
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
+                background: 'var(--color-slate)',
+                color: 'var(--color-dim)',
+                border: 'none',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
               <Volume2 size={13} /> Listen
             </button>
-            <button style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 8, background: 'var(--color-slate)',
-              color: 'var(--color-dim)', border: 'none', fontSize: 12, cursor: 'pointer',
-            }}>
-              <Star size={13} /> Favorite
+            <button
+              onClick={() => toggleFavorite(item.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
+                background: 'var(--color-slate)',
+                color: 'var(--color-dim)',
+                border: 'none',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <Star size={13} /> {item.favorited ? 'Unfavorite' : 'Favorite'}
             </button>
+            {canReviewInFlashCards && (
+              <Link to="/review/session?mode=due-now" className="no-underline">
+                <button
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    background: 'rgba(139, 92, 246, 0.12)',
+                    color: '#C4B5FD',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Sparkles size={13} /> Review in Flash Cards
+                </button>
+              </Link>
+            )}
           </div>
 
           {item.type !== 'mistake' && (
@@ -86,6 +183,6 @@ export default function NotebookDetail() {
           <p style={{ fontSize: 12, color: 'var(--color-dim-dark)', marginTop: 16 }}>Added on {item.createdAt}</p>
         </div>
       </motion.div>
-    </div>
+    </PageContent>
   );
 }

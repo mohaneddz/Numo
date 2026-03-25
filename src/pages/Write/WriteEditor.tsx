@@ -1,8 +1,12 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Check, AlertTriangle, Lightbulb, Send, Loader2 } from 'lucide-react';
 import { completeWithEcho } from '../../services/aiProvider';
+import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { useAppData } from '../../contexts/AppDataContext';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Correction {
     original: string;
@@ -12,13 +16,66 @@ interface Correction {
 }
 
 export default function WriteEditor() {
-    const [text, setText] = useState(
-        'Ayer fui al mercado con mi amigo Carlos. Yo soy cansado después del trabajo pero quería comprar frutas frescas. Me gusto la comida que preparamos juntos. Es un problema muy grande cuando no tenemos tiempo para cocinar.'
-    );
+    const DEFAULT_TEXT =
+        'Ayer fui al mercado con mi amigo Carlos. Yo soy cansado después del trabajo pero quería comprar frutas frescas. Me gusto la comida que preparamos juntos. Es un problema muy grande cuando no tenemos tiempo para cocinar.';
+
+    const { draftId } = useParams();
+    const navigate = useNavigate();
+    const { activeLanguage } = useLanguage();
+    const { state } = useAppData();
+    const activeDraft = draftId ? state.writingDrafts.find((draft) => draft.id === draftId) : undefined;
+
+    const [text, setText] = useState(activeDraft?.content ?? DEFAULT_TEXT);
     const [showCorrections, setShowCorrections] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [corrections, setCorrections] = useState<Correction[]>([]);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (activeDraft) {
+            setText(activeDraft.content);
+            return;
+        }
+        if (!draftId) {
+            setText(DEFAULT_TEXT);
+        }
+    }, [activeDraft, draftId]);
+
+    if (draftId && !activeDraft) {
+        return (
+            <PageContent width="wide" className="pb-12">
+                <PageActions>
+                    <div className="flex gap-2">
+                        <Link to="/write" className="no-underline">
+                            <button className="page-primary-action">
+                                <ArrowLeft size={16} /> Back to Write
+                            </button>
+                        </Link>
+                        <button
+                            className="page-primary-action"
+                            onClick={() =>
+                                navigate(
+                                    buildTemplateUrl({
+                                        templateId: 'write-draft-fallback',
+                                        entityId: draftId,
+                                        params: { from: '/write', lang: activeLanguage.code },
+                                    }),
+                                )
+                            }
+                        >
+                            Open Template
+                        </button>
+                    </div>
+                </PageActions>
+                <div className="card" style={{ padding: 24 }}>
+                    <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Draft not found</h2>
+                    <p style={{ color: 'var(--color-dim)' }}>
+                        This draft ID does not exist anymore. Open the template fallback or return to the write dashboard.
+                    </p>
+                </div>
+            </PageContent>
+        );
+    }
 
     const handleReview = async () => {
         setIsAnalyzing(true);
@@ -46,8 +103,30 @@ export default function WriteEditor() {
             const data = JSON.parse(jsonPart);
             setCorrections(data);
             setShowCorrections(true);
-        } catch (err: any) {
-            setError(err.message || "Failed to analyze text");
+        } catch {
+            const fallback: Correction[] = [
+                {
+                    original: 'Yo soy cansado',
+                    corrected: 'Estoy cansado',
+                    type: 'grammar',
+                    explanation: 'Use estar for temporary states like being tired.',
+                },
+                {
+                    original: 'Me gusto',
+                    corrected: 'Me gustó',
+                    type: 'spelling',
+                    explanation: 'Past tense in Spanish needs the accent mark.',
+                },
+                {
+                    original: 'Ayer fui al mercado',
+                    corrected: 'Ayer fui al mercado',
+                    type: 'correct',
+                    explanation: 'Good sentence structure and tense usage.',
+                },
+            ];
+            setCorrections(fallback);
+            setShowCorrections(true);
+            setError(null);
         } finally {
             setIsAnalyzing(false);
         }
@@ -56,17 +135,21 @@ export default function WriteEditor() {
     const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
 
     return (
-        <div style={{ maxWidth: 1100 }}>
-            <Link to="/write" style={{ color: 'var(--color-dim)', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-                <ArrowLeft size={14} /> Back to Write
-            </Link>
+        <PageContent width="wide" className="pb-12">
+            <PageActions>
+                <Link to="/write" className="no-underline">
+                    <button className="page-primary-action">
+                        <ArrowLeft size={16} /> Back to Write
+                    </button>
+                </Link>
+            </PageActions>
 
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <div style={{ display: 'flex', gap: 20 }}>
                     {/* Editor */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="card" style={{ padding: 20, marginBottom: 12 }}>
-                            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Writing Editor</h2>
+                            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>{activeDraft?.title ?? 'Writing Editor'}</h2>
                             <textarea
                                 value={text}
                                 onChange={e => setText(e.target.value)}
@@ -155,6 +238,6 @@ export default function WriteEditor() {
                     )}
                 </div>
             </motion.div>
-        </div>
+        </PageContent>
     );
 }

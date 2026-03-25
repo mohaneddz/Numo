@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, ChevronRight
+    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor
 } from 'lucide-react';
+import { PageActions, PageContent } from '../components/layout/PageLayout';
+import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
+import { DropdownSelect } from '../components/ui/DropdownSelect';
+import { saveToDummyDataFile } from '../utils/saveDisk';
 
 interface SettingItem {
     label: string;
@@ -108,23 +112,53 @@ const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val:
 );
 
 export default function SettingsPage() {
+    const SETTINGS_STORAGE_KEY = 'noema_settings_state_v1';
+    const SETTINGS_LOG_KEY = 'noema_settings_log_v1';
     const [activeTabId, setActiveTabId] = useState<string>('profile');
+    const [status, setStatus] = useState<string | null>(null);
     
     // In a real app we'd manage this state in a context or global store
     const [settingsState, setSettingsState] = useState<Record<string, Record<string, any>>>(() => {
+        const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (saved) {
+            try {
+                return JSON.parse(saved) as Record<string, Record<string, any>>;
+            } catch {
+                // ignore corrupted storage and use defaults
+            }
+        }
         const initialState: Record<string, Record<string, any>> = {};
         settingsSections.forEach(section => {
             initialState[section.id] = {};
             section.settings.forEach(setting => {
-                initialState[section.id][setting.label] = setting.value;
+                if (section.id === 'desktop' && setting.label === 'Keyboard Shortcuts') {
+                    initialState[section.id][setting.label] = readKeyboardShortcutsEnabled();
+                } else {
+                    initialState[section.id][setting.label] = setting.value;
+                }
             });
         });
         return initialState;
     });
+    const [actionLog, setActionLog] = useState<Array<{ section: string; label: string; value: string; at: string }>>(() => {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(SETTINGS_LOG_KEY) || '[]') as Array<{ section: string; label: string; value: string; at: string }>;
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    });
 
     const activeSection = settingsSections.find(s => s.id === activeTabId) || settingsSections[0];
 
+    useEffect(() => {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settingsState));
+    }, [settingsState]);
+
     const updateSetting = (sectionId: string, label: string, value: any) => {
+        if (sectionId === 'desktop' && label === 'Keyboard Shortcuts') {
+            writeKeyboardShortcutsEnabled(Boolean(value));
+        }
         setSettingsState(prev => ({
             ...prev,
             [sectionId]: {
@@ -132,9 +166,39 @@ export default function SettingsPage() {
                 [label]: value
             }
         }));
+        const entry = {
+            section: sectionId,
+            label,
+            value: String(value),
+            at: new Date().toISOString(),
+        };
+        setActionLog((prev) => {
+            const next = [entry, ...prev].slice(0, 30);
+            localStorage.setItem(SETTINGS_LOG_KEY, JSON.stringify(next));
+            return next;
+        });
+        setStatus(`Saved "${label}" in ${sectionId}.`);
     };
 
+    const handleExportSettings = () => {
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            settings: settingsState,
+            actionLog,
+        };
+        saveToDummyDataFile('noema-settings-export.json', JSON.stringify(payload, null, 2));
+        setStatus('Settings export generated.');
+    };
+
+    const latestLog = useMemo(() => actionLog[0], [actionLog]);
+
     return (
+        <PageContent width="wide" className="h-full pb-10">
+            <PageActions>
+                <button className="page-primary-action" onClick={handleExportSettings}>
+                    <Download size={16} /> Export Settings
+                </button>
+            </PageActions>
         <div className="flex h-full w-full bg-transparent overflow-hidden text-gray-200">
             {/* Sidebar */}
             <div className="w-72 lg:w-80 flex-shrink-0 border-r border-white/5 flex flex-col pt-2">
@@ -182,6 +246,16 @@ export default function SettingsPage() {
                                 <p className="text-base text-gray-400">
                                     Manage your {activeSection.title.toLowerCase()} preferences and related settings.
                                 </p>
+                                {status && (
+                                    <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-300">
+                                        {status}
+                                    </p>
+                                )}
+                                {latestLog && (
+                                    <p className="mt-2 text-[12px] text-dim">
+                                        Last action: <span className="text-mist">{latestLog.label}</span> = <span className="text-mist">{latestLog.value}</span>
+                                    </p>
+                                )}
                             </div>
 
                             <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-sm">
@@ -197,20 +271,12 @@ export default function SettingsPage() {
                                         
                                         <div className="flex-shrink-0">
                                             {setting.type === 'select' && (
-                                                <div className="relative">
-                                                    <select
-                                                        value={settingsState[activeSection.id][setting.label] as string}
-                                                        onChange={(e) => updateSetting(activeSection.id, setting.label, e.target.value)}
-                                                        className="appearance-none bg-black/20 border border-white/10 rounded-xl px-4 py-2 pr-10 text-base text-gray-200 focus:outline-none focus:ring-1 focus:ring-purple-500/50 cursor-pointer hover:bg-black/40 hover:border-white/20 transition-colors"
-                                                    >
-                                                        {setting.options?.map(opt => (
-                                                            <option key={opt} value={opt} className="bg-gray-800">{opt}</option>
-                                                        ))}
-                                                    </select>
-                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                                                        <ChevronRight size={16} className="rotate-90" />
-                                                    </div>
-                                                </div>
+                                                <DropdownSelect
+                                                    value={settingsState[activeSection.id][setting.label] as string}
+                                                    onChange={(next) => updateSetting(activeSection.id, setting.label, next)}
+                                                    options={(setting.options ?? []).map((opt) => ({ value: opt, label: opt }))}
+                                                    triggerClassName="rounded-xl h-[42px] px-4 text-base text-gray-200"
+                                                />
                                             )}
                                             {setting.type === 'toggle' && (
                                                 <ToggleSwitch 
@@ -232,5 +298,6 @@ export default function SettingsPage() {
                 </div>
             </div>
         </div>
+        </PageContent>
     );
 }

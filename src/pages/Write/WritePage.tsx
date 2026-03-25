@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   PenLine, ChevronRight, Plus, Mail, Book, FileText, 
-  Sparkles, Search, Filter, Clock, 
+  Sparkles, Search, Filter, 
   AlertCircle, Trophy, BarChart3, Edit3, Trash2
 } from 'lucide-react';
 import { writingPrompts, writingDrafts } from '../../data/library';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
-import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import RemoteImage from '../../components/ui/RemoteImage';
+import { PageActions, PageContent, PageMainColumn, PageMainSidebarLayout, PageSidebar } from '../../components/layout/PageLayout';
+import { buildTemplateUrl } from '../../navigation/actionTemplates';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const TABS = [
   { id: 'prompts', label: 'Prompts', icon: Sparkles },
@@ -18,24 +21,102 @@ const TABS = [
 ];
 
 export default function WritePage() {
+  const navigate = useNavigate();
+  const { activeLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState('prompts');
+  const [search, setSearch] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [draftsLimit, setDraftsLimit] = useState(6);
+  const [promptsLimit, setPromptsLimit] = useState(12);
+  const [removedDraftIds, setRemovedDraftIds] = useState<string[]>([]);
+
+  const expandedPrompts = useMemo(
+    () =>
+      Array.from({ length: 48 }, (_, idx) => {
+        const seed = writingPrompts[idx % writingPrompts.length];
+        return {
+          ...seed,
+          id: `${seed.id}-x${idx + 1}`,
+          title: `${seed.title} ${idx + 1}`,
+          description: `${seed.description} • Variant ${Math.floor(idx / 4) + 1}`,
+          wordTarget: seed.wordTarget + (idx % 4) * 25,
+        };
+      }),
+    [],
+  );
+
+  const expandedDrafts = useMemo(
+    () =>
+      Array.from({ length: 36 }, (_, idx) => {
+        const seed = writingDrafts[idx % writingDrafts.length];
+        return {
+          ...seed,
+          id: `${seed.id}-x${idx + 1}`,
+          title: `${seed.title} ${idx + 1}`,
+          content: `${seed.content} (practice variant ${idx + 1})`,
+          wordCount: seed.wordCount + (idx % 5) * 12,
+          updatedAt: `2026-03-${String((idx % 24) + 1).padStart(2, '0')}`,
+        };
+      }),
+    [],
+  );
+
+  const tabToPromptTypes: Record<string, string[]> = {
+    prompts: ['journal', 'creative', 'essay', 'message', 'formal', 'email'],
+    journal: ['journal', 'creative'],
+    emails: ['email', 'message'],
+    formal: ['formal', 'essay'],
+  };
+
+  const filteredPrompts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const allowed = tabToPromptTypes[activeTab] ?? tabToPromptTypes.prompts;
+    return expandedPrompts.filter((prompt) => {
+      if (!allowed.includes(prompt.type)) {
+        return false;
+      }
+      if (favoritesOnly && !['advanced', 'formal', 'essay'].some((word) => `${prompt.difficulty} ${prompt.type}`.toLowerCase().includes(word))) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [prompt.title, prompt.description, prompt.type, prompt.difficulty].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [activeTab, expandedPrompts, favoritesOnly, search]);
+
+  const filteredDrafts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const allowed = tabToPromptTypes[activeTab] ?? tabToPromptTypes.prompts;
+    return expandedDrafts
+      .filter((draft) => !removedDraftIds.includes(draft.id))
+      .filter((draft) => {
+        const linkedPrompt = expandedPrompts.find((prompt) => prompt.id.startsWith(draft.promptId ?? ''));
+        if (linkedPrompt && !allowed.includes(linkedPrompt.type)) {
+          return false;
+        }
+        if (!query) {
+          return true;
+        }
+        return [draft.title, draft.content].some((value) => value.toLowerCase().includes(query));
+      })
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }, [activeTab, expandedDrafts, expandedPrompts, removedDraftIds, search]);
+
+  const featuredPrompt = filteredPrompts[0];
 
   return (
     <PageContent className="pb-12" width="wide">
-    <div className="flex flex-col gap-8 lg:flex-row">
-      {/* ============ MAIN CONTENT (LEFT) ============ */}
-      <div className="flex-1 min-w-0 flex flex-col gap-8">
-        
-        <PageActions>
-          <Link to="/write/editor" className="no-underline">
-            <button className="flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-600/20 px-5 py-2 text-[14px] font-bold text-blue-400 transition-colors hover:bg-blue-600/30 cursor-pointer">
-              <Plus size={16} /> Free Write
-            </button>
-          </Link>
-          <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-dim transition-colors hover:text-white cursor-pointer">
-            <Clock size={18} />
+      <PageActions>
+        <Link to="/write/editor" className="no-underline">
+          <button className="page-primary-action">
+            <Plus size={16} /> Free Write
           </button>
-        </PageActions>
+        </Link>
+      </PageActions>
+    <PageMainSidebarLayout>
+      {/* ============ MAIN CONTENT (LEFT) ============ */}
+      <PageMainColumn>
 
         {/* Tab Navigation & Search/Filter */}
         <div className="flex justify-between items-center bg-graphite/30 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
@@ -60,11 +141,16 @@ export default function WritePage() {
                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dim group-focus-within:text-violet transition-colors" />
                <input 
                  type="text" 
+                 value={search}
+                 onChange={(event) => setSearch(event.target.value)}
                  placeholder="Search prompts..." 
                  className="bg-black/20 border border-white/5 rounded-lg pl-9 pr-4 py-1.5 text-[12px] text-mist focus:outline-none focus:ring-1 focus:ring-violet/50 w-48 transition-all"
                />
             </div>
-            <button className="p-1.5 rounded-lg text-dim hover:text-mist border border-white/5 bg-black/10">
+            <button
+              onClick={() => setFavoritesOnly((prev) => !prev)}
+              className={`p-1.5 rounded-lg border border-white/5 bg-black/10 ${favoritesOnly ? 'text-violet' : 'text-dim hover:text-mist'}`}
+            >
               <Filter size={16} />
             </button>
           </div>
@@ -76,8 +162,8 @@ export default function WritePage() {
             Featured Prompt
           </h2>
           <SpotlightCard interactive className="relative overflow-hidden group h-[240px]">
-            <img 
-              src="/background/writing_prompt_travel.png" 
+            <RemoteImage
+              src="https://images.unsplash.com/photo-1488085061387-422e29b40080?q=80&w=2670&auto=format&fit=crop" 
               alt="Travel Writing" 
               className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" 
             />
@@ -87,8 +173,8 @@ export default function WritePage() {
                  <span className="px-2.5 py-0.5 rounded-full bg-violet/20 border border-violet/30 text-[10px] font-bold text-violet uppercase tracking-wider">Expert pick</span>
                  <span className="text-[11px] text-mist/60 font-medium tracking-wide">150 - 200 words</span>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Un viaje inolvidable</h3>
-              <p className="text-mist/80 text-[14px] leading-relaxed mb-6 italic">Describe an unforgettable trip you've taken. Where did you go, who were you with, and why was it so special?</p>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">{featuredPrompt?.title ?? 'No prompt found'}</h3>
+              <p className="text-mist/80 text-[14px] leading-relaxed mb-6 italic">{featuredPrompt?.description ?? 'Try another filter combination.'}</p>
               <Link to="/write/editor" className="no-underline">
                 <button className="px-6 py-2.5 bg-violet shadow-[0_4px_15px_rgba(139,92,246,0.3)] hover:shadow-[0_6px_20px_rgba(139,92,246,0.4)] rounded-xl text-[13px] font-bold text-white transition-all w-fit">
                   Start Writing
@@ -102,15 +188,23 @@ export default function WritePage() {
         <section>
           <div className="flex items-center justify-between mb-4">
              <h2 className="text-[16px] font-bold text-mist uppercase tracking-widest">Recent Drafts</h2>
-             <button className="text-[11px] text-dim hover:text-mist font-bold uppercase tracking-wider">View All</button>
+             <button
+               className="text-[11px] text-dim hover:text-mist font-bold uppercase tracking-wider"
+               onClick={() => setDraftsLimit((prev) => Math.min(filteredDrafts.length, prev + 6))}
+             >
+               View All
+             </button>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            {writingDrafts.slice(0, 3).map(draft => (
+            {filteredDrafts.slice(0, draftsLimit).map(draft => (
               <SpotlightCard key={draft.id} interactive className="p-5 flex flex-col justify-between group h-48">
                 <div>
                    <div className="flex justify-between items-start mb-3">
                       <h3 className="text-[15px] font-bold text-mist group-hover:text-white transition-colors line-clamp-1">{draft.title}</h3>
-                      <button className="p-1.5 rounded-lg text-dim hover:text-coral transition-colors opacity-0 group-hover:opacity-100">
+                      <button
+                        className="p-1.5 rounded-lg text-dim hover:text-coral transition-colors opacity-0 group-hover:opacity-100"
+                        onClick={() => setRemovedDraftIds((prev) => [...prev, draft.id])}
+                      >
                          <Trash2 size={12} />
                       </button>
                    </div>
@@ -136,7 +230,7 @@ export default function WritePage() {
         <section>
           <h2 className="text-[16px] font-bold mb-4 text-mist uppercase tracking-widest">Explore Prompts</h2>
           <div className="grid grid-cols-2 gap-4">
-             {writingPrompts.slice(0, 4).map((prompt, i) => (
+             {filteredPrompts.slice(0, promptsLimit).map((prompt, i) => (
                 <SpotlightCard key={prompt.id} interactive className="p-5 group">
                    <div className="flex gap-5 items-start">
                       <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-all group-hover:scale-110 ${
@@ -165,11 +259,17 @@ export default function WritePage() {
                 </SpotlightCard>
              ))}
           </div>
+          <button
+            className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[11px] font-bold text-mist uppercase tracking-widest transition-all"
+            onClick={() => setPromptsLimit((prev) => Math.min(filteredPrompts.length, prev + 12))}
+          >
+            View More Prompts
+          </button>
         </section>
-      </div>
+      </PageMainColumn>
 
       {/* ============ SIDEBAR (RIGHT) ============ */}
-      <aside className="w-full lg:w-80 shrink-0 flex flex-col gap-6 pt-2">
+      <PageSidebar className="gap-6 pt-2">
         
         {/* Writing Progress */}
         <section>
@@ -238,7 +338,19 @@ export default function WritePage() {
         <section>
           <div className="flex items-center justify-between mb-4 px-1">
             <h2 className="text-[15px] font-bold text-mist uppercase tracking-widest">Correction Insights</h2>
-            <button className="text-[11px] text-violet font-bold hover:underline tracking-widest uppercase italic">Analyze</button>
+            <button
+              className="text-[11px] text-violet font-bold hover:underline tracking-widest uppercase italic"
+              onClick={() =>
+                navigate(
+                  buildTemplateUrl({
+                    templateId: 'write-analyze-insights',
+                    params: { from: '/write', lang: activeLanguage.code, tab: activeTab },
+                  }),
+                )
+              }
+            >
+              Analyze
+            </button>
           </div>
           <SpotlightCard className="p-6">
             <div className="flex items-center gap-3 mb-6">
@@ -273,7 +385,17 @@ export default function WritePage() {
                 </div>
               ))}
             </div>
-            <button className="w-full mt-8 py-3 bg-violet/10 hover:bg-violet/20 border border-violet/20 rounded-xl text-[11px] font-bold text-violet uppercase tracking-widest transition-all">
+            <button
+              className="w-full mt-8 py-3 bg-violet/10 hover:bg-violet/20 border border-violet/20 rounded-xl text-[11px] font-bold text-violet uppercase tracking-widest transition-all"
+              onClick={() =>
+                navigate(
+                  buildTemplateUrl({
+                    templateId: 'write-full-analysis',
+                    params: { from: '/write', lang: activeLanguage.code },
+                  }),
+                )
+              }
+            >
                View Full Analysis
             </button>
           </SpotlightCard>
@@ -314,8 +436,8 @@ export default function WritePage() {
            </div>
            <img src="/figure/happy.png" className="w-[80px] h-[80px] object-contain drop-shadow-[0_0_20px_rgba(139,92,246,0.6)] absolute -bottom-2 -right-2 z-10" />
         </div>
-      </aside>
-    </div>
+      </PageSidebar>
+    </PageMainSidebarLayout>
     </PageContent>
   );
 }
