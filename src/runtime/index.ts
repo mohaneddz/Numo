@@ -17,6 +17,7 @@ export type {
   GenerationCandidate,
   GenerationEvaluation,
   GenerationPipelineResult,
+  RuntimePersistenceAdapter,
 } from './types';
 export type {
   ProviderCapability,

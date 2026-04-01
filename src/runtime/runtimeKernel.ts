@@ -85,6 +85,11 @@ export class RuntimeKernel {
     this.registerTaskHandlers();
   }
 
+  attachPersistenceAdapter(adapter?: RuntimePersistenceAdapter): void {
+    this.background.setPersistenceAdapter(adapter);
+    this.generationPipeline.setPersistenceAdapter(adapter);
+  }
+
   private registerProviders(): void {
     const groqProvider = new GroqProvider();
     const localFallback = new LocalFallbackProvider();

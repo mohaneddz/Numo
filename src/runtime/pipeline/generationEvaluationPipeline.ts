@@ -76,12 +76,16 @@ function createCandidate(text: string, providerId: string, model: string): Gener
 export class GenerationEvaluationPipeline {
   private readonly providerRouter: ProviderRouter;
   private readonly contextAdapter?: PipelineContextAdapter;
-  private readonly persistenceAdapter?: RuntimePersistenceAdapter;
+  private persistenceAdapter?: RuntimePersistenceAdapter;
 
   constructor(options: GenerationPipelineOptions) {
     this.providerRouter = options.providerRouter;
     this.contextAdapter = options.contextAdapter;
     this.persistenceAdapter = options.persistenceAdapter;
+  }
+
+  setPersistenceAdapter(adapter?: RuntimePersistenceAdapter): void {
+    this.persistenceAdapter = adapter;
   }
 
   async run(input: GenerationRunInput): Promise<GenerationPipelineResult> {

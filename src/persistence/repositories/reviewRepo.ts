@@ -155,6 +155,31 @@ export class SqliteReviewRepository implements ReviewRepository {
     }
   }
 
+  async listItemsByLanguage(
+    learnerId: string,
+    languageId: string,
+    limit = 300,
+  ): Promise<ReviewItemRecord[]> {
+    try {
+      const rows = await this.db.select<ReviewItemRow>(
+        `
+        SELECT
+          id, learner_id, language_id, node_id, content_item_id, state, due_at,
+          interval_days, ease_factor, last_reviewed_at, last_result, strength,
+          attempts_count, metadata_json, created_at, updated_at
+        FROM review_items
+        WHERE learner_id = ? AND language_id = ?
+        ORDER BY due_at ASC, updated_at DESC
+        LIMIT ?;
+        `,
+        [learnerId, languageId, limit],
+      );
+      return rows.map(mapReviewRow);
+    } catch (error) {
+      throw new RepositoryError('review', 'listItemsByLanguage', error);
+    }
+  }
+
   private async getById(id: string): Promise<ReviewItemRecord> {
     const rows = await this.db.select<ReviewItemRow>(
       `

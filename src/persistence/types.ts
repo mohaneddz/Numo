@@ -130,6 +130,12 @@ export interface LearnerProfileRecord {
   updatedAt: string;
 }
 
+export interface CreateLearnerProfileInput {
+  displayName: string;
+  nativeLanguageCode: string;
+  baseLanguageCode?: string;
+}
+
 export interface LearnerNodeStateRecord {
   id: string;
   learnerId: string;
@@ -196,6 +202,20 @@ export interface WeaknessClusterRecord {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UpsertWeaknessClusterInput {
+  learnerId: string;
+  languageId: string;
+  clusterKey: string;
+  title: string;
+  description?: string | null;
+  severityDelta?: number;
+  hitDelta?: number;
+  lastSeenAt?: string | null;
+  relatedNodeIds?: string[];
+  evidenceRefs?: string[];
+  tags?: string[];
 }
 
 export interface EvidenceRecord {
@@ -409,8 +429,16 @@ export interface CurriculumRepository {
 
 export interface LearnerRepository {
   ensureDefaultProfile(): Promise<LearnerProfileRecord>;
+  listProfiles(): Promise<LearnerProfileRecord[]>;
+  getProfileById(id: string): Promise<LearnerProfileRecord | null>;
+  createProfile(input: CreateLearnerProfileInput): Promise<LearnerProfileRecord>;
+  getActiveProfile(): Promise<LearnerProfileRecord | null>;
+  setActiveProfile(profileId: string): Promise<void>;
+  clearActiveProfile(): Promise<void>;
   upsertLearnerNodeState(input: UpsertLearnerNodeStateInput): Promise<LearnerNodeStateRecord>;
   getLearnerNodeState(learnerId: string, languageId: string, nodeId: string): Promise<LearnerNodeStateRecord | null>;
+  listLearnerNodeStates(learnerId: string, languageId: string, limit?: number): Promise<LearnerNodeStateRecord[]>;
+  upsertWeaknessCluster(input: UpsertWeaknessClusterInput): Promise<WeaknessClusterRecord>;
   listWeaknessClusters(learnerId: string, languageId: string): Promise<WeaknessClusterRecord[]>;
   getProgressAggregate(learnerId: string, languageId: string): Promise<ProgressAggregate>;
 }
@@ -424,6 +452,7 @@ export interface ReviewRepository {
   createReviewItem(input: CreateReviewItemInput): Promise<ReviewItemRecord>;
   updateReviewItem(input: UpdateReviewItemInput): Promise<ReviewItemRecord>;
   fetchDueItemsByLanguage(query: DueReviewQuery): Promise<ReviewItemRecord[]>;
+  listItemsByLanguage(learnerId: string, languageId: string, limit?: number): Promise<ReviewItemRecord[]>;
 }
 
 export interface ContentRepository {
