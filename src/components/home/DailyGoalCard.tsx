@@ -3,11 +3,13 @@ import { Flame } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { SpotlightCard } from '../ui/SpotlightCard';
 
+
 export function DailyGoalCard() {
     const { activeLanguage } = useLanguage();
     const { progress } = activeLanguage;
     const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
     const progressPercentage = (progress.todayMinutes / progress.dailyGoalMinutes) * 100;
+
 
     return (
         <motion.div {...fadeUp} transition={{ delay: 0.05 }}>
