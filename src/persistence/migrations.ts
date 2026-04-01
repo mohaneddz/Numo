@@ -396,6 +396,167 @@ const MIGRATIONS: MigrationDefinition[] = [
       `,
     ],
   },
+  {
+    version: 2,
+    name: 'inst4_content_progress_script_foundation',
+    statements: [
+      `
+      CREATE TABLE IF NOT EXISTS generation_candidates (
+        id TEXT PRIMARY KEY,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        need_id TEXT NOT NULL,
+        need_content_type TEXT NOT NULL,
+        need_objective TEXT NOT NULL,
+        need_node_ids_json TEXT NOT NULL DEFAULT '[]',
+        need_metadata_json TEXT NOT NULL DEFAULT '{}',
+        context_json TEXT NOT NULL DEFAULT '[]',
+        candidate_text TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'manual')),
+        content_item_id TEXT REFERENCES content_items(id) ON DELETE SET NULL
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS generation_evaluations (
+        id TEXT PRIMARY KEY,
+        candidate_id TEXT NOT NULL REFERENCES generation_candidates(id) ON DELETE CASCADE,
+        decision TEXT NOT NULL CHECK (decision IN ('accepted', 'rejected')),
+        score REAL NOT NULL,
+        reason TEXT NOT NULL,
+        raw_payload TEXT NOT NULL,
+        acceptance_threshold REAL,
+        created_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS content_approval_events (
+        id TEXT PRIMARY KEY,
+        candidate_id TEXT REFERENCES generation_candidates(id) ON DELETE SET NULL,
+        content_item_id TEXT REFERENCES content_items(id) ON DELETE CASCADE,
+        decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected', 'manual', 'reverted', 'redo', 'edited')),
+        actor_id TEXT NOT NULL,
+        reason TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS learner_script_state (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL REFERENCES learner_profile(id) ON DELETE CASCADE,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        node_id TEXT NOT NULL REFERENCES curriculum_nodes(id) ON DELETE CASCADE,
+        script_key TEXT NOT NULL,
+        attempts_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        failure_count INTEGER NOT NULL DEFAULT 0,
+        completion_score REAL NOT NULL DEFAULT 0,
+        recall_score REAL NOT NULL DEFAULT 0,
+        trace_score REAL NOT NULL DEFAULT 0,
+        guided_score REAL NOT NULL DEFAULT 0,
+        free_score REAL NOT NULL DEFAULT 0,
+        timed_score REAL NOT NULL DEFAULT 0,
+        last_attempt_at TEXT,
+        weak_components_json TEXT NOT NULL DEFAULT '[]',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(learner_id, language_id, node_id, script_key)
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS script_practice_attempts (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL REFERENCES learner_profile(id) ON DELETE CASCADE,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        node_id TEXT NOT NULL REFERENCES curriculum_nodes(id) ON DELETE CASCADE,
+        script_key TEXT NOT NULL,
+        mode TEXT NOT NULL CHECK (mode IN ('watch', 'trace', 'guided_draw', 'free_draw', 'timed_recall_draw')),
+        stroke_data_ref TEXT,
+        stroke_data_json TEXT NOT NULL DEFAULT '{}',
+        completion_ratio REAL,
+        duration_ms INTEGER,
+        success INTEGER NOT NULL CHECK (success IN (0, 1)),
+        feedback_json TEXT NOT NULL DEFAULT '{}',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_generation_candidates_language_created
+      ON generation_candidates(language_id, created_at DESC);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_generation_evaluations_candidate_created
+      ON generation_evaluations(candidate_id, created_at DESC);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_content_approval_events_content_created
+      ON content_approval_events(content_item_id, created_at DESC);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_learner_script_state_lookup
+      ON learner_script_state(learner_id, language_id, node_id);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_script_practice_attempts_lookup
+      ON script_practice_attempts(learner_id, language_id, node_id, created_at DESC);
+      `,
+    ],
+  },
+  {
+    version: 3,
+    name: 'background_image_pipeline',
+    statements: [
+      `
+      CREATE TABLE IF NOT EXISTS background_image_assets (
+        id TEXT PRIMARY KEY,
+        source_key TEXT NOT NULL UNIQUE,
+        provider TEXT NOT NULL,
+        provider_image_id TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        download_url TEXT NOT NULL,
+        page_url TEXT NOT NULL,
+        photographer_name TEXT NOT NULL,
+        photographer_url TEXT,
+        attribution_text TEXT NOT NULL,
+        dominant_color TEXT,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        width INTEGER NOT NULL DEFAULT 0,
+        height INTEGER NOT NULL DEFAULT 0,
+        local_relative_path TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_checked_at TEXT
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS background_image_mappings (
+        item_key TEXT PRIMARY KEY,
+        item_type TEXT NOT NULL,
+        language_code TEXT,
+        query_used TEXT,
+        provider TEXT,
+        asset_id TEXT REFERENCES background_image_assets(id) ON DELETE SET NULL,
+        semantic_input_json TEXT NOT NULL DEFAULT '{}',
+        scoring_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_refreshed_at TEXT
+      );
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_background_mappings_language_type
+      ON background_image_mappings(language_code, item_type);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_background_assets_provider
+      ON background_image_assets(provider, provider_image_id);
+      `,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SqlDatabase): Promise<void> {

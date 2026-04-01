@@ -9,7 +9,11 @@ let dbPromise: Promise<SqlDatabase> | null = null;
 
 export async function getDatabase(): Promise<SqlDatabase> {
   if (!dbPromise) {
-    dbPromise = openDatabase();
+    dbPromise = openDatabase().catch((error) => {
+      // Do not cache a failed bootstrap forever; allow subsequent retries.
+      dbPromise = null;
+      throw error;
+    });
   }
   return dbPromise;
 }
@@ -19,10 +23,18 @@ async function openDatabase(): Promise<SqlDatabase> {
     throw new PersistenceUnavailableError();
   }
 
-  const db = await Database.load(DB_URL);
-  await db.execute('PRAGMA foreign_keys = ON;');
-  await db.execute('PRAGMA journal_mode = WAL;');
-  return db as SqlDatabase;
+  try {
+    const db = await Database.load(DB_URL);
+    await db.execute('PRAGMA foreign_keys = ON;');
+    await db.execute('PRAGMA journal_mode = WAL;');
+    return db as SqlDatabase;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.toLowerCase().includes('missing origin header')) {
+      throw new PersistenceUnavailableError('Persistence is unavailable outside Tauri runtime.');
+    }
+    throw error;
+  }
 }
 
 export async function runInTransaction<T>(

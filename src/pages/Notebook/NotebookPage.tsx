@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   BookOpen,
@@ -36,6 +36,7 @@ const TABS = [
 
 export default function NotebookPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { activeLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]['id']>('all');
   const [activeListTab, setActiveListTab] = useState<'favorites' | 'recent' | 'more'>('favorites');
@@ -44,6 +45,22 @@ export default function NotebookPage() {
   const [explorerLimit, setExplorerLimit] = useState(8);
   const [collectionMode, setCollectionMode] = useState<'words' | 'phrases'>('words');
   const { state, flashCardCount } = useAppData();
+
+  useEffect(() => {
+    const viewOpt = searchParams.get('view');
+    if (viewOpt === 'writing') {
+      setActiveListTab('more');
+      setSearchParams(new URLSearchParams());
+    }
+
+    const actionOpt = searchParams.get('action');
+    if (actionOpt === 'new' || actionOpt === 'new_collection') {
+      // Mock action logic
+      alert(`[Mock] Action ${actionOpt} invoked on Notebook page!`);
+      // Clear action param after handling
+      setSearchParams(new URLSearchParams());
+    }
+  }, [searchParams, setSearchParams]);
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();

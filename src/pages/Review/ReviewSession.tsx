@@ -92,21 +92,6 @@ function fromItem(it: ReviewItem, i: number): Q {
   };
 }
 
-const dummy: Q[] = [
-  { id: 'd-r1', type: 'reveal', term: 'a veces', prompt: 'Guess then reveal.', answer: 'sometimes', hint: 'Frequency adverb.' },
-  { id: 'd-r2', type: 'reveal', term: 'por fin', prompt: 'Guess then reveal.', answer: 'finally / at last' },
-  { id: 'd-m1', type: 'multiple', term: 'todavia', prompt: 'Pick the closest meaning.', answer: 'still / yet', options: ['already', 'still / yet', 'nearly always', 'immediately'], correctIndex: 1 },
-  { id: 'd-m2', type: 'multiple', term: 'casi nunca', prompt: 'Pick the closest meaning.', answer: 'almost never', options: ['almost now', 'almost never', 'rarely always', 'never almost'], correctIndex: 1 },
-  { id: 'd-w1', type: 'write', term: 'me da igual', prompt: 'Write the meaning naturally.', answer: 'i do not mind / same to me' },
-  { id: 'd-w2', type: 'write', term: 'ni idea', prompt: 'Write the meaning naturally.', answer: 'no idea' },
-  { id: 'd-b1', type: 'build', term: 'en realidad', prompt: 'Build the translation from tokens.', answer: 'in reality', bank: ['reality', 'in'] },
-  { id: 'd-b2', type: 'build', term: 'de vez en cuando', prompt: 'Build the translation from tokens.', answer: 'from time to time', bank: ['time', 'to', 'from', 'time'] },
-  { id: 'd-t1', type: 'tf', term: 'de repente', prompt: 'Is this statement true?', answer: 'suddenly', statement: '"de repente" means "suddenly".', correctBool: true },
-  { id: 'd-t2', type: 'tf', term: 'en serio', prompt: 'Is this statement true?', answer: 'seriously', statement: '"en serio" means "for lunch".', correctBool: false },
-  { id: 'd-j1', type: 'tfj', term: 'acabo de', prompt: 'True/False + short reason.', answer: 'i just (did something)', statement: '"acabo de" indicates recent action.', correctBool: true, expectedReason: 'It means just did something.' },
-  { id: 'd-j2', type: 'tfj', term: 'en cuanto', prompt: 'True/False + short reason.', answer: 'as soon as', statement: '"en cuanto" means "because".', correctBool: false, expectedReason: 'It means as soon as, not because.' },
-];
-
 async function aiCheck(expected: string, user: string) {
   const raw = await completeWithEcho(
     [{ id: `v-${Date.now()}`, role: 'user', content: `Expected: ${expected}\nAnswer: ${user}\nReturn JSON: {"correct": boolean, "reason": string}`, createdAt: Date.now() }],
@@ -136,8 +121,12 @@ export default function ReviewSession() {
   const modeParam = sp.get('mode') as ReviewMode | null;
   const mode: ReviewMode = validModes.includes(modeParam as ReviewMode) ? (modeParam as ReviewMode) : 'due-now';
   const { startReviewSession, gradeReviewItem } = useAppData();
+  // Guardrail: review queue must come from persisted scheduler results only.
   const queue = useMemo(() => startReviewSession(mode).queue, [mode, startReviewSession]);
-  const cards = useMemo(() => [...queue.map((it, i) => fromItem(it, i)), ...dummy], [queue]);
+  const cards = useMemo(
+    () => queue.map((it, i) => fromItem(it, i)),
+    [queue],
+  );
 
   const [i, setI] = useState(0);
   const [ans, setAns] = useState<Record<string, Result>>({});
@@ -261,7 +250,16 @@ export default function ReviewSession() {
     return (
       <PageContent width="narrow">
         <PageActions><Link to="/review" className="no-underline"><button className="page-primary-action"><ArrowLeft size={16} /> Back to Review</button></Link></PageActions>
-        <div className="card" style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}><h2>No items in this queue.</h2><Link to="/review">Back to Review</Link></div>
+        <div className="card" style={{ maxWidth: 760, margin: '0 auto', padding: 24 }}>
+          <h2>No review items due right now.</h2>
+          <p style={{ color: 'var(--color-dim)', marginBottom: 12 }}>
+            This queue is DB-backed only. No synthetic cards are generated when your due queue is empty.
+          </p>
+          <div className="flex gap-2">
+            <Link to="/learn" className="no-underline"><button className="page-primary-action">Go to Learn</button></Link>
+            <Link to="/notebook" className="no-underline"><button className="page-primary-action">Open Notebook</button></Link>
+          </div>
+        </div>
       </PageContent>
     );
   }
@@ -274,7 +272,7 @@ export default function ReviewSession() {
           <CheckCircle size={42} style={{ color: '#34D399', margin: '0 auto', marginBottom: 16 }} />
           <h2>Session Complete</h2>
           <p style={{ color: 'var(--color-dim)' }}>{correct}/{total} correct</p>
-          <p style={{ color: 'var(--color-dim)', marginBottom: 24 }}>Includes all flashcard types with dummy examples.</p>
+          <p style={{ color: 'var(--color-dim)', marginBottom: 24 }}>All results were submitted against persisted review items.</p>
           <div className="flex justify-center gap-4">
             <button onClick={prev} className="page-primary-action">Previous Card (P)</button>
             <Link to="/review" className="no-underline"><button className="page-primary-action">Back to Review</button></Link>

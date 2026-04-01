@@ -7,6 +7,7 @@ import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { integrationService } from '../../services/integrationService';
 
 interface Correction {
     original: string;
@@ -16,13 +17,12 @@ interface Correction {
 }
 
 export default function WriteEditor() {
-    const DEFAULT_TEXT =
-        'Ayer fui al mercado con mi amigo Carlos. Yo soy cansado después del trabajo pero quería comprar frutas frescas. Me gusto la comida que preparamos juntos. Es un problema muy grande cuando no tenemos tiempo para cocinar.';
+    const DEFAULT_TEXT = '';
 
     const { draftId } = useParams();
     const navigate = useNavigate();
     const { activeLanguage } = useLanguage();
-    const { state } = useAppData();
+    const { state, saveDraft, analyzeDraft } = useAppData();
     const activeDraft = draftId ? state.writingDrafts.find((draft) => draft.id === draftId) : undefined;
 
     const [text, setText] = useState(activeDraft?.content ?? DEFAULT_TEXT);
@@ -103,30 +103,23 @@ export default function WriteEditor() {
             const data = JSON.parse(jsonPart);
             setCorrections(data);
             setShowCorrections(true);
+            const saved = saveDraft({
+                id: activeDraft?.id,
+                promptId: activeDraft?.promptId,
+                title: activeDraft?.title ?? 'Writing Editor Draft',
+                content: text,
+            });
+            analyzeDraft(saved.id, data);
+            void integrationService.logWriteAttempt({
+                languageCode: activeLanguage.code,
+                text,
+                corrections: Array.isArray(data) ? data.filter((item: Correction) => item.type !== 'correct').length : 0,
+                hasAnalysis: true,
+            });
         } catch {
-            const fallback: Correction[] = [
-                {
-                    original: 'Yo soy cansado',
-                    corrected: 'Estoy cansado',
-                    type: 'grammar',
-                    explanation: 'Use estar for temporary states like being tired.',
-                },
-                {
-                    original: 'Me gusto',
-                    corrected: 'Me gustó',
-                    type: 'spelling',
-                    explanation: 'Past tense in Spanish needs the accent mark.',
-                },
-                {
-                    original: 'Ayer fui al mercado',
-                    corrected: 'Ayer fui al mercado',
-                    type: 'correct',
-                    explanation: 'Good sentence structure and tense usage.',
-                },
-            ];
-            setCorrections(fallback);
+            setCorrections([]);
             setShowCorrections(true);
-            setError(null);
+            setError('Analysis failed. No fallback corrections were generated.');
         } finally {
             setIsAnalyzing(false);
         }

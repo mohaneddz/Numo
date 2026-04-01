@@ -15,7 +15,11 @@ let persistencePromise: Promise<PersistenceContext> | null = null;
 
 export async function initializePersistence(): Promise<PersistenceContext> {
   if (!persistencePromise) {
-    persistencePromise = createPersistenceContext();
+    persistencePromise = createPersistenceContext().catch((error) => {
+      // Do not pin a failed initialization; allow recovery/retry.
+      persistencePromise = null;
+      throw error;
+    });
   }
   return persistencePromise;
 }
