@@ -10,6 +10,9 @@ export function RecentlySavedCard() {
         <motion.div {...fadeUp} transition={{ delay: 0.2 }}>
             <SpotlightCard className="p-5">
                 <h3 className="text-[15px] font-bold mb-3.5 text-[#FAFAFA]">Recently Saved</h3>
+                {recentlySaved.length === 0 && (
+                    <p className="text-[13px] text-dim">No saved items yet. Save a phrase from immersion or review to build this list.</p>
+                )}
                 <div className="flex gap-2 flex-wrap">
                     {recentlySaved.slice(0, 3).map(item => (
                         <motion.div
@@ -22,9 +25,11 @@ export function RecentlySavedCard() {
                             <p className="text-[10px] text-dim font-medium">{item.type}</p>
                         </motion.div>
                     ))}
-                    <div className="px-3 py-2 rounded-xl bg-black/20 border border-white/5 backdrop-blur-md flex items-center justify-center text-[13px] text-dim font-bold">
-                        +{recentlySaved.length - 3}
-                    </div>
+                    {recentlySaved.length > 3 && (
+                        <div className="px-3 py-2 rounded-xl bg-black/20 border border-white/5 backdrop-blur-md flex items-center justify-center text-[13px] text-dim font-bold">
+                            +{recentlySaved.length - 3}
+                        </div>
+                    )}
                 </div>
             </SpotlightCard>
         </motion.div>

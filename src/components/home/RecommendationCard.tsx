@@ -4,6 +4,7 @@ import { RecommendedCard } from '../../data/types';
 import { useNavigate } from 'react-router-dom';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useCardBackground } from '../../hooks/useCardBackground';
 
 interface RecommendationCardProps {
     card: RecommendedCard;
@@ -22,12 +23,26 @@ const getRecommendIcon = (icon: string) => {
 export function RecommendationCard({ card }: RecommendationCardProps) {
     const navigate = useNavigate();
     const { activeLanguage } = useLanguage();
+    const background = useCardBackground({
+        itemKey: `recommended:${activeLanguage.code}:${card.id}`,
+        itemType: 'recommendation',
+        languageCode: activeLanguage.code,
+        languageName: activeLanguage.name,
+        title: card.title,
+        description: card.description,
+        topicTags: [card.type, 'study', activeLanguage.name],
+        cardType: card.type,
+        mood: 'premium subtle',
+        fallbackAsset: '/continue_learning.png',
+    });
     const Icon = getRecommendIcon(card.icon);
     // Matching the blue/violet glow in screenshot
     const isBlue = card.accentColor === 'cyan' || card.accentColor === 'violet';
     const iconContainerBg = isBlue ? 'bg-[#15234B]' : 'bg-[#1A1A24]';
     const glowColor = isBlue ? 'shadow-[0_0_30px_rgba(56,189,248,0.15)]' : 'shadow-[0_0_30px_rgba(167,139,250,0.15)]';
     const iconColor = isBlue ? 'text-[#38BDF8]' : 'text-[#A78BFA]';
+
+    const isFallback = !background.selection || background.selection.provider === 'fallback';
 
     return (
         <SpotlightCard
@@ -43,6 +58,8 @@ export function RecommendationCard({ card }: RecommendationCardProps) {
                 )
             }
         >
+            {!isFallback && <img src={background.source} alt={card.title} className="absolute inset-0 h-full w-full object-cover opacity-30" />}
+            <div className={`absolute inset-0 ${isFallback ? 'bg-gradient-to-br from-[#111122] via-[#0b1020] to-[#0A0D18]' : 'bg-gradient-to-t from-[#0b1020]/95 via-[#0b1020]/78 to-[#0b1020]/45'}`} />
             {/* Inner Wrapper: Isolates layout from the SpotlightCard's internal structural divs */}
             <div className="relative p-5 px-5 pt-5 pb-0 flex  items-start h-full min-h-[170px] w-full gap-4">
 

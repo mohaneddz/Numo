@@ -4,12 +4,32 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { SpotlightCard } from '../ui/SpotlightCard';
 import { useNavigate } from 'react-router-dom';
 import { buildActionUrl } from '../../navigation/actionTemplates';
+import { useCardBackground } from '../../hooks/useCardBackground';
 
 export function ContinueLearningCard() {
     const { activeLanguage } = useLanguage();
     const navigate = useNavigate();
     const { continueLearning } = activeLanguage;
     const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
+    const background = useCardBackground(
+        continueLearning
+            ? {
+                itemKey: `continue:${activeLanguage.code}`,
+                itemType: 'course',
+                languageCode: activeLanguage.code,
+                languageName: activeLanguage.name,
+                title: continueLearning.moduleName,
+                lessonTitle: continueLearning.lessonTitle,
+                description: continueLearning.description,
+                topicTags: ['course', 'culture', 'study'],
+                cardType: 'continue_learning',
+                mood: 'cinematic subtle',
+                fallbackAsset: '/continue_learning.png',
+            }
+            : null,
+    );
+
+    const isFallback = !background.selection || background.selection.provider === 'fallback';
 
     if (!continueLearning) return null;
 
@@ -20,11 +40,17 @@ export function ContinueLearningCard() {
                 <div className="flex h-full w-full">
                     {/* Image thumbnail */}
                     <div className="w-[200px] h-[160px] shrink-0 overflow-hidden rounded-l-[inherit]">
-                        <img
-                            src="/continue_learning.png"
-                            alt="Traveler Dialogues"
-                            className="w-full h-full object-cover"
-                        />
+                        {isFallback ? (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1E1B4B] to-[#0A0F24]">
+                                <span className="text-[72px] drop-shadow-lg opacity-80">{activeLanguage.flag}</span>
+                            </div>
+                        ) : (
+                            <img
+                                src={background.source}
+                                alt={continueLearning.moduleName}
+                                className="w-full h-full object-cover"
+                            />
+                        )}
                     </div>
                     <div className="px-6 py-5 flex-1 flex flex-col justify-between">
                         <div>

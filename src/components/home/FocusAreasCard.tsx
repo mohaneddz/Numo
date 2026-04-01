@@ -11,6 +11,9 @@ export function FocusAreasCard() {
             <SpotlightCard className="p-5">
                 <h3 className="text-[15px] font-bold mb-4 text-[#FAFAFA]">Focus Areas</h3>
                 <div className="flex flex-col gap-3.5">
+                    {focusAreas.length === 0 && (
+                        <p className="text-[13px] text-dim">No focus-area signals yet. Complete a session to generate real weak-area tracking.</p>
+                    )}
                     {focusAreas.map(area => (
                         <div key={area.skill}>
                             <div className="flex justify-between items-center mb-1.5">

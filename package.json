@@ -8,12 +8,19 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "audit:buttons": "node scripts/audit-buttons.mjs"
+    "audit:buttons": "node scripts/audit-buttons.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-http": "^2.5.7",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-sql": "^2.3.2",
+    "@tauri-apps/plugin-store": "^2.4.2",
+    "country-flag-emoji-polyfill": "^0.1.8",
     "framer-motion": "^11.0.8",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
@@ -29,6 +36,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "latest",
     "typescript": "~5.6.2",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vitest": "^2.1.9"
   }
 }

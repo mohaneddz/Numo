@@ -9,6 +9,11 @@ export function RecommendedSection() {
     return (
         <motion.div {...fadeUp} transition={{ delay: 0.15 }}>
             <h3 className="text-[17px] font-bold mb-4 text-[#FAFAFA]">Recommended for You</h3>
+            {recommendedCards.length === 0 && (
+                <div className="card p-4 text-[13px] text-dim">
+                    No recommended items yet. Finish one learning or review session to unlock real recommendations.
+                </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
                 {recommendedCards.map(card => (
                     <RecommendationCard key={card.id} card={card} />
