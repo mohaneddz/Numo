@@ -4,8 +4,8 @@ import {
     Home, GraduationCap, RotateCcw, Play, Mic, PenLine,
     BookMarked, BarChart3, Library, BookCopy, Settings, Star, MessageCircle
 } from 'lucide-react';
-import { useCurriculum } from '../../contexts/CurriculumContext';
 import { useAppData } from '../../contexts/AppDataContext';
+import { useLanguageProgression } from '../../hooks/useLanguageProgression';
 
 const secondaryNav = [
     { to: '/library', icon: Library, label: 'Library' },
@@ -15,8 +15,8 @@ const secondaryNav = [
 ];
 
 export default function Sidebar() {
-    const { dailyMission } = useCurriculum();
-    const missionProgress = (dailyMission.progress / dailyMission.total) * 100;
+    const progression = useLanguageProgression();
+    const missionProgress = progression.requiredMinutes > 0 ? (Math.min(progression.firstEvidenceCount, progression.todayPlan.filter((item) => item.required).length) / progression.todayPlan.filter((item) => item.required).length) * 100 : 0;
     const location = useLocation();
     const { dueCount } = useAppData();
     const primaryNav = [
@@ -140,8 +140,12 @@ export default function Sidebar() {
                 <div className="absolute top-0 right-0 w-24 h-24 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.3),transparent_70%)]" />
 
                 <p className="text-[10px] text-[#A78BFA] font-bold uppercase tracking-wider mb-1.5">Today's Mission</p>
-                <h4 className="text-[15px] font-extrabold mb-0.5 text-[#FAFAFA] leading-snug tracking-tight">{dailyMission.title}</h4>
-                <p className="text-[12px] text-dim leading-relaxed mb-3">{dailyMission.description}</p>
+                <h4 className="text-[15px] font-extrabold mb-0.5 text-[#FAFAFA] leading-snug tracking-tight">Guided Daily Track</h4>
+                <p className="text-[12px] text-dim leading-relaxed mb-3">
+                    {progression.hasFirstEvidence
+                        ? `Required ${progression.requiredMinutes} min, optional ${progression.optionalMinutes} min.`
+                        : 'You are just getting started in this language. Today is a gentle starter path.'}
+                </p>
 
                 <div className="h-[6px] rounded-full bg-[#1A1F26] overflow-hidden mb-2">
                     <motion.div
@@ -154,10 +158,10 @@ export default function Sidebar() {
 
                 <div className="flex justify-between items-center">
                     <span className="text-[11px] text-dim font-medium">
-                        {dailyMission.progress} / {dailyMission.total} completed
+                        {progression.todayPlan.filter((item) => item.required).length} required blocks
                     </span>
                     <span className="text-[11px] text-[#F59E0B] font-bold flex items-center gap-1">
-                        <Star size={11} fill="currentColor" /> +{dailyMission.xpReward} XP
+                        <Star size={11} fill="currentColor" /> {progression.targetMinutes}m target
                     </span>
                 </div>
             </motion.div>

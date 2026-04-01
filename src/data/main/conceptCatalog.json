@@ -1,0 +1,1924 @@
+{
+  "version": "1.0.0",
+  "id": "global_concept_catalog",
+  "title": "Global Concept Catalog",
+  "description": "Static global catalog of language-learning concepts reusable across language profiles. This file is system-level and language-agnostic; per-language state and overrides should live elsewhere.",
+  "metadata": {
+    "intendedUse": [
+      "curriculum generation",
+      "session planning",
+      "concept exposure tracking",
+      "AI prompt grounding"
+    ],
+    "topLevelCategories": 12,
+    "totalConcepts": 90,
+    "notes": [
+      "Concepts here are global references, not mastery records.",
+      "Language-specific adaptations should be applied through per-language files.",
+      "A concept may appear in multiple units and as either a step or a focused session."
+    ]
+  },
+  "categories": [
+    {
+      "id": "sound_system",
+      "title": "Sound System",
+      "description": "Pronunciation, listening discrimination, prosody, and sound-pattern awareness."
+    },
+    {
+      "id": "writing_system",
+      "title": "Writing System",
+      "description": "Script, orthography, symbol recognition, and writing conventions."
+    },
+    {
+      "id": "word_formation",
+      "title": "Word Formation",
+      "description": "How words are built, changed, and expanded."
+    },
+    {
+      "id": "nominal_system",
+      "title": "Nominal System",
+      "description": "Nouns, pronouns, articles, possession, number, gender, case, and agreement."
+    },
+    {
+      "id": "verbal_system",
+      "title": "Verbal System",
+      "description": "Verb classes, conjugation, tense, aspect, mood, voice, auxiliaries, and irregular patterns."
+    },
+    {
+      "id": "sentence_architecture",
+      "title": "Sentence Architecture",
+      "description": "How phrases and clauses are structured and connected."
+    },
+    {
+      "id": "function_words_and_particles",
+      "title": "Function Words & Particles",
+      "description": "Small but essential grammatical and discourse-building items."
+    },
+    {
+      "id": "meaning_register_and_usage",
+      "title": "Meaning, Register & Usage",
+      "description": "Pragmatics, formality, naturalness, and context-sensitive meaning."
+    },
+    {
+      "id": "communication_functions",
+      "title": "Communication Functions",
+      "description": "Practical communicative goals such as requesting, narrating, and clarifying."
+    },
+    {
+      "id": "discourse_and_fluency",
+      "title": "Discourse & Fluency",
+      "description": "Longer-form flow, cohesion, coherence, and conversation management."
+    },
+    {
+      "id": "thematic_language",
+      "title": "Thematic Language",
+      "description": "Topic-bound vocabulary and usage tied to real-life themes."
+    },
+    {
+      "id": "language_specific_systems",
+      "title": "Language-Specific Systems",
+      "description": "Major systems that are central only in some languages or language groups."
+    }
+  ],
+  "concepts": [
+    {
+      "id": "phoneme_contrasts",
+      "title": "Phoneme Contrasts",
+      "globalCategory": "sound_system",
+      "subCategory": "segmental_pronunciation",
+      "description": "Recognizing and producing meaning-changing sound distinctions.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "pronunciation",
+        "listening"
+      ]
+    },
+    {
+      "id": "vowel_length",
+      "title": "Vowel Length",
+      "globalCategory": "sound_system",
+      "subCategory": "segmental_pronunciation",
+      "description": "Distinguishing and producing short versus long vowels where relevant.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "Arabic",
+        "Japanese",
+        "Finnish",
+        "Hungarian",
+        "Czech",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "pronunciation",
+        "timing"
+      ]
+    },
+    {
+      "id": "stress_patterns",
+      "title": "Stress Patterns",
+      "globalCategory": "sound_system",
+      "subCategory": "prosody",
+      "description": "Syllable stress placement and recognition.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "English",
+        "Russian",
+        "Spanish",
+        "German",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "stress",
+        "pronunciation"
+      ]
+    },
+    {
+      "id": "tone_system",
+      "title": "Tone System",
+      "globalCategory": "sound_system",
+      "subCategory": "prosody",
+      "description": "Lexical or grammatical tone distinctions and perception.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Vietnamese",
+        "Thai",
+        "Yoruba",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "tone",
+        "listening",
+        "pronunciation"
+      ]
+    },
+    {
+      "id": "rhythm_and_timing",
+      "title": "Rhythm and Timing",
+      "globalCategory": "sound_system",
+      "subCategory": "prosody",
+      "description": "Natural timing patterns across syllables, words, and phrases.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "prosody",
+        "fluency"
+      ]
+    },
+    {
+      "id": "connected_speech",
+      "title": "Connected Speech",
+      "globalCategory": "sound_system",
+      "subCategory": "fluency_pronunciation",
+      "description": "Sound changes and reductions that happen in natural speech.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "listening",
+        "pronunciation",
+        "fluency"
+      ]
+    },
+    {
+      "id": "listening_discrimination",
+      "title": "Listening Discrimination",
+      "globalCategory": "sound_system",
+      "subCategory": "perception",
+      "description": "Hearing subtle differences between similar sounds or patterns.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "listening",
+        "ear_training"
+      ]
+    },
+    {
+      "id": "script_recognition",
+      "title": "Script Recognition",
+      "globalCategory": "writing_system",
+      "subCategory": "script_basics",
+      "description": "Recognizing symbols, letters, or characters used in the language.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "reading",
+        "writing"
+      ]
+    },
+    {
+      "id": "orthography_rules",
+      "title": "Orthography Rules",
+      "globalCategory": "writing_system",
+      "subCategory": "spelling",
+      "description": "Rules linking sound, spelling, and accepted written form.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "spelling",
+        "writing"
+      ]
+    },
+    {
+      "id": "punctuation_conventions",
+      "title": "Punctuation Conventions",
+      "globalCategory": "writing_system",
+      "subCategory": "conventions",
+      "description": "Sentence boundaries and punctuation usage norms.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "writing",
+        "reading"
+      ]
+    },
+    {
+      "id": "capitalization_rules",
+      "title": "Capitalization Rules",
+      "globalCategory": "writing_system",
+      "subCategory": "conventions",
+      "description": "Where uppercase or special casing applies.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "English",
+        "German",
+        "French",
+        "Spanish",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        2
+      ],
+      "tags": [
+        "writing"
+      ]
+    },
+    {
+      "id": "word_boundary_rules",
+      "title": "Word Boundary Rules",
+      "globalCategory": "writing_system",
+      "subCategory": "spacing",
+      "description": "How words are separated or joined in writing.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese",
+        "Thai",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "reading",
+        "writing"
+      ]
+    },
+    {
+      "id": "handwriting_and_stroke_order",
+      "title": "Handwriting and Stroke Order",
+      "globalCategory": "writing_system",
+      "subCategory": "script_production",
+      "description": "Correct written production conventions where form order matters.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese",
+        "Korean",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "writing",
+        "motor_memory"
+      ]
+    },
+    {
+      "id": "radicals_and_components",
+      "title": "Radicals and Components",
+      "globalCategory": "writing_system",
+      "subCategory": "character_structure",
+      "description": "Recognizing reusable visual building blocks inside characters or complex symbols.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "characters",
+        "reading"
+      ]
+    },
+    {
+      "id": "roots_and_stems",
+      "title": "Roots and Stems",
+      "globalCategory": "word_formation",
+      "subCategory": "morphological_base",
+      "description": "Core lexical bases from which words are built.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "morphology",
+        "vocabulary"
+      ]
+    },
+    {
+      "id": "prefixes_and_suffixes",
+      "title": "Prefixes and Suffixes",
+      "globalCategory": "word_formation",
+      "subCategory": "derivation",
+      "description": "Affixes that change meaning or grammatical role.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "English",
+        "Russian",
+        "Spanish",
+        "German",
+        "Turkish",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "morphology",
+        "vocabulary_growth"
+      ]
+    },
+    {
+      "id": "inflectional_endings",
+      "title": "Inflectional Endings",
+      "globalCategory": "word_formation",
+      "subCategory": "inflection",
+      "description": "Ending changes that encode grammar such as tense, case, or number.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "Spanish",
+        "French",
+        "Russian",
+        "German",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "morphology",
+        "grammar"
+      ]
+    },
+    {
+      "id": "compounding",
+      "title": "Compounding",
+      "globalCategory": "word_formation",
+      "subCategory": "lexical_growth",
+      "description": "Building new words by combining existing elements.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "German",
+        "Chinese",
+        "English",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "vocabulary",
+        "morphology"
+      ]
+    },
+    {
+      "id": "derivational_patterns",
+      "title": "Derivational Patterns",
+      "globalCategory": "word_formation",
+      "subCategory": "derivation",
+      "description": "Common transformations between nouns, verbs, adjectives, and related forms.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "word_families",
+        "vocabulary"
+      ]
+    },
+    {
+      "id": "measure_words_and_classifiers",
+      "title": "Measure Words and Classifiers",
+      "globalCategory": "word_formation",
+      "subCategory": "lexical_grammar_bridge",
+      "description": "Counting or grouping markers that accompany nouns.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese",
+        "Thai",
+        "Korean",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "counting",
+        "grammar",
+        "vocabulary"
+      ]
+    },
+    {
+      "id": "noun_usage",
+      "title": "Noun Usage",
+      "globalCategory": "nominal_system",
+      "subCategory": "noun_basics",
+      "description": "How nouns behave and combine in simple phrases and sentences.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "grammar",
+        "vocabulary"
+      ]
+    },
+    {
+      "id": "pronoun_system",
+      "title": "Pronoun System",
+      "globalCategory": "nominal_system",
+      "subCategory": "reference",
+      "description": "Personal and related pronouns and how they change by role or context.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "reference",
+        "grammar"
+      ]
+    },
+    {
+      "id": "articles_and_determiners",
+      "title": "Articles and Determiners",
+      "globalCategory": "nominal_system",
+      "subCategory": "noun_marking",
+      "description": "Words marking definiteness, quantity, or specificity.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "English",
+        "French",
+        "Spanish",
+        "German",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "grammar",
+        "noun_phrase"
+      ]
+    },
+    {
+      "id": "number_and_plurality",
+      "title": "Number and Plurality",
+      "globalCategory": "nominal_system",
+      "subCategory": "noun_marking",
+      "description": "Singular, plural, and other number distinctions.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "grammar",
+        "counting"
+      ]
+    },
+    {
+      "id": "grammatical_gender",
+      "title": "Grammatical Gender",
+      "globalCategory": "nominal_system",
+      "subCategory": "noun_classes",
+      "description": "Gender classes and their effects on surrounding words.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "German",
+        "Arabic",
+        "Russian",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "agreement",
+        "grammar"
+      ]
+    },
+    {
+      "id": "case_marking",
+      "title": "Case Marking",
+      "globalCategory": "nominal_system",
+      "subCategory": "role_marking",
+      "description": "Marking a noun's grammatical role through endings or particles.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Russian",
+        "German",
+        "Turkish",
+        "Japanese",
+        "Korean",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "grammar",
+        "role_marking"
+      ]
+    },
+    {
+      "id": "possession",
+      "title": "Possession",
+      "globalCategory": "nominal_system",
+      "subCategory": "reference_relations",
+      "description": "Ways of expressing ownership or belonging.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "grammar",
+        "relationships"
+      ]
+    },
+    {
+      "id": "agreement_patterns",
+      "title": "Agreement Patterns",
+      "globalCategory": "nominal_system",
+      "subCategory": "dependency_marking",
+      "description": "Matching features such as gender, number, or person across words.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "German",
+        "Russian",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "grammar",
+        "agreement"
+      ]
+    },
+    {
+      "id": "verb_classes",
+      "title": "Verb Classes",
+      "globalCategory": "verbal_system",
+      "subCategory": "verb_basics",
+      "description": "Patterns that group verbs by behavior or conjugation type.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "Arabic",
+        "Japanese",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "verbs",
+        "grammar"
+      ]
+    },
+    {
+      "id": "conjugation_patterns",
+      "title": "Conjugation Patterns",
+      "globalCategory": "verbal_system",
+      "subCategory": "inflection",
+      "description": "How verbs change based on person, number, tense, or mood.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "Arabic",
+        "Russian",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "inflection"
+      ]
+    },
+    {
+      "id": "tense_system",
+      "title": "Tense System",
+      "globalCategory": "verbal_system",
+      "subCategory": "time_reference",
+      "description": "How a language encodes present, past, future, and other time relations.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "time"
+      ]
+    },
+    {
+      "id": "aspect_system",
+      "title": "Aspect System",
+      "globalCategory": "verbal_system",
+      "subCategory": "event_structure",
+      "description": "How actions are framed as ongoing, completed, habitual, or otherwise structured.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "Russian",
+        "Chinese",
+        "Spanish",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "meaning"
+      ]
+    },
+    {
+      "id": "mood_system",
+      "title": "Mood System",
+      "globalCategory": "verbal_system",
+      "subCategory": "modality",
+      "description": "How verbs express certainty, desire, possibility, necessity, or irreality.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "modality"
+      ]
+    },
+    {
+      "id": "voice_system",
+      "title": "Voice System",
+      "globalCategory": "verbal_system",
+      "subCategory": "argument_structure",
+      "description": "Changes in how participants are foregrounded, such as active or passive voice.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        4
+      ],
+      "tags": [
+        "verbs",
+        "sentence_structure"
+      ]
+    },
+    {
+      "id": "auxiliaries_and_helpers",
+      "title": "Auxiliaries and Helper Verbs",
+      "globalCategory": "verbal_system",
+      "subCategory": "support_verbs",
+      "description": "Verbs that help form tense, aspect, modality, or periphrastic constructions.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "English",
+        "French",
+        "Spanish",
+        "German",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "verbs",
+        "compound_forms"
+      ]
+    },
+    {
+      "id": "compound_and_special_tenses",
+      "title": "Compound and Special Tenses",
+      "globalCategory": "verbal_system",
+      "subCategory": "time_reference",
+      "description": "Multi-part verb forms and special tense constructions with distinct usage.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "Portuguese",
+        "Italian",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "tense",
+        "advanced_usage"
+      ]
+    },
+    {
+      "id": "irregular_verbs",
+      "title": "Irregular Verbs",
+      "globalCategory": "verbal_system",
+      "subCategory": "exceptions",
+      "description": "High-frequency verbs with non-standard forms or patterns.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "English",
+        "French",
+        "Spanish",
+        "German",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "memorization"
+      ]
+    },
+    {
+      "id": "basic_word_order",
+      "title": "Basic Word Order",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "core_order",
+      "description": "Default arrangement of sentence elements in simple clauses.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "syntax",
+        "sentences"
+      ]
+    },
+    {
+      "id": "negation_patterns",
+      "title": "Negation Patterns",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "core_operations",
+      "description": "How statements are turned negative.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "syntax",
+        "meaning"
+      ]
+    },
+    {
+      "id": "question_formation",
+      "title": "Question Formation",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "core_operations",
+      "description": "How yes-no and information questions are formed.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "syntax",
+        "communication"
+      ]
+    },
+    {
+      "id": "subordination",
+      "title": "Subordination",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "clause_linking",
+      "description": "Embedding one clause under another.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        3,
+        5
+      ],
+      "tags": [
+        "syntax",
+        "complex_sentences"
+      ]
+    },
+    {
+      "id": "coordination",
+      "title": "Coordination",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "clause_linking",
+      "description": "Linking similar words, phrases, or clauses.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "syntax",
+        "connectors"
+      ]
+    },
+    {
+      "id": "topic_and_focus_marking",
+      "title": "Topic and Focus Marking",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "information_structure",
+      "description": "Highlighting what the sentence is about and what is being emphasized.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese",
+        "Korean",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "syntax",
+        "meaning"
+      ]
+    },
+    {
+      "id": "relative_clauses",
+      "title": "Relative Clauses",
+      "globalCategory": "sentence_architecture",
+      "subCategory": "clause_modification",
+      "description": "Clauses used to describe or identify nouns.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        3,
+        5
+      ],
+      "tags": [
+        "syntax",
+        "description"
+      ]
+    },
+    {
+      "id": "prepositions_or_postpositions",
+      "title": "Prepositions or Postpositions",
+      "globalCategory": "function_words_and_particles",
+      "subCategory": "relations",
+      "description": "Words that encode spatial, temporal, and abstract relations.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "relations",
+        "grammar"
+      ]
+    },
+    {
+      "id": "grammatical_particles",
+      "title": "Grammatical Particles",
+      "globalCategory": "function_words_and_particles",
+      "subCategory": "markers",
+      "description": "Small markers that encode roles, mood, emphasis, or discourse functions.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese",
+        "Korean",
+        "Thai",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "particles",
+        "grammar"
+      ]
+    },
+    {
+      "id": "determiners_quantifiers",
+      "title": "Determiners and Quantifiers",
+      "globalCategory": "function_words_and_particles",
+      "subCategory": "noun_support",
+      "description": "Words that frame amount, scope, and reference for nouns.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "grammar",
+        "noun_phrase"
+      ]
+    },
+    {
+      "id": "sentence_connectors",
+      "title": "Sentence Connectors",
+      "globalCategory": "function_words_and_particles",
+      "subCategory": "linking",
+      "description": "Words that connect statements, such as addition, contrast, or consequence.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "connectors",
+        "fluency"
+      ]
+    },
+    {
+      "id": "discourse_markers",
+      "title": "Discourse Markers",
+      "globalCategory": "function_words_and_particles",
+      "subCategory": "conversation_management",
+      "description": "Small expressions that organize speech and guide interaction.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "conversation",
+        "naturalness"
+      ]
+    },
+    {
+      "id": "emphasis_markers",
+      "title": "Emphasis Markers",
+      "globalCategory": "function_words_and_particles",
+      "subCategory": "stance_marking",
+      "description": "Items used to strengthen, limit, or highlight meaning.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        4
+      ],
+      "tags": [
+        "meaning",
+        "style"
+      ]
+    },
+    {
+      "id": "formality_levels",
+      "title": "Formality Levels",
+      "globalCategory": "meaning_register_and_usage",
+      "subCategory": "register",
+      "description": "Choosing expressions based on social distance and situation.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "register",
+        "social_use"
+      ]
+    },
+    {
+      "id": "politeness_strategies",
+      "title": "Politeness Strategies",
+      "globalCategory": "meaning_register_and_usage",
+      "subCategory": "pragmatics",
+      "description": "Softening, indirectness, respectful phrasing, and situational appropriateness.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "pragmatics",
+        "social_use"
+      ]
+    },
+    {
+      "id": "honorific_systems",
+      "title": "Honorific Systems",
+      "globalCategory": "meaning_register_and_usage",
+      "subCategory": "register",
+      "description": "Special forms used to show respect or social hierarchy.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Japanese",
+        "Korean",
+        "Javanese",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "register",
+        "social_hierarchy"
+      ]
+    },
+    {
+      "id": "dialect_and_standard_balance",
+      "title": "Dialect and Standard Balance",
+      "globalCategory": "meaning_register_and_usage",
+      "subCategory": "variation",
+      "description": "Managing differences between standard forms and everyday spoken varieties.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Arabic",
+        "Chinese",
+        "German",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "variation",
+        "real_world_use"
+      ]
+    },
+    {
+      "id": "naturalness_and_collocation",
+      "title": "Naturalness and Collocation",
+      "globalCategory": "meaning_register_and_usage",
+      "subCategory": "idiomaticity",
+      "description": "Choosing word combinations and phrasing that sound natural.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "fluency",
+        "native_like_use"
+      ]
+    },
+    {
+      "id": "implied_meaning_and_softness",
+      "title": "Implied Meaning and Softness",
+      "globalCategory": "meaning_register_and_usage",
+      "subCategory": "pragmatics",
+      "description": "Understanding meaning that is suggested rather than directly stated.",
+      "languageScope": "common",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        3,
+        5
+      ],
+      "tags": [
+        "pragmatics",
+        "nuance"
+      ]
+    },
+    {
+      "id": "introducing_self_and_others",
+      "title": "Introducing Self and Others",
+      "globalCategory": "communication_functions",
+      "subCategory": "social_basics",
+      "description": "Basic identity exchange and introductions.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        2
+      ],
+      "tags": [
+        "speaking",
+        "social_use"
+      ]
+    },
+    {
+      "id": "requesting_and_asking_for_help",
+      "title": "Requesting and Asking for Help",
+      "globalCategory": "communication_functions",
+      "subCategory": "needs",
+      "description": "Making requests, asking for assistance, and getting support.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "speaking",
+        "survival"
+      ]
+    },
+    {
+      "id": "describing_people_and_things",
+      "title": "Describing People and Things",
+      "globalCategory": "communication_functions",
+      "subCategory": "description",
+      "description": "Using descriptive language for appearance, qualities, and states.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "description",
+        "speaking",
+        "writing"
+      ]
+    },
+    {
+      "id": "narrating_events",
+      "title": "Narrating Events",
+      "globalCategory": "communication_functions",
+      "subCategory": "storytelling",
+      "description": "Telling what happened in sequence.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "narration",
+        "past"
+      ]
+    },
+    {
+      "id": "comparing_and_contrasting",
+      "title": "Comparing and Contrasting",
+      "globalCategory": "communication_functions",
+      "subCategory": "reasoning",
+      "description": "Showing similarities, differences, and relative degree.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        4
+      ],
+      "tags": [
+        "comparison",
+        "reasoning"
+      ]
+    },
+    {
+      "id": "explaining_and_reasoning",
+      "title": "Explaining and Reasoning",
+      "globalCategory": "communication_functions",
+      "subCategory": "reasoning",
+      "description": "Giving reasons, causes, and logical connections.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "explanation",
+        "logic"
+      ]
+    },
+    {
+      "id": "agreeing_and_disagreeing",
+      "title": "Agreeing and Disagreeing",
+      "globalCategory": "communication_functions",
+      "subCategory": "stance",
+      "description": "Expressing alignment, disagreement, and nuanced stance.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        4
+      ],
+      "tags": [
+        "discussion",
+        "opinions"
+      ]
+    },
+    {
+      "id": "apologizing_and_repairing",
+      "title": "Apologizing and Repairing",
+      "globalCategory": "communication_functions",
+      "subCategory": "social_repair",
+      "description": "Handling mistakes, apologies, and conversational recovery.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "social_use",
+        "conversation"
+      ]
+    },
+    {
+      "id": "persuading_and_recommending",
+      "title": "Persuading and Recommending",
+      "globalCategory": "communication_functions",
+      "subCategory": "influence",
+      "description": "Suggesting, advising, and trying to influence choices.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        3,
+        5
+      ],
+      "tags": [
+        "discussion",
+        "recommendation"
+      ]
+    },
+    {
+      "id": "clarifying_and_confirming",
+      "title": "Clarifying and Confirming",
+      "globalCategory": "communication_functions",
+      "subCategory": "interaction_management",
+      "description": "Checking meaning, asking follow-up questions, and confirming understanding.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "conversation",
+        "repair"
+      ]
+    },
+    {
+      "id": "sequencing_information",
+      "title": "Sequencing Information",
+      "globalCategory": "discourse_and_fluency",
+      "subCategory": "organization",
+      "description": "Ordering events and ideas in a clear progression.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "organization",
+        "storytelling"
+      ]
+    },
+    {
+      "id": "cause_effect_relations",
+      "title": "Cause and Effect Relations",
+      "globalCategory": "discourse_and_fluency",
+      "subCategory": "logic",
+      "description": "Linking reasons, consequences, and outcomes.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "logic",
+        "connectors"
+      ]
+    },
+    {
+      "id": "contrast_and_concession",
+      "title": "Contrast and Concession",
+      "globalCategory": "discourse_and_fluency",
+      "subCategory": "logic",
+      "description": "Expressing opposition, limits, and unexpected contrasts.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "logic",
+        "argumentation"
+      ]
+    },
+    {
+      "id": "conversation_turn_management",
+      "title": "Conversation Turn Management",
+      "globalCategory": "discourse_and_fluency",
+      "subCategory": "interaction",
+      "description": "Starting, holding, passing, or ending speaking turns smoothly.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "conversation",
+        "fluency"
+      ]
+    },
+    {
+      "id": "topic_maintenance_and_shift",
+      "title": "Topic Maintenance and Shift",
+      "globalCategory": "discourse_and_fluency",
+      "subCategory": "interaction",
+      "description": "Staying on topic or moving to a new one naturally.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "conversation",
+        "coherence"
+      ]
+    },
+    {
+      "id": "summarizing_and_reframing",
+      "title": "Summarizing and Reframing",
+      "globalCategory": "discourse_and_fluency",
+      "subCategory": "organization",
+      "description": "Condensing information and saying it another way.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        3,
+        5
+      ],
+      "tags": [
+        "fluency",
+        "explanation"
+      ]
+    },
+    {
+      "id": "theme_family_and_relationships",
+      "title": "Family and Relationships Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "family",
+      "description": "Vocabulary and patterns for family members, relationships, and social closeness.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "theme",
+        "daily_life"
+      ]
+    },
+    {
+      "id": "theme_home_and_routine",
+      "title": "Home and Routine Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "home",
+      "description": "Language for daily routine, rooms, objects, chores, and habits.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "theme",
+        "daily_life"
+      ]
+    },
+    {
+      "id": "theme_food_and_drink",
+      "title": "Food and Drink Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "food",
+      "description": "Language for meals, ingredients, tastes, ordering, and preferences.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "theme",
+        "daily_life"
+      ]
+    },
+    {
+      "id": "theme_shopping_and_money",
+      "title": "Shopping and Money Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "shopping",
+      "description": "Buying, selling, prices, quantities, and payment language.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        3
+      ],
+      "tags": [
+        "theme",
+        "transactions"
+      ]
+    },
+    {
+      "id": "theme_travel_and_transport",
+      "title": "Travel and Transport Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "travel",
+      "description": "Movement, transport, tickets, locations, and destinations.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "theme",
+        "movement"
+      ]
+    },
+    {
+      "id": "theme_work_and_study",
+      "title": "Work and Study Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "work_study",
+      "description": "Tasks, roles, schedules, tools, school, and professional basics.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "theme",
+        "functional_use"
+      ]
+    },
+    {
+      "id": "theme_health_and_body",
+      "title": "Health and Body Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "health",
+      "description": "Body parts, symptoms, wellness, and medical basics.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "theme",
+        "needs"
+      ]
+    },
+    {
+      "id": "theme_technology_and_digital_life",
+      "title": "Technology and Digital Life Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "technology",
+      "description": "Devices, internet use, apps, communication tools, and digital actions.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "theme",
+        "modern_life"
+      ]
+    },
+    {
+      "id": "theme_emotions_and_opinions",
+      "title": "Emotions and Opinions Language",
+      "globalCategory": "thematic_language",
+      "subCategory": "inner_life",
+      "description": "Feelings, wants, attitudes, and personal judgments.",
+      "languageScope": "universal",
+      "applicableLanguages": [
+        "all"
+      ],
+      "difficultyRange": [
+        1,
+        4
+      ],
+      "tags": [
+        "theme",
+        "expression"
+      ]
+    },
+    {
+      "id": "character_based_writing",
+      "title": "Character-Based Writing",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "script_complexity",
+      "description": "Reading and producing logographic or morphosyllabic character systems.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "script",
+        "characters"
+      ]
+    },
+    {
+      "id": "aspect_pairs",
+      "title": "Aspect Pairs",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "verb_systems",
+      "description": "Verb pair systems where completion and non-completion are lexically central.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Russian",
+        "Slavic_languages"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "verbs",
+        "aspect"
+      ]
+    },
+    {
+      "id": "verbs_of_motion",
+      "title": "Verbs of Motion",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "verb_systems",
+      "description": "Movement verb systems with directionality, manner, or repetition distinctions.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Russian",
+        "Slavic_languages",
+        "German",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "movement",
+        "verbs"
+      ]
+    },
+    {
+      "id": "root_pattern_morphology",
+      "title": "Root-Pattern Morphology",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "word_building",
+      "description": "Building related words by mapping roots into structural patterns.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Arabic",
+        "Hebrew",
+        "Semitic_languages"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "morphology",
+        "word_families"
+      ]
+    },
+    {
+      "id": "diglossia_and_dual_register",
+      "title": "Diglossia and Dual Register",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "variation",
+      "description": "Managing major gaps between formal and everyday spoken language.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Arabic",
+        "Swiss_German",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "register",
+        "variation"
+      ]
+    },
+    {
+      "id": "speech_levels",
+      "title": "Speech Levels",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "register",
+      "description": "Systematic variation in endings or forms by politeness level.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Korean",
+        "Japanese",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "register",
+        "social_use"
+      ]
+    },
+    {
+      "id": "separable_verbs",
+      "title": "Separable Verbs",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "verb_systems",
+      "description": "Verb systems where prefixes detach or shift position in sentences.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "German",
+        "Dutch"
+      ],
+      "difficultyRange": [
+        2,
+        4
+      ],
+      "tags": [
+        "verbs",
+        "syntax"
+      ]
+    },
+    {
+      "id": "subjunctive_heavy_usage",
+      "title": "Subjunctive-Heavy Usage",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "mood_systems",
+      "description": "Frequent, high-impact use of subjunctive or similar irrealis mood systems.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "French",
+        "Spanish",
+        "Portuguese",
+        "Arabic",
+        "many_others"
+      ],
+      "difficultyRange": [
+        2,
+        5
+      ],
+      "tags": [
+        "mood",
+        "advanced_usage"
+      ]
+    },
+    {
+      "id": "classifier_dominant_counting",
+      "title": "Classifier-Dominant Counting",
+      "globalCategory": "language_specific_systems",
+      "subCategory": "counting_systems",
+      "description": "Counting systems where classifiers are central to noun reference.",
+      "languageScope": "language_specific",
+      "applicableLanguages": [
+        "Chinese",
+        "Japanese",
+        "Thai",
+        "Korean",
+        "many_others"
+      ],
+      "difficultyRange": [
+        1,
+        5
+      ],
+      "tags": [
+        "counting",
+        "nouns"
+      ]
+    }
+  ]
+}

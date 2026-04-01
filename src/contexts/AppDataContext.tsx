@@ -1,10 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
-import {
-  recentlySaved as seededRecentlySaved,
-} from '../data/learner';
-import { immersionContent } from '../data/immersion';
-import { vocabularyItems, grammarNotes, mistakeEntries } from '../data/vocabulary';
-import { writingDrafts as seededDrafts } from '../data/library';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type {
   ImmersionProgress,
   NotebookEntry,
@@ -13,9 +7,9 @@ import type {
   WritingCorrection,
   WritingDraft,
 } from '../data/types';
-
-const STORAGE_KEY = 'noema_app_data_v1';
-const SCHEMA_VERSION = 1;
+import { initializeEngineServices, type EngineServices } from '../services/engine';
+import type { EvidenceRecord } from '../persistence';
+import { useProfileSession } from './ProfileSessionContext';
 
 export type ReviewMode = 'due-now' | 'weak' | 'mistakes' | 'cram';
 
@@ -25,7 +19,6 @@ interface ReviewSessionSummary {
 }
 
 interface AppDataState {
-  schemaVersion: number;
   reviewItems: ReviewItem[];
   speakingRuns: SpeakingSessionRun[];
   immersionProgress: Record<string, ImmersionProgress>;
@@ -50,9 +43,18 @@ interface AppDataContextValue {
   createNotebookEntry: (entry: Omit<NotebookEntry, 'id' | 'createdAt' | 'updatedAt'>) => NotebookEntry;
   updateMastery: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
+  recordLearnInteraction: (input: { moduleId?: string; lessonId?: string; note?: string }) => void;
 }
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
+
+const EMPTY_STATE: AppDataState = {
+  reviewItems: [],
+  speakingRuns: [],
+  immersionProgress: {},
+  writingDrafts: [],
+  notebookEntries: [],
+};
 
 function todayIso(): string {
   return new Date().toISOString();
@@ -62,251 +64,197 @@ function dateOnly(value: string): string {
   return value.slice(0, 10);
 }
 
-function addDaysIso(baseIso: string, days: number): string {
-  const d = new Date(baseIso);
-  d.setDate(d.getDate() + days);
-  return d.toISOString();
-}
-
-function shiftStrength(strength: ReviewItem['strength'], direction: 'up' | 'down'): ReviewItem['strength'] {
-  const order: ReviewItem['strength'][] = ['critical', 'weak', 'needs work', 'solid', 'very solid'];
-  const idx = order.indexOf(strength);
-  if (idx < 0) return strength;
-  const next = direction === 'up' ? Math.min(order.length - 1, idx + 1) : Math.max(0, idx - 1);
-  return order[next];
-}
-
-function isFlashCardCandidate(entry: NotebookEntry): boolean {
-  return entry.type === 'word' || entry.type === 'phrase';
-}
-
-function toIsoStartOfDay(dateOnlyValue: string): string {
-  return `${dateOnlyValue}T08:00:00.000Z`;
-}
-
-function fallbackReviewItemFromEntry(entry: NotebookEntry): ReviewItem {
-  const now = todayIso();
-  const dueAt = toIsoStartOfDay(dateOnly(now));
-  return {
-    id: `rev-${entry.id}`,
-    sourceNotebookId: entry.id,
-    origin: 'notebook',
-    term: entry.term,
-    translation: entry.translation,
-    type: entry.type === 'word' ? 'word' : 'phrase',
-    attempts: 0,
-    strength: 'needs work',
-    dueDate: dateOnly(now),
-    nextDueAt: dueAt,
-    intervalDays: 1,
-    ease: 2.3,
-    lastResult: 'incorrect',
-  };
-}
-
-function reconcileReviewItems(
-  existingItems: ReviewItem[],
-  notebookEntries: NotebookEntry[],
-): ReviewItem[] {
-  const existingBySource = new Map<string, ReviewItem>();
-  existingItems.forEach((item) => {
-    if (item.sourceNotebookId) {
-      existingBySource.set(item.sourceNotebookId, item);
-    }
-  });
-
-  return notebookEntries
-    .filter(isFlashCardCandidate)
-    .map((entry) => {
-      const directMatch = existingBySource.get(entry.id);
-      const legacyMatch = existingItems.find((item) => item.id === `rev-${entry.id}`);
-      const item = directMatch ?? legacyMatch ?? fallbackReviewItemFromEntry(entry);
-      const nextDueAt = item.nextDueAt ?? toIsoStartOfDay(item.dueDate ?? entry.createdAt);
-      const dueDate = item.dueDate ?? dateOnly(nextDueAt);
-
-      return {
-        ...item,
-        id: item.id || `rev-${entry.id}`,
-        sourceNotebookId: entry.id,
-        origin: 'notebook',
-        term: entry.term,
-        translation: entry.translation,
-        type: entry.type === 'word' ? 'word' : 'phrase',
-        dueDate,
-        nextDueAt,
-        intervalDays: item.intervalDays ?? 1,
-        ease: item.ease ?? 2.3,
-        attempts: item.attempts ?? 0,
-      };
-    });
-}
-
-function seedState(): AppDataState {
-  const baseNotebookEntries: NotebookEntry[] = [...vocabularyItems, ...grammarNotes, ...mistakeEntries].map((item) => ({
-    ...item,
-    source: 'manual',
-    favorited: seededRecentlySaved.some((saved) => saved.term === item.term),
-    updatedAt: item.createdAt,
-  }));
-
-  const extraNotebookEntries: NotebookEntry[] = Array.from({ length: 96 }, (_, idx) => {
-    const seed = baseNotebookEntries[idx % baseNotebookEntries.length];
-    const day = String((idx % 24) + 1).padStart(2, '0');
-    return {
-      ...seed,
-      id: `${seed.id}-seed-${idx + 1}`,
-      term: `${seed.term} ${idx + 1}`,
-      translation: `${seed.translation} • pack ${Math.floor(idx / 6) + 1}`,
-      context: seed.context ? `${seed.context} (generated ${idx + 1})` : `Generated practice example ${idx + 1}`,
-      createdAt: `2026-03-${day}`,
-      updatedAt: `2026-03-${day}`,
-      mastery: Math.max(0, Math.min(100, (seed.mastery ?? 50) + ((idx % 6) * 8 - 16))),
-      favorited: idx % 5 === 0 || seed.favorited,
-      tags: [...seed.tags, idx % 2 === 0 ? 'generated' : 'dummy'],
-      source: 'manual',
-    };
-  });
-
-  const notebookEntries: NotebookEntry[] = [...extraNotebookEntries, ...baseNotebookEntries];
-  const reviewItems = reconcileReviewItems([], notebookEntries);
-
-  const immersionProgress: Record<string, ImmersionProgress> = {};
-  immersionContent.forEach((content) => {
-    immersionProgress[content.id] = {
-      contentId: content.id,
-      positionSec: Math.round(content.progress * 4),
-      completed: content.progress >= 100,
-      savedPhrases: [],
-      updatedAt: todayIso(),
-    };
-  });
-
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    reviewItems,
-    speakingRuns: [],
-    immersionProgress,
-    writingDrafts: [
-      ...Array.from({ length: 40 }, (_, idx) => {
-        const seed = seededDrafts[idx % seededDrafts.length];
-        const day = String((idx % 24) + 1).padStart(2, '0');
-        return {
-          ...seed,
-          id: `${seed.id}-seed-${idx + 1}`,
-          title: `${seed.title} ${idx + 1}`,
-          content: `${seed.content} (generated draft ${idx + 1})`,
-          createdAt: `2026-03-${day}`,
-          updatedAt: `2026-03-${day}`,
-          wordCount: seed.wordCount + (idx % 6) * 10,
-        };
-      }),
-      ...seededDrafts,
-    ],
-    notebookEntries,
-  };
-}
-
-function safeLoadState(): AppDataState {
-  const seeded = seedState();
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return seeded;
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<AppDataState>;
-    if (parsed.schemaVersion !== SCHEMA_VERSION) {
-      return seeded;
-    }
-
-    const notebookEntries = parsed.notebookEntries ?? seeded.notebookEntries;
-    const existingReviewItems = parsed.reviewItems ?? seeded.reviewItems;
-    const reviewItems = reconcileReviewItems(existingReviewItems, notebookEntries);
-
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      reviewItems,
-      speakingRuns: parsed.speakingRuns ?? seeded.speakingRuns,
-      immersionProgress: parsed.immersionProgress ?? seeded.immersionProgress,
-      writingDrafts: parsed.writingDrafts ?? seeded.writingDrafts,
-      notebookEntries,
-    };
-  } catch {
-    return seeded;
-  }
-}
-
 function queueForMode(items: ReviewItem[], mode: ReviewMode): ReviewItem[] {
   const now = new Date();
   const due = items.filter((item) => new Date(item.nextDueAt ?? `${item.dueDate}T00:00:00.000Z`) <= now);
 
-  if (mode === 'due-now') {
-    return due.length > 0 ? due : items.slice(0, 10);
-  }
+  if (mode === 'due-now') return due;
+  if (mode === 'weak') return items.filter((item) => ['critical', 'weak', 'needs work'].includes(item.strength));
+  if (mode === 'mistakes') return items.filter((item) => item.lastResult === 'incorrect');
 
-  if (mode === 'weak') {
-    const weakItems = items.filter((item) => ['critical', 'weak', 'needs work'].includes(item.strength));
-    return weakItems.length > 0 ? weakItems : due;
-  }
+  return [...items]
+    .sort((a, b) => {
+      const scoreA = (a.ease ?? 2.5) + ((a.intervalDays ?? 1) / 10);
+      const scoreB = (b.ease ?? 2.5) + ((b.intervalDays ?? 1) / 10);
+      return scoreA - scoreB;
+    })
+    .slice(0, 15);
+}
 
-  if (mode === 'mistakes') {
-    const mistakes = items.filter((item) => item.lastResult === 'incorrect');
-    return mistakes.length > 0 ? mistakes : due;
-  }
+function mapEngineReviewRecordToItem(record: {
+  id: string;
+  dueAt: string;
+  intervalDays: number;
+  easeFactor: number;
+  attemptsCount: number;
+  lastReviewedAt: string | null;
+  lastResult: 'correct' | 'incorrect' | 'partial' | 'skipped' | null;
+  strength: string | null;
+  metadata: Record<string, unknown>;
+}): ReviewItem {
+  const metadata = record.metadata ?? {};
+  const typeRaw = metadata.type;
+  const type: ReviewItem['type'] = typeRaw === 'grammar' ? 'grammar' : typeRaw === 'phrase' ? 'phrase' : 'word';
+  const dueDate = record.dueAt.slice(0, 10);
 
-  const sorted = [...items].sort((a, b) => {
-    const scoreA = (a.ease ?? 2.5) + ((a.intervalDays ?? 1) / 10);
-    const scoreB = (b.ease ?? 2.5) + ((b.intervalDays ?? 1) / 10);
-    return scoreA - scoreB;
+  return {
+    id: record.id,
+    term: String(metadata.term ?? 'Curriculum item'),
+    translation: metadata.translation == null ? '' : String(metadata.translation),
+    type,
+    attempts: record.attemptsCount,
+    strength: (record.strength as ReviewItem['strength']) ?? 'needs work',
+    dueDate,
+    lastReviewed: record.lastReviewedAt?.slice(0, 10),
+    nextDueAt: record.dueAt,
+    intervalDays: record.intervalDays,
+    ease: record.easeFactor,
+    lastResult: record.lastResult === 'correct' ? 'correct' : record.lastResult === 'incorrect' ? 'incorrect' : undefined,
+  };
+}
+
+function mapSpeakingRunsFromEvidence(evidence: EvidenceRecord[]): SpeakingSessionRun[] {
+  return evidence
+    .filter((entry) => entry.activityType === 'speak' || entry.activityType === 'speaking_attempt')
+    .map((entry) => {
+      const scores = entry.scores as Record<string, unknown>;
+      const metadata = entry.metadata as Record<string, unknown>;
+      const feedbackSource: SpeakingSessionRun['feedbackSource'] =
+        metadata.feedbackSource === 'fallback' ? 'fallback' : 'ai';
+      return {
+        id: entry.id,
+        sessionId: String(entry.sessionId ?? metadata.sessionId ?? 'session'),
+        recordedAt: entry.createdAt,
+        transcript: String(entry.transcription ?? entry.rawOutputText ?? ''),
+        accuracy: Number(scores.accuracy ?? scores.pronunciation ?? 0),
+        fluency: Number(scores.fluency ?? scores.correctness ?? 0),
+        tip: String(entry.pronunciationNotes ?? metadata.tip ?? ''),
+        feedbackSource,
+      };
+    })
+    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+}
+
+function mapWritingDraftsFromEvidence(evidence: EvidenceRecord[]): WritingDraft[] {
+  return evidence
+    .filter((entry) => entry.activityType === 'write' || entry.activityType === 'writing_submission')
+    .map((entry) => {
+      const metadata = entry.metadata as Record<string, unknown>;
+      const content = String(entry.rawInputText ?? '');
+      const words = content.trim().split(/\s+/).filter(Boolean).length;
+      return {
+        id: String(entry.attemptId ?? entry.id),
+        title: String(metadata.draftTitle ?? 'Writing Draft'),
+        promptId: metadata.promptId == null ? undefined : String(metadata.promptId),
+        content,
+        corrections: Number(entry.correctionCount ?? 0),
+        createdAt: dateOnly(entry.createdAt),
+        updatedAt: dateOnly(entry.createdAt),
+        wordCount: words,
+      };
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function mapNotebookEntriesFromReviewItems(reviewItems: ReviewItem[]): NotebookEntry[] {
+  const now = dateOnly(todayIso());
+  const dedup = new Map<string, NotebookEntry>();
+
+  reviewItems.forEach((item) => {
+    const key = `${item.term}::${item.translation}`.toLowerCase();
+    if (dedup.has(key)) return;
+    dedup.set(key, {
+      id: `nb-${item.id}`,
+      term: item.term,
+      translation: item.translation || 'No translation yet',
+      type: item.type,
+      tags: ['review'],
+      createdAt: now,
+      updatedAt: now,
+      mastery: 0,
+      source: 'review',
+      favorited: false,
+    });
   });
-  return sorted.slice(0, 15);
+
+  return Array.from(dedup.values());
 }
 
 export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AppDataState>(safeLoadState);
+  const [state, setState] = useState<AppDataState>(EMPTY_STATE);
+  const [engine, setEngine] = useState<EngineServices | null>(null);
+  const { activeProfile, status: profileStatus } = useProfileSession();
 
-  const persist = (next: AppDataState) => {
-    setState(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  };
+  const refreshFromPersistence = useCallback(async (engineServices: EngineServices) => {
+    // Guardrail: core study state is hydrated from persistence only; never from seeded/localStorage snapshots.
+    const reviewRecords = await engineServices.context.persistence.repositories.review.listItemsByLanguage(
+      engineServices.context.learnerId,
+      engineServices.context.languageId,
+      400,
+    );
+    const reviewItems = reviewRecords.map((record) => mapEngineReviewRecordToItem(record));
 
-  const startReviewSession = (mode: ReviewMode): ReviewSessionSummary => {
+    const evidence = await engineServices.context.persistence.repositories.evidence.listEvidenceByLanguage(
+      engineServices.context.learnerId,
+      engineServices.context.languageId,
+      300,
+    );
+
+    setState((previous) => ({
+      ...previous,
+      reviewItems,
+      speakingRuns: mapSpeakingRunsFromEvidence(evidence),
+      writingDrafts: mapWritingDraftsFromEvidence(evidence),
+      notebookEntries: mapNotebookEntriesFromReviewItems(reviewItems),
+    }));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (profileStatus !== 'ready' || !activeProfile?.id) {
+        setEngine(null);
+        setState(EMPTY_STATE);
+        return;
+      }
+
+      const initialized = await initializeEngineServices({
+        learnerId: activeProfile.id,
+        forceReload: true,
+      });
+      if (cancelled || !initialized) return;
+      setEngine(initialized);
+      try {
+        await refreshFromPersistence(initialized);
+      } catch (error) {
+        console.error('Failed to load core persisted app data', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile?.id, profileStatus, refreshFromPersistence]);
+
+  const startReviewSession = useCallback((mode: ReviewMode): ReviewSessionSummary => {
     return {
       mode,
       queue: queueForMode(state.reviewItems, mode),
     };
-  };
+  }, [state.reviewItems]);
 
-  const gradeReviewItem = (id: string, result: 'correct' | 'incorrect') => {
-    const now = todayIso();
-    const nextItems = state.reviewItems.map((item) => {
-      if (item.id !== id) return item;
+  const gradeReviewItem = useCallback((id: string, result: 'correct' | 'incorrect') => {
+    if (!engine) return;
+    void (async () => {
+      try {
+        await engine.reviewService.submitResult(id, result);
+        await refreshFromPersistence(engine);
+      } catch (error) {
+        console.error('Failed to submit review result via engine', error);
+      }
+    })();
+  }, [engine, refreshFromPersistence]);
 
-      const previousInterval = item.intervalDays ?? 1;
-      const previousEase = item.ease ?? 2.5;
-      const intervalDays = result === 'correct'
-        ? Math.max(1, Math.round(previousInterval * previousEase))
-        : 1;
-      const ease = result === 'correct'
-        ? Math.min(3, Number((previousEase + 0.15).toFixed(2)))
-        : Math.max(1.3, Number((previousEase - 0.2).toFixed(2)));
-      const nextDueAt = addDaysIso(now, intervalDays);
-
-      return {
-        ...item,
-        attempts: item.attempts + 1,
-        intervalDays,
-        ease,
-        nextDueAt,
-        dueDate: dateOnly(nextDueAt),
-        lastReviewed: dateOnly(now),
-        lastResult: result,
-        strength: shiftStrength(item.strength, result === 'correct' ? 'up' : 'down'),
-      };
-    });
-
-    persist({ ...state, reviewItems: nextItems });
-  };
-
-  const saveSpeakingResult = (
+  const saveSpeakingResult = useCallback((
     sessionId: string,
     run: Omit<SpeakingSessionRun, 'id' | 'sessionId' | 'recordedAt'>,
   ): SpeakingSessionRun => {
@@ -317,48 +265,63 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       recordedAt: todayIso(),
     };
 
-    persist({ ...state, speakingRuns: [entry, ...state.speakingRuns] });
+    setState((previous) => ({ ...previous, speakingRuns: [entry, ...previous.speakingRuns] }));
+
+    if (engine) {
+      void (async () => {
+        try {
+          const ingestion = await engine.evidenceService.ingest({
+            activityType: 'speak',
+            sessionId,
+            rawInputText: entry.transcript,
+            rawOutputText: entry.tip,
+            transcription: entry.transcript,
+            pronunciationNotes: entry.tip,
+            scores: {
+              correctness: Math.round((entry.accuracy + entry.fluency) / 2),
+              accuracy: entry.accuracy,
+              fluency: entry.fluency,
+              pronunciation: entry.accuracy,
+            },
+            weakTags: entry.accuracy < 70 ? ['pronunciation'] : [],
+            metadata: {
+              feedbackSource: entry.feedbackSource,
+            },
+          });
+          await engine.learnerStateService.applyEvidence(ingestion.evidence);
+          await refreshFromPersistence(engine);
+        } catch (error) {
+          console.error('Failed to ingest speaking evidence', error);
+        }
+      })();
+    }
+
     return entry;
-  };
+  }, [engine, refreshFromPersistence]);
 
-  const createNotebookEntry: AppDataContextValue['createNotebookEntry'] = (entry) => {
-    const now = todayIso();
-    const newEntry: NotebookEntry = {
-      ...entry,
-      id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      createdAt: dateOnly(now),
-      updatedAt: dateOnly(now),
-    };
+  const saveImmersionPhrase = useCallback((contentId: string, phrase: string, translation?: string) => {
+    setState((previous) => {
+      const progress = previous.immersionProgress[contentId] ?? {
+        contentId,
+        positionSec: 0,
+        completed: false,
+        savedPhrases: [],
+        updatedAt: todayIso(),
+      };
 
-    const notebookEntries = [newEntry, ...state.notebookEntries];
-    const reviewItems = reconcileReviewItems(state.reviewItems, notebookEntries);
-    persist({ ...state, notebookEntries, reviewItems });
-    return newEntry;
-  };
+      const savedPhrases = progress.savedPhrases.includes(phrase)
+        ? progress.savedPhrases
+        : [phrase, ...progress.savedPhrases];
 
-  const saveImmersionPhrase = (contentId: string, phrase: string, translation?: string) => {
-    const progress = state.immersionProgress[contentId] ?? {
-      contentId,
-      positionSec: 0,
-      completed: false,
-      savedPhrases: [],
-      updatedAt: todayIso(),
-    };
+      const nextProgress: ImmersionProgress = {
+        ...progress,
+        savedPhrases,
+        updatedAt: todayIso(),
+      };
 
-    const savedPhrases = progress.savedPhrases.includes(phrase)
-      ? progress.savedPhrases
-      : [phrase, ...progress.savedPhrases];
-
-    const nextProgress: ImmersionProgress = {
-      ...progress,
-      savedPhrases,
-      updatedAt: todayIso(),
-    };
-
-    const hasEntry = state.notebookEntries.some((entry) => entry.term.toLowerCase() === phrase.toLowerCase());
-
-    const nextNotebookEntries = hasEntry
-        ? state.notebookEntries
+      const hasEntry = previous.notebookEntries.some((entry) => entry.term.toLowerCase() === phrase.toLowerCase());
+      const nextNotebookEntries = hasEntry
+        ? previous.notebookEntries
         : [
             {
               id: `note-${Date.now()}`,
@@ -372,102 +335,168 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
               source: 'immerse' as const,
               favorited: false,
             },
-            ...state.notebookEntries,
+            ...previous.notebookEntries,
           ];
-    const reviewItems = reconcileReviewItems(state.reviewItems, nextNotebookEntries);
 
-    const nextState: AppDataState = {
-      ...state,
-      reviewItems,
-      immersionProgress: {
-        ...state.immersionProgress,
-        [contentId]: nextProgress,
-      },
-      notebookEntries: nextNotebookEntries,
-    };
-
-    persist(nextState);
-  };
-
-  const updateImmersionProgress = (contentId: string, positionSec: number, completed = false) => {
-    const current = state.immersionProgress[contentId] ?? {
-      contentId,
-      positionSec: 0,
-      completed: false,
-      savedPhrases: [],
-      updatedAt: todayIso(),
-    };
-
-    persist({
-      ...state,
-      immersionProgress: {
-        ...state.immersionProgress,
-        [contentId]: {
-          ...current,
-          positionSec,
-          completed: completed || current.completed,
-          updatedAt: todayIso(),
+      return {
+        ...previous,
+        immersionProgress: {
+          ...previous.immersionProgress,
+          [contentId]: nextProgress,
         },
-      },
+        notebookEntries: nextNotebookEntries,
+      };
     });
-  };
+  }, []);
 
-  const saveDraft: AppDataContextValue['saveDraft'] = (draft) => {
+  const updateImmersionProgress = useCallback((contentId: string, positionSec: number, completed = false) => {
+    setState((previous) => {
+      const current = previous.immersionProgress[contentId] ?? {
+        contentId,
+        positionSec: 0,
+        completed: false,
+        savedPhrases: [],
+        updatedAt: todayIso(),
+      };
+
+      return {
+        ...previous,
+        immersionProgress: {
+          ...previous.immersionProgress,
+          [contentId]: {
+            ...current,
+            positionSec,
+            completed: completed || current.completed,
+            updatedAt: todayIso(),
+          },
+        },
+      };
+    });
+  }, []);
+
+  const saveDraft = useCallback<AppDataContextValue['saveDraft']>((draft) => {
     const now = dateOnly(todayIso());
     const wordCount = draft.content.trim().split(/\s+/).filter(Boolean).length;
-
-    let saved: WritingDraft;
     const existing = draft.id ? state.writingDrafts.find((item) => item.id === draft.id) : undefined;
+    const saved: WritingDraft = existing
+      ? {
+          ...existing,
+          ...draft,
+          updatedAt: now,
+          wordCount,
+        }
+      : {
+          id: `wd-${Date.now()}`,
+          promptId: draft.promptId,
+          title: draft.title,
+          content: draft.content,
+          corrections: 0,
+          createdAt: now,
+          updatedAt: now,
+          wordCount,
+        };
 
-    if (existing) {
-      saved = {
-        ...existing,
-        ...draft,
-        updatedAt: now,
-        wordCount,
-      };
-      persist({
-        ...state,
-        writingDrafts: state.writingDrafts.map((item) => (item.id === saved.id ? saved : item)),
-      });
-    } else {
-      saved = {
-        id: `wd-${Date.now()}`,
-        promptId: draft.promptId,
-        title: draft.title,
-        content: draft.content,
-        corrections: 0,
-        createdAt: now,
-        updatedAt: now,
-        wordCount,
-      };
-      persist({ ...state, writingDrafts: [saved, ...state.writingDrafts] });
+    setState((previous) => {
+      if (existing) {
+        return {
+          ...previous,
+          writingDrafts: previous.writingDrafts.map((item) => (item.id === saved.id ? saved : item)),
+        };
+      }
+
+      return { ...previous, writingDrafts: [saved, ...previous.writingDrafts] };
+    });
+
+    if (engine) {
+      void (async () => {
+        try {
+          const ingestion = await engine.evidenceService.ingest({
+            activityType: 'write',
+            attemptId: saved.id,
+            rawInputText: saved.content,
+            scores: {
+              correctness: Math.max(20, 100 - saved.corrections * 10),
+              wordCount: saved.wordCount,
+            },
+            weakTags: [],
+            metadata: {
+              draftTitle: saved.title,
+              promptId: saved.promptId ?? null,
+            },
+          });
+          await engine.learnerStateService.applyEvidence(ingestion.evidence);
+          await refreshFromPersistence(engine);
+        } catch (error) {
+          console.error('Failed to ingest writing evidence', error);
+        }
+      })();
     }
 
     return saved;
-  };
+  }, [engine, refreshFromPersistence]);
 
-  const analyzeDraft = (draftId: string, analysis: WritingCorrection[]) => {
-    persist({
-      ...state,
-      writingDrafts: state.writingDrafts.map((draft) =>
+  const analyzeDraft = useCallback((draftId: string, analysis: WritingCorrection[]) => {
+    const now = dateOnly(todayIso());
+    setState((previous) => ({
+      ...previous,
+      writingDrafts: previous.writingDrafts.map((draft) =>
         draft.id === draftId
           ? {
               ...draft,
               analysis,
               corrections: analysis.filter((item) => item.type !== 'correct').length,
-              lastAnalyzedAt: dateOnly(todayIso()),
-              updatedAt: dateOnly(todayIso()),
+              lastAnalyzedAt: now,
+              updatedAt: now,
             }
           : draft,
       ),
-    });
-  };
+    }));
 
-  const updateMastery = (id: string, delta: number) => {
-    persist({
-      ...state,
-      notebookEntries: state.notebookEntries.map((entry) =>
+    if (engine) {
+      const correctionCount = analysis.filter((item) => item.type !== 'correct').length;
+      void (async () => {
+        try {
+          const draft = state.writingDrafts.find((item) => item.id === draftId);
+          const ingestion = await engine.evidenceService.ingest({
+            activityType: 'write',
+            attemptId: draftId,
+            rawInputText: draft?.content ?? null,
+            analysisResult: { corrections: analysis },
+            correctionCount,
+            weakTags: analysis.filter((item) => item.type !== 'correct').map((item) => item.type),
+            scores: {
+              correctness: Math.max(10, 100 - correctionCount * 12),
+            },
+            metadata: {
+              draftTitle: draft?.title ?? 'Untitled',
+            },
+          });
+          await engine.learnerStateService.applyEvidence(ingestion.evidence);
+          await refreshFromPersistence(engine);
+        } catch (error) {
+          console.error('Failed to ingest analyzed draft evidence', error);
+        }
+      })();
+    }
+  }, [engine, refreshFromPersistence, state.writingDrafts]);
+
+  const createNotebookEntry = useCallback<AppDataContextValue['createNotebookEntry']>((entry) => {
+    const now = todayIso();
+    const newEntry: NotebookEntry = {
+      ...entry,
+      id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: dateOnly(now),
+      updatedAt: dateOnly(now),
+    };
+
+    setState((previous) => ({ ...previous, notebookEntries: [newEntry, ...previous.notebookEntries] }));
+    return newEntry;
+  }, []);
+
+  const updateMastery = useCallback((id: string, delta: number) => {
+    setState((previous) => ({
+      ...previous,
+      notebookEntries: previous.notebookEntries.map((entry) =>
         entry.id === id
           ? {
               ...entry,
@@ -476,13 +505,13 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
           : entry,
       ),
-    });
-  };
+    }));
+  }, []);
 
-  const toggleFavorite = (id: string) => {
-    persist({
-      ...state,
-      notebookEntries: state.notebookEntries.map((entry) =>
+  const toggleFavorite = useCallback((id: string) => {
+    setState((previous) => ({
+      ...previous,
+      notebookEntries: previous.notebookEntries.map((entry) =>
         entry.id === id
           ? {
               ...entry,
@@ -491,8 +520,36 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
           : entry,
       ),
-    });
-  };
+    }));
+  }, []);
+
+  const recordLearnInteraction = useCallback<AppDataContextValue['recordLearnInteraction']>((input) => {
+    if (!engine) return;
+    void (async () => {
+      try {
+        const ingestion = await engine.evidenceService.ingest({
+          activityType: 'learn',
+          rawInputText: input.note ?? null,
+          analysisResult: {
+            moduleId: input.moduleId ?? null,
+            lessonId: input.lessonId ?? null,
+          },
+          scores: {
+            correctness: 72,
+          },
+          weakTags: [],
+          metadata: {
+            moduleId: input.moduleId ?? null,
+            lessonId: input.lessonId ?? null,
+          },
+        });
+        await engine.learnerStateService.applyEvidence(ingestion.evidence);
+        await refreshFromPersistence(engine);
+      } catch (error) {
+        console.error('Failed to log learn interaction', error);
+      }
+    })();
+  }, [engine, refreshFromPersistence]);
 
   const value = useMemo<AppDataContextValue>(() => {
     const dueCount = queueForMode(state.reviewItems, 'due-now').length;
@@ -520,8 +577,22 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       createNotebookEntry,
       updateMastery,
       toggleFavorite,
+      recordLearnInteraction,
     };
-  }, [state]);
+  }, [
+    analyzeDraft,
+    createNotebookEntry,
+    gradeReviewItem,
+    recordLearnInteraction,
+    saveDraft,
+    saveImmersionPhrase,
+    saveSpeakingResult,
+    startReviewSession,
+    state,
+    toggleFavorite,
+    updateImmersionProgress,
+    updateMastery,
+  ]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 };
