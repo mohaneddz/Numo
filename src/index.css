@@ -41,7 +41,7 @@
   --radius-full: 9999px;
 
   /* Font */
-  --font-sans: 'Roboto', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Roboto', system-ui, -apple-system, "Twemoji Country Flags", sans-serif;
   --font-heading: "Tomo Bossa", var(--font-sans);
 
   /* Layout */
@@ -54,6 +54,8 @@
 body {
   font-family: var(--font-sans);
   margin: 0;
+  background-color: var(--color-obsidian);
+  color: var(--color-mist);
 }
 
 h1, h2, h3, h4, h5, h6 {

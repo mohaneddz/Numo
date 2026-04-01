@@ -2,27 +2,29 @@ import { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Mic, MicOff, Play, RotateCcw, ChevronRight, Loader2 } from 'lucide-react';
-import { speakingSessions } from '../../data/library';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { transcribeSpeech, completeWithEcho, synthesizeSpeech } from '../../services/aiProvider';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
+import { useAppData } from '../../contexts/AppDataContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { integrationService } from '../../services/integrationService';
 
 export default function SpeakSession() {
   const { sessionId } = useParams();
-  const session = speakingSessions.find(s => s.id === sessionId) ?? (
-    sessionId
-      ? {
-          id: sessionId,
-          title: `Practice Session ${sessionId}`,
-          type: 'free-talk' as const,
-          description: 'Template speaking session generated for unresolved IDs.',
-          duration: '5 min',
-          difficulty: 'Intermediate',
-        }
-      : null
-  );
+  const session = sessionId
+    ? {
+        id: sessionId,
+        title: 'Live Speaking Session',
+        type: 'free-talk' as const,
+        description: 'Record one speaking attempt and receive feedback from the active provider.',
+        duration: '5 min',
+        difficulty: 'Intermediate',
+      }
+    : null;
   
   const { isRecording, audioLevel, startRecording, stopRecording } = useAudioRecorder();
+  const { saveSpeakingResult } = useAppData();
+  const { activeLanguage } = useLanguage();
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [feedback, setFeedback] = useState<{ accuracy: number; fluency: number; tip: string } | null>(null);
@@ -83,15 +85,57 @@ export default function SpeakSession() {
         const jsonPart = response.match(/\{.*\}/s)?.[0] || response;
         const feedbackData = JSON.parse(jsonPart);
         setFeedback(feedbackData);
+        saveSpeakingResult(session.id, {
+          transcript: text,
+          accuracy: Number(feedbackData.accuracy ?? 75),
+          fluency: Number(feedbackData.fluency ?? 75),
+          tip: String(feedbackData.tip ?? 'Keep speaking regularly.'),
+          feedbackSource: 'ai',
+        });
+        void integrationService.logSpeakAttempt({
+          languageCode: activeLanguage.code,
+          transcript: text,
+          accuracy: Number(feedbackData.accuracy ?? 75),
+          fluency: Number(feedbackData.fluency ?? 75),
+          tip: String(feedbackData.tip ?? 'Keep speaking regularly.'),
+        });
       } catch (e) {
         console.error("Failed to parse feedback JSON", response);
         setFeedback({ accuracy: 80, fluency: 75, tip: "Great job! Keep practicing your vowels." });
+        saveSpeakingResult(session.id, {
+          transcript: text,
+          accuracy: 80,
+          fluency: 75,
+          tip: 'Great job! Keep practicing your vowels.',
+          feedbackSource: 'fallback',
+        });
+        void integrationService.logSpeakAttempt({
+          languageCode: activeLanguage.code,
+          transcript: text,
+          accuracy: 80,
+          fluency: 75,
+          tip: 'Great job! Keep practicing your vowels.',
+        });
       }
 
     } catch {
       const fallbackText = 'Buenos dias, como esta usted';
       setTranscription(fallbackText);
       setFeedback({
+        accuracy: 78,
+        fluency: 74,
+        tip: 'Fallback feedback: keep the rhythm steady and roll through "Buenos días" as one smooth phrase.',
+      });
+      saveSpeakingResult(session.id, {
+        transcript: fallbackText,
+        accuracy: 78,
+        fluency: 74,
+        tip: 'Fallback feedback: keep the rhythm steady and roll through "Buenos días" as one smooth phrase.',
+        feedbackSource: 'fallback',
+      });
+      void integrationService.logSpeakAttempt({
+        languageCode: activeLanguage.code,
+        transcript: fallbackText,
         accuracy: 78,
         fluency: 74,
         tip: 'Fallback feedback: keep the rhythm steady and roll through "Buenos días" as one smooth phrase.',

@@ -3,7 +3,7 @@ import { Bell, User, Keyboard } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CosmicShader } from '../../assets/cosmic';
 import Sidebar from './Sidebar';
-// import Titlebar from './Titlebar';
+import Titlebar from './Titlebar';
 import { LanguageSelector } from '../ui/LanguageSelector';
 import { DebugPanel } from './DebugPanel';
 import { DEBUG } from '../../config/env';
@@ -14,6 +14,7 @@ import {
 import { buildActionUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useRuntime } from '../../contexts/RuntimeContext';
+import { useLanguageProgression } from '../../hooks/useLanguageProgression';
 
 const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     '/': { title: 'Home', subtitle: 'Track your daily momentum and jump into the next best action.' },
@@ -28,13 +29,17 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     '/references': { title: 'References', subtitle: 'Explore character, sound, and word collections for your active language.' },
     '/chat': { title: 'Chat', subtitle: 'Have a natural conversation with Echo.' },
     '/web-search': { title: 'Web Search', subtitle: 'Search the web, YouTube, images, podcasts, docs, and more from one place.' },
+    '/profile': { title: 'Profile', subtitle: 'Your account details and learning identity.' },
     '/settings': { title: 'Settings', subtitle: 'Customize your Numo experience.' },
+    '/language-setup': { title: 'Language Setup', subtitle: 'Set level, focus, pace, and intensity before starting this language.' },
+    '/language-welcome': { title: 'Language Welcome', subtitle: 'Your guided start path for this language.' },
 };
 
 export default function AppShell() {
     const location = useLocation();
     const navigate = useNavigate();
     const { activeLanguage } = useLanguage();
+    const progression = useLanguageProgression();
     const { setForegroundSurface } = useRuntime();
     const basePath = '/' + (location.pathname.split('/')[1] || '');
     const meta = pageMeta[basePath] || { title: '' };
@@ -68,6 +73,23 @@ export default function AppShell() {
     useEffect(() => {
         setForegroundSurface(location.pathname);
     }, [location.pathname, setForegroundSurface]);
+
+    useEffect(() => {
+        const inSetupFlow = location.pathname === '/language-setup' || location.pathname === '/language-welcome';
+        if (!progression.onboardingCompleted && !inSetupFlow) {
+            navigate(`/language-setup?lang=${activeLanguage.code}`, { replace: true });
+            return;
+        }
+        if (progression.onboardingCompleted && !progression.welcomeSeen && location.pathname !== '/language-welcome') {
+            navigate(`/language-welcome?lang=${activeLanguage.code}`, { replace: true });
+        }
+    }, [
+        activeLanguage.code,
+        location.pathname,
+        navigate,
+        progression.onboardingCompleted,
+        progression.welcomeSeen,
+    ]);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -236,7 +258,7 @@ export default function AppShell() {
     return (
         <div className="flex flex-col h-screen w-screen relative z-0 bg-[#050816] text-white">
             {/* Custom Tauri Titlebar */}
-            {/* <Titlebar /> */}
+            <Titlebar />
 
             <div className="flex flex-1 overflow-hidden relative">
                 {/* Cosmic Shader Background */}
@@ -299,13 +321,7 @@ export default function AppShell() {
                             </button>
                             <button
                                 className="w-9 h-9 rounded-xl bg-[linear-gradient(135deg,var(--color-violet),var(--color-cyan))] flex items-center justify-center cursor-pointer shadow-[0_4px_12px_rgba(139,92,246,0.3)] hover:scale-105 active:scale-95 transition-transform"
-                                onClick={() =>
-                                    navigate(
-                                        buildActionUrl('app_profile', {
-                                            params: { from: location.pathname, lang: activeLanguage.code },
-                                        }),
-                                    )
-                                }
+                                onClick={() => navigate('/profile')}
                             >
                                 <User size={16} className="text-white" />
                             </button>
@@ -356,7 +372,7 @@ export default function AppShell() {
                     </div>
                 </div>
             )}
-            
+
             {DEBUG && <DebugPanel />}
         </div>
     );

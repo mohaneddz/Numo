@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor
 } from 'lucide-react';
@@ -7,6 +8,12 @@ import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
 import { saveToDummyDataFile } from '../utils/saveDisk';
+import { initializePersistence } from '../persistence';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useCurriculum } from '../contexts/CurriculumContext';
+import { useProfileSession } from '../contexts/ProfileSessionContext';
+import { backgroundImageService } from '../services/backgrounds';
+import type { BackgroundMappingPreview, BackgroundValidationResult } from '../services/backgrounds';
 
 interface SettingItem {
     label: string;
@@ -112,10 +119,27 @@ const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val:
 );
 
 export default function SettingsPage() {
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const SETTINGS_STORAGE_KEY = 'noema_settings_state_v1';
     const SETTINGS_LOG_KEY = 'noema_settings_log_v1';
     const [activeTabId, setActiveTabId] = useState<string>('profile');
     const [status, setStatus] = useState<string | null>(null);
+    const [bgBusy, setBgBusy] = useState<string | null>(null);
+    const [bgMappings, setBgMappings] = useState<BackgroundMappingPreview[]>([]);
+    const [bgValidation, setBgValidation] = useState<BackgroundValidationResult | null>(null);
+    const [bgCacheFiles, setBgCacheFiles] = useState(0);
+    const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
+    const { activeLanguage } = useLanguage();
+    const { recommendedCards } = useCurriculum();
+
+    useEffect(() => {
+        const tabOpt = searchParams.get('tab');
+        if (tabOpt) {
+            setActiveTabId(tabOpt === 'export' ? 'backup' : tabOpt);
+            // clear the tab param if we want, or keep it.
+        }
+    }, [searchParams]);
     
     // In a real app we'd manage this state in a context or global store
     const [settingsState, setSettingsState] = useState<Record<string, Record<string, any>>>(() => {
@@ -192,11 +216,84 @@ export default function SettingsPage() {
 
     const latestLog = useMemo(() => actionLog[0], [actionLog]);
 
+    const refreshBackgroundDiagnostics = async () => {
+        const [mappings, validation, stats] = await Promise.all([
+            backgroundImageService.listMappings(24),
+            backgroundImageService.validateCache(),
+            backgroundImageService.getCacheStats(),
+        ]);
+        setBgMappings(mappings);
+        setBgValidation(validation);
+        setBgCacheFiles(stats.files);
+    };
+
+    useEffect(() => {
+        void refreshBackgroundDiagnostics();
+    }, []);
+
+    const runBackgroundAction = async (actionKey: string, action: () => Promise<void>) => {
+        setBgBusy(actionKey);
+        try {
+            await action();
+            await refreshBackgroundDiagnostics();
+            setStatus(`Background action "${actionKey}" completed.`);
+        } catch (error) {
+            setStatus(error instanceof Error ? error.message : 'Background action failed.');
+        } finally {
+            setBgBusy(null);
+        }
+    };
+
+    const handleClearAllData = async () => {
+        const firstConfirm = window.confirm('This will permanently delete everything on this device: all profiles/accounts, courses, progress, reviews, content, cache, and local settings. Continue?');
+        if (!firstConfirm) return;
+        const secondConfirm = window.confirm('Final confirmation: delete the account and sign out now?');
+        if (!secondConfirm) return;
+
+        setBgBusy('clear_all_data');
+        try {
+            await clearActiveProfile();
+            await backgroundImageService.clearCache();
+            const persistence = await initializePersistence();
+            const db = persistence.db;
+            const tables = await db.select<{ name: string }>(
+                `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations';`,
+            );
+
+            await db.execute('PRAGMA foreign_keys = OFF;');
+            for (const table of tables) {
+                const safeTableName = table.name.replace(/"/g, '""');
+                await db.execute(`DELETE FROM "${safeTableName}";`);
+            }
+            await db.execute('PRAGMA foreign_keys = ON;');
+            await db.execute('VACUUM;');
+
+            localStorage.clear();
+            sessionStorage.clear();
+            await refreshProfileSession();
+            setStatus('Everything deleted. Signed out.');
+            window.setTimeout(() => {
+                navigate('/login', { replace: true });
+            }, 150);
+        } catch (error) {
+            setStatus(error instanceof Error ? error.message : 'Failed to clear local data.');
+        } finally {
+            setBgBusy(null);
+        }
+    };
+
     return (
         <PageContent width="wide" className="h-full pb-10">
             <PageActions>
                 <button className="page-primary-action" onClick={handleExportSettings}>
                     <Download size={16} /> Export Settings
+                </button>
+                <button
+                    className="page-primary-action !bg-rose-600/20 !border-rose-500/40 !text-rose-200 hover:!bg-rose-600/30"
+                    onClick={() => void handleClearAllData()}
+                    disabled={Boolean(bgBusy)}
+                >
+                    Clear All Data
                 </button>
             </PageActions>
         <div className="flex h-full w-full bg-transparent overflow-hidden text-gray-200">
@@ -256,6 +353,84 @@ export default function SettingsPage() {
                                         Last action: <span className="text-mist">{latestLog.label}</span> = <span className="text-mist">{latestLog.value}</span>
                                     </p>
                                 )}
+                            </div>
+
+                            <div className="mb-8 rounded-2xl border border-white/10 bg-[#0a1222]/60 p-5">
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <h3 className="text-[16px] font-bold text-white">Background Image Pipeline (Internal)</h3>
+                                        <p className="text-[12px] text-dim">
+                                            Cached files: {bgCacheFiles} • Mappings: {bgMappings.length} • Missing: {bgValidation?.missing.length ?? 0}
+                                        </p>
+                                    </div>
+                                    <button
+                                        className="rounded-lg border border-white/15 px-3 py-1.5 text-[12px] text-mist hover:bg-white/5"
+                                        onClick={() => void refreshBackgroundDiagnostics()}
+                                        disabled={Boolean(bgBusy)}
+                                    >
+                                        Refresh Diagnostics
+                                    </button>
+                                </div>
+                                <div className="mb-4 flex flex-wrap gap-2">
+                                    <button
+                                        className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[12px] text-cyan-200 disabled:opacity-50"
+                                        disabled={Boolean(bgBusy)}
+                                        onClick={() =>
+                                            void runBackgroundAction('prefetch', async () => {
+                                                await backgroundImageService.prefetchLikelyLanguageCards({
+                                                    languageCode: activeLanguage.code,
+                                                    languageName: activeLanguage.name,
+                                                    continueLearning: activeLanguage.continueLearning,
+                                                    recommended: recommendedCards.map((card) => ({
+                                                        id: card.id,
+                                                        title: card.title,
+                                                        description: card.description,
+                                                        type: card.type,
+                                                    })),
+                                                    includeGeneric: true,
+                                                });
+                                            })
+                                        }
+                                    >
+                                        Prefetch Likely Backgrounds
+                                    </button>
+                                    <button
+                                        className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[12px] text-indigo-200 disabled:opacity-50"
+                                        disabled={Boolean(bgBusy)}
+                                        onClick={() => void runBackgroundAction('regenerate_all', async () => { await backgroundImageService.regenerateAll(); })}
+                                    >
+                                        Regenerate All Mappings
+                                    </button>
+                                    <button
+                                        className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[12px] text-amber-200 disabled:opacity-50"
+                                        disabled={Boolean(bgBusy)}
+                                        onClick={() => void runBackgroundAction('validate', async () => { await backgroundImageService.validateCache(); })}
+                                    >
+                                        Validate References
+                                    </button>
+                                    <button
+                                        className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-[12px] text-rose-200 disabled:opacity-50"
+                                        disabled={Boolean(bgBusy)}
+                                        onClick={() => void runBackgroundAction('clear_cache', async () => { await backgroundImageService.clearCache(); })}
+                                    >
+                                        Clear Background Cache
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    {bgMappings.map((mapping) => (
+                                        <div key={mapping.itemKey} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                                            <div className="relative h-24 w-full">
+                                                <img src={mapping.source} alt={mapping.itemKey} className="h-full w-full object-cover" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-[#0b1020]/90 to-transparent" />
+                                                <div className="absolute bottom-1 left-2 right-2 truncate text-[10px] text-mist">{mapping.itemType}</div>
+                                            </div>
+                                            <div className="p-2">
+                                                <p className="truncate text-[11px] text-mist">{mapping.itemKey}</p>
+                                                <p className="truncate text-[10px] text-dim">{mapping.attributionText}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-sm">

@@ -111,6 +111,50 @@ function buildFallbackJsonReply(lastUserMessage: string): string | null {
     });
   }
 
+  if (lastUserMessage.includes('"learnSession"') && lastUserMessage.includes('"practicePrompt"')) {
+    return JSON.stringify({
+      learnSession: {
+        title: 'New Concept: Daily Greeting',
+        concept: 'Use a short, polite greeting that fits context and formality.',
+        example: 'Greeting + name + short courtesy phrase.',
+        practicePrompt: 'Write a short greeting sentence.',
+        answer: 'Sample greeting sentence',
+      },
+    });
+  }
+
+  if (lastUserMessage.includes('"practiceItems"') && lastUserMessage.includes('"type": "mcq|translate|speak"')) {
+    return JSON.stringify({
+      practiceItems: [
+        {
+          id: '1',
+          type: 'mcq',
+          prompt: 'Choose the best opening greeting.',
+          answer: 'Option A',
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        },
+        {
+          id: '2',
+          type: 'translate',
+          prompt: 'Translate: "I practice every day."',
+          answer: 'Localized translation',
+        },
+        {
+          id: '3',
+          type: 'speak',
+          prompt: 'Say one short self-introduction line.',
+          answer: 'Short self-introduction',
+        },
+        {
+          id: '4',
+          type: 'translate',
+          prompt: 'Translate: "Thank you for helping me."',
+          answer: 'Localized translation',
+        },
+      ],
+    });
+  }
+
   return null;
 }
 

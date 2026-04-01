@@ -51,13 +51,7 @@ export function GreetingHero() {
                     </motion.button>
                     <button
                         className="w-9 h-9 rounded-xl bg-graphite border border-slate flex items-center justify-center cursor-pointer text-dim hover:text-mist transition-colors"
-                        onClick={() =>
-                            navigate(
-                                buildActionUrl('app_profile', {
-                                    params: { from: '/', lang: activeLanguage.code, panel: 'rewards' },
-                                }),
-                            )
-                        }
+                        onClick={() => navigate('/profile?panel=rewards')}
                     >
                         <Gift size={16} />
                     </button>

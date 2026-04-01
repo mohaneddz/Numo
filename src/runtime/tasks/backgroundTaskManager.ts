@@ -56,7 +56,7 @@ export class BackgroundTaskManager {
   private pumpScheduled = false;
   private readonly heavySurfaces: string[];
   private readonly maxRecentFailures: number;
-  private readonly persistenceAdapter?: RuntimePersistenceAdapter;
+  private persistenceAdapter?: RuntimePersistenceAdapter;
 
   constructor(options: BackgroundTaskManagerOptions = {}) {
     this.mode = options.initialMode ?? 'active';
@@ -139,6 +139,10 @@ export class BackgroundTaskManager {
 
   registerHandler(type: RuntimeTaskType, handler: RuntimeTaskHandler): void {
     this.handlers.set(type, handler);
+  }
+
+  setPersistenceAdapter(adapter?: RuntimePersistenceAdapter): void {
+    this.persistenceAdapter = adapter;
   }
 
   enqueue<TPayload>(input: RuntimeTaskEnqueueInput<TPayload>): RuntimeTask<TPayload> {

@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import HomePage from './pages/Home';
 import LearnPage from './pages/Learn/LearnPage';
@@ -19,15 +19,46 @@ import ReferencesPage from './pages/References';
 import SettingsPage from './pages/Settings';
 import ChatPage from './pages/Chat';
 import WebSearchPage from './pages/WebSearch';
-import TemplateActionPage from './pages/templates/TemplateActionPage';
+import ScriptPracticePage from './pages/ScriptPractice/ScriptPracticePage';
+import ProfilePage from './pages/Profile';
+import LoginPage from './pages/Login';
+import LanguageSetupPage from './pages/LanguageSetup';
+import LanguageWelcomePage from './pages/LanguageWelcome';
+import { useProfileSession } from './contexts/ProfileSessionContext';
+import PracticeQuickPage from './pages/Practice/PracticeQuickPage';
+import LearnSessionPage from './pages/Learn/LearnSessionPage';
+import NotificationsPage from './pages/Notifications/NotificationsPage';
+
+function GuardedShell() {
+  const location = useLocation();
+  const { status } = useProfileSession();
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-dim text-sm">
+        Bootstrapping local profile session...
+      </div>
+    );
+  }
+
+  if (status !== 'ready') {
+    const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/login?redirect=${redirect}`} replace />;
+  }
+
+  return <AppShell />;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<GuardedShell />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/learn" element={<LearnPage />} />
+        <Route path="/learn/session" element={<LearnSessionPage />} />
         <Route path="/learn/:moduleId" element={<ModuleDetail />} />
+        <Route path="/practice/quick" element={<PracticeQuickPage />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/review/session" element={<ReviewSession />} />
         <Route path="/immerse" element={<ImmersePage />} />
@@ -40,11 +71,15 @@ export default function App() {
         <Route path="/notebook/:itemId" element={<NotebookDetail />} />
         <Route path="/insights" element={<InsightsPage />} />
         <Route path="/library" element={<LibraryPage />} />
+        <Route path="/script-practice" element={<ScriptPracticePage />} />
         <Route path="/references" element={<ReferencesPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/web-search" element={<WebSearchPage />} />
-        <Route path="/templates/:templateId/:entityId?" element={<TemplateActionPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/language-setup" element={<LanguageSetupPage />} />
+        <Route path="/language-welcome" element={<LanguageWelcomePage />} />
       </Route>
     </Routes>
   );

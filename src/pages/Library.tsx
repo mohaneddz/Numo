@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -29,6 +29,8 @@ import {
 import { SpotlightCard } from '../components/ui/SpotlightCard';
 import { buildActionUrl, buildTemplateUrl } from '../navigation/actionTemplates';
 import { useLanguage } from '../contexts/LanguageContext';
+import { integrationService, type ApprovalQueueItem, type LibraryApprovedItem } from '../services/integrationService';
+import type { ContentRevisionRecord } from '../persistence/types';
 
 type ItemType = 'words' | 'phrases' | 'sentences' | 'audio';
 type ActivityType = 'Speak' | 'Learn' | 'Write';
@@ -62,49 +64,42 @@ const languages = [
   { label: 'Japanese', code: 'Japanese' },
 ] as const;
 
-const baseItems: Omit<LibraryItem, 'id' | 'time' | 'isRecent'>[] = [
-  { term: '¿Cuánto cuesta?', context: 'How much does it cost?', language: 'Spanish', langIcon: '🇪🇸', activity: 'Speak', type: 'phrases', starred: true },
-  { term: 'Ich verstehe nicht', context: "I don't understand", language: 'German', langIcon: '🇩🇪', activity: 'Learn', type: 'sentences', starred: false },
-  { term: '谢谢你 (Xièxiè nǐ)', context: 'Thank you', language: 'Chinese', langIcon: '🇨🇳', activity: 'Write', type: 'words', starred: false },
-  { term: 'On se voit ce soir ?', context: 'Shall we meet up tonight?', language: 'French', langIcon: '🇫🇷', activity: 'Speak', type: 'sentences', starred: true },
-  { term: '¿Dónde está la estación?', context: 'Where is the train station?', language: 'Spanish', langIcon: '🇪🇸', activity: 'Speak', type: 'phrases', starred: true },
-  { term: '私は駅に行きます', context: 'I am going to the station', language: 'Japanese', langIcon: '🇯🇵', activity: 'Learn', type: 'sentences', starred: false },
-  { term: 'Morgen ist ein neuer Tag', context: 'Tomorrow is a new day', language: 'German', langIcon: '🇩🇪', activity: 'Write', type: 'sentences', starred: false },
-  { term: '请慢一点说', context: 'Please speak slowly', language: 'Chinese', langIcon: '🇨🇳', activity: 'Speak', type: 'phrases', starred: true },
-  { term: 'merci beaucoup', context: 'thank you very much', language: 'French', langIcon: '🇫🇷', activity: 'Learn', type: 'words', starred: false },
-  { term: 'audio clip: cafe order', context: 'Ordering coffee naturally', language: 'Spanish', langIcon: '🇪🇸', activity: 'Speak', type: 'audio', starred: true },
-];
+const collectionVisuals = [
+  { color: 'from-orange-500/20 to-rose-500/20', icon: '✈️' },
+  { color: 'from-red-500/20 to-orange-500/20', icon: '⚠️' },
+  { color: 'from-blue-500/20 to-purple-500/20', icon: '🎧' },
+  { color: 'from-amber-500/20 to-yellow-500/20', icon: '📌' },
+  { color: 'from-cyan-500/20 to-indigo-500/20', icon: '📚' },
+  { color: 'from-emerald-500/20 to-teal-500/20', icon: '🧩' },
+] as const;
 
-const generatedItems: LibraryItem[] = Array.from({ length: 84 }, (_, idx) => {
-  const src = baseItems[idx % baseItems.length];
-  const day = (idx % 7) + 1;
-  const time = idx < 8 ? `Today` : idx < 20 ? 'Yesterday' : `${day} days ago`;
+function relativeLabel(value: string): string {
+  const updated = new Date(value).getTime();
+  if (!Number.isFinite(updated)) return 'Unknown';
+  const delta = Date.now() - updated;
+  const mins = Math.max(1, Math.round(delta / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return 'Yesterday';
+  return `${days}d ago`;
+}
 
-  return {
-    ...src,
-    id: `item-${idx + 1}`,
-    term: `${src.term} ${idx + 1}`,
-    context: `${src.context} • Practice set ${Math.floor(idx / 3) + 1}`,
-    starred: idx % 5 === 0 || src.starred,
-    time,
-    isRecent: idx < 18,
-  };
-});
+function contentToItemType(item: LibraryApprovedItem): ItemType {
+  const lower = item.contentType.toLowerCase();
+  if (lower.includes('audio') || lower.includes('podcast')) return 'audio';
+  if (lower.includes('dialog') || lower.includes('phrase')) return 'phrases';
+  if (lower.includes('sentence') || lower.includes('story') || lower.includes('video')) return 'sentences';
+  return 'words';
+}
 
-const collections = [
-  { id: 'c1', title: 'Travel 🇪🇸', desc: 'Essentials for trips & daily use', count: 142, updated: '2h ago', color: 'from-orange-500/20 to-rose-500/20', icon: '✈️' },
-  { id: 'c2', title: 'Mistakes ⚠️', desc: 'Words I keep getting wrong', count: 68, updated: '1d ago', color: 'from-red-500/20 to-orange-500/20', icon: '⚠️' },
-  { id: 'c3', title: 'Slang 🤭', desc: 'Cool & casual expressions', count: 97, updated: '4h ago', color: 'from-blue-500/20 to-purple-500/20', icon: '🤭' },
-  { id: 'c4', title: 'Important 📌', desc: 'High-value words & phrases', count: 93, updated: '2h ago', color: 'from-amber-500/20 to-yellow-500/20', icon: '📌' },
-  { id: 'c5', title: 'My Notes', desc: 'Stuff I want to remember', count: 56, updated: '5h ago', color: 'from-orange-400/20 to-amber-600/20', icon: '📝' },
-  { id: 'c6', title: 'Audio Drills 🎧', desc: 'Listening-first review sets', count: 72, updated: '3h ago', color: 'from-cyan-500/20 to-indigo-500/20', icon: '🎧' },
-];
-
-const smartSections = [
-  { id: 's1', title: 'Your Mistakes', desc: 'Words you often misspeak', count: 48, action: 'Review suggested', icon: AlertTriangle, color: 'text-rose-400', bg: 'bg-rose-500/10' },
-  { id: 's2', title: 'Hard Words', desc: 'Marked as difficult', count: 57, action: 'Need practice', icon: Briefcase, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  { id: 's3', title: 'Frequently Used', desc: 'Appearing across sessions', count: 345, action: 'Keep going', icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-];
+function contentToActivity(item: LibraryApprovedItem): ActivityType {
+  const lower = item.contentType.toLowerCase();
+  if (lower.includes('audio') || lower.includes('podcast') || lower.includes('video')) return 'Speak';
+  if (lower.includes('story') || lower.includes('sentence')) return 'Learn';
+  return 'Write';
+}
 
 const fadeUp = { initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.4 } };
 
@@ -115,13 +110,38 @@ export default function LibraryPage() {
   const [activeFilter, setActiveFilter] = useState<ItemType | null>(null);
   const [languageIndex, setLanguageIndex] = useState(0);
   const [starredOnly, setStarredOnly] = useState(false);
+  const [approvalQueue, setApprovalQueue] = useState<ApprovalQueueItem[]>([]);
+  const [approvedContent, setApprovedContent] = useState<LibraryApprovedItem[]>([]);
+  const [revisionHistory, setRevisionHistory] = useState<Record<string, ContentRevisionRecord[]>>({});
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   const selectedLanguage = languages[languageIndex];
+  const libraryItems = useMemo<LibraryItem[]>(() => {
+    const now = Date.now();
+    return approvedContent.map((item) => {
+      const updatedAtMs = new Date(item.updatedAt).getTime();
+      const isRecent = Number.isFinite(updatedAtMs) ? (now - updatedAtMs) <= 72 * 60 * 60 * 1000 : false;
+      return {
+        id: item.contentItemId,
+        term: item.title,
+        context: item.summary || 'No summary available',
+        language: activeLanguage.name,
+        langIcon: activeLanguage.flag,
+        activity: contentToActivity(item),
+        type: contentToItemType(item),
+        time: relativeLabel(item.updatedAt),
+        starred: item.approvalStatus === 'approved',
+        isRecent,
+      };
+    });
+  }, [activeLanguage.flag, activeLanguage.name, approvedContent]);
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return generatedItems.filter((item) => {
+    return libraryItems.filter((item) => {
       if (activeFilter && item.type !== activeFilter) {
         return false;
       }
@@ -137,12 +157,152 @@ export default function LibraryPage() {
 
       return [item.term, item.context, item.language, item.activity, item.type].some((value) => value.toLowerCase().includes(query));
     });
-  }, [activeFilter, search, selectedLanguage.code, starredOnly]);
+  }, [activeFilter, libraryItems, search, selectedLanguage.code, starredOnly]);
 
   const recentlyAdded = useMemo(() => filteredItems.filter((item) => item.isRecent).slice(0, 9), [filteredItems]);
   const allItems = useMemo(() => filteredItems.slice(0, 42), [filteredItems]);
 
   const starredCount = filteredItems.filter((item) => item.starred).length;
+  const approvedCount = approvedContent.filter((item) => item.approvalStatus === 'approved').length;
+  const manualCount = approvedContent.filter((item) => item.approvalStatus === 'manual').length;
+
+  const collections = useMemo(() => {
+    const grouped = new Map<string, { count: number; updatedAt: string }>();
+    approvedContent.forEach((item) => {
+      const key = item.contentType || 'unknown';
+      const current = grouped.get(key);
+      if (!current) {
+        grouped.set(key, { count: 1, updatedAt: item.updatedAt });
+        return;
+      }
+      current.count += 1;
+      if (new Date(item.updatedAt).getTime() > new Date(current.updatedAt).getTime()) {
+        current.updatedAt = item.updatedAt;
+      }
+    });
+
+    return Array.from(grouped.entries())
+      .map(([type, value], index) => {
+        const visual = collectionVisuals[index % collectionVisuals.length];
+        return {
+          id: `collection-${type}`,
+          title: `${type.replace(/_/g, ' ')} (${value.count})`,
+          desc: `Approved ${type.replace(/_/g, ' ')} content`,
+          count: value.count,
+          updated: relativeLabel(value.updatedAt),
+          color: visual.color,
+          icon: visual.icon,
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [approvedContent]);
+
+  const smartSections = useMemo(
+    () => [
+      {
+        id: 's1',
+        title: 'Pending Queue',
+        desc: 'Items awaiting moderation decision',
+        count: approvalQueue.length,
+        action: approvalQueue.length > 0 ? 'Needs triage' : 'Queue clear',
+        icon: AlertTriangle,
+        color: 'text-rose-400',
+        bg: 'bg-rose-500/10',
+      },
+      {
+        id: 's2',
+        title: 'Manual Curation',
+        desc: 'Approved manually for review/edit loops',
+        count: manualCount,
+        action: manualCount > 0 ? 'Curated set' : 'None yet',
+        icon: Briefcase,
+        color: 'text-purple-400',
+        bg: 'bg-purple-500/10',
+      },
+      {
+        id: 's3',
+        title: 'Approved Content',
+        desc: 'Ready to use across learning surfaces',
+        count: approvedCount,
+        action: approvedCount > 0 ? 'Ready' : 'No approved items',
+        icon: CheckCircle2,
+        color: 'text-emerald-400',
+        bg: 'bg-emerald-500/10',
+      },
+    ],
+    [approvalQueue.length, approvedCount, manualCount],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLibraryLoading(true);
+      setLibraryError(null);
+      try {
+        const [queue, approved] = await Promise.all([
+          integrationService.listApprovalQueue(activeLanguage.code),
+          integrationService.listApprovedContent(activeLanguage.code),
+        ]);
+        if (!cancelled) {
+          setApprovalQueue(queue);
+          setApprovedContent(approved);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLibraryError(error instanceof Error ? error.message : 'Failed to load library approval data.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLibraryLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLanguage.code]);
+
+  const refreshLibraryData = async () => {
+    const [queue, approved] = await Promise.all([
+      integrationService.listApprovalQueue(activeLanguage.code),
+      integrationService.listApprovedContent(activeLanguage.code),
+    ]);
+    setApprovalQueue(queue);
+    setApprovedContent(approved);
+  };
+
+  const runLibraryAction = async (actionKey: string, action: () => Promise<void>) => {
+    setActionBusy(actionKey);
+    setLibraryError(null);
+    try {
+      await action();
+      await refreshLibraryData();
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : 'Action failed.');
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const loadRevisionHistory = async (contentItemId: string) => {
+    setActionBusy(`history:${contentItemId}`);
+    setLibraryError(null);
+    try {
+      const revisions = await integrationService.getContentRevisionHistory(contentItemId);
+      setRevisionHistory((previous) => ({
+        ...previous,
+        [contentItemId]: revisions,
+      }));
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : 'Failed to load revision history.');
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   return (
     <PageContent className="pb-12" width="wide">
@@ -209,6 +369,181 @@ export default function LibraryPage() {
           </motion.div>
 
           <motion.div {...fadeUp} transition={{ delay: 0.1 }} className="flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-white">Content Approval Queue</h2>
+            <SpotlightCard className="p-4 bg-slate-900/30 border border-white/10">
+              {libraryLoading ? (
+                <p className="text-[13px] text-dim">Loading approval queue...</p>
+              ) : approvalQueue.length === 0 ? (
+                <p className="text-[13px] text-dim">No pending candidates yet for {activeLanguage.name}.</p>
+              ) : (
+                <div className="space-y-3">
+                  {approvalQueue.slice(0, 6).map((candidate) => (
+                    <div key={candidate.candidateId} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] text-mist font-bold truncate">{candidate.objective}</p>
+                          <p className="text-[12px] text-dim mt-1 line-clamp-2">{candidate.candidateText}</p>
+                          <p className="text-[11px] text-dim mt-1">
+                            {candidate.contentType} • score {Math.round(candidate.score)} • {candidate.status}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            className="rounded-md bg-emerald-500/20 border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 disabled:opacity-50"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() =>
+                              void runLibraryAction(`approve:${candidate.candidateId}`, () =>
+                                integrationService.decideCandidate({
+                                  candidateId: candidate.candidateId,
+                                  decision: 'approved',
+                                  actorId: 'library-user',
+                                  reason: 'Approved from library queue',
+                                }),
+                              )
+                            }
+                          >
+                            Approve
+                          </button>
+                          <button
+                            className="rounded-md bg-rose-500/20 border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 disabled:opacity-50"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() =>
+                              void runLibraryAction(`reject:${candidate.candidateId}`, () =>
+                                integrationService.decideCandidate({
+                                  candidateId: candidate.candidateId,
+                                  decision: 'rejected',
+                                  actorId: 'library-user',
+                                  reason: 'Rejected from library queue',
+                                }),
+                              )
+                            }
+                          >
+                            Reject
+                          </button>
+                          <button
+                            className="rounded-md bg-indigo-500/20 border border-indigo-500/40 px-2 py-1 text-[11px] text-indigo-200 disabled:opacity-50"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() =>
+                              void runLibraryAction(`manual:${candidate.candidateId}`, () =>
+                                integrationService.decideCandidate({
+                                  candidateId: candidate.candidateId,
+                                  decision: 'manual',
+                                  actorId: 'library-user',
+                                  reason: 'Marked manual for curation',
+                                }),
+                              )
+                            }
+                          >
+                            Manual
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SpotlightCard>
+          </motion.div>
+
+          <motion.div {...fadeUp} transition={{ delay: 0.12 }} className="flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-white">Approved Content (DB)</h2>
+            <SpotlightCard className="p-4 bg-slate-900/30 border border-white/10">
+              {approvedContent.length === 0 ? (
+                <p className="text-[13px] text-dim">No approved content in DB yet for this language.</p>
+              ) : (
+                <div className="space-y-3">
+                  {approvedContent.slice(0, 6).map((item) => (
+                    <div key={item.contentItemId} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] text-mist font-bold truncate">{item.title}</p>
+                          <p className="text-[12px] text-dim mt-1 truncate">{item.summary || 'No summary'}</p>
+                          <p className="text-[11px] text-dim mt-1">
+                            {item.contentType} • {item.approvalStatus} • updated {new Date(item.updatedAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            className="rounded-md bg-white/10 border border-white/15 px-2 py-1 text-[11px] text-mist disabled:opacity-50"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() => void loadRevisionHistory(item.contentItemId)}
+                          >
+                            History
+                          </button>
+                          <button
+                            className="rounded-md bg-violet-500/20 border border-violet-500/40 px-2 py-1 text-[11px] text-violet-200 disabled:opacity-50"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() =>
+                              void runLibraryAction(`redo:${item.contentItemId}`, () =>
+                                integrationService.redoContentFromActive({
+                                  contentItemId: item.contentItemId,
+                                  actorId: 'library-user',
+                                  reason: 'Redo from library surface',
+                                }),
+                              )
+                            }
+                          >
+                            Redo
+                          </button>
+                          <button
+                            className="rounded-md bg-cyan-500/20 border border-cyan-500/40 px-2 py-1 text-[11px] text-cyan-200 disabled:opacity-50"
+                            disabled={Boolean(actionBusy)}
+                            onClick={() => {
+                              const edited = window.prompt('Manual edit body');
+                              if (!edited || !edited.trim()) return;
+                              void runLibraryAction(`edit:${item.contentItemId}`, () =>
+                                integrationService.manualEditContent({
+                                  contentItemId: item.contentItemId,
+                                  body: edited.trim(),
+                                  actorId: 'library-user',
+                                  reason: 'Manual edit from library surface',
+                                }),
+                              );
+                            }}
+                          >
+                            Manual Edit
+                          </button>
+                        </div>
+                      </div>
+
+                      {revisionHistory[item.contentItemId] && revisionHistory[item.contentItemId].length > 0 && (
+                        <div className="mt-3 border-t border-white/10 pt-3 space-y-2">
+                          {revisionHistory[item.contentItemId].slice(0, 4).map((revision) => (
+                            <div key={revision.id} className="flex items-center justify-between text-[11px] text-dim">
+                              <span>
+                                Rev {revision.revisionNumber} {revision.isActive ? '(active)' : ''} • {new Date(revision.createdAt).toLocaleString()}
+                              </span>
+                              {!revision.isActive && (
+                                <button
+                                  className="rounded-md bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-amber-200 disabled:opacity-50"
+                                  disabled={Boolean(actionBusy)}
+                                  onClick={() =>
+                                    void runLibraryAction(`revert:${revision.id}`, () =>
+                                      integrationService.revertContentRevision({
+                                        contentItemId: item.contentItemId,
+                                        revisionId: revision.id,
+                                        actorId: 'library-user',
+                                        reason: 'Reverted from library history',
+                                      }),
+                                    )
+                                  }
+                                >
+                                  Revert
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {libraryError && <p className="text-[12px] text-rose-300 mt-3">{libraryError}</p>}
+            </SpotlightCard>
+          </motion.div>
+
+          <motion.div {...fadeUp} transition={{ delay: 0.14 }} className="flex flex-col gap-4">
             <h2 className="text-lg font-bold text-white">Recently Added</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {recentlyAdded.map((item) => (
@@ -373,7 +708,7 @@ export default function LibraryPage() {
           <motion.div {...fadeUp} transition={{ delay: 0.25 }} className="flex flex-col gap-4">
             <div>
               <h2 className="text-lg font-bold text-white mb-1">Smart Sections</h2>
-              <p className="text-[13px] text-dim">Auto-generated from your activity</p>
+              <p className="text-[13px] text-dim">Derived from persisted queue and approved content records</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

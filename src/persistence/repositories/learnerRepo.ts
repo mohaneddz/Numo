@@ -7,14 +7,18 @@ import {
   stringifyJson,
 } from '../utils';
 import type {
+  CreateLearnerProfileInput,
   LearnerNodeStateRecord,
   LearnerProfileRecord,
   LearnerRepository,
   ProgressAggregate,
   SqlDatabase,
   UpsertLearnerNodeStateInput,
+  UpsertWeaknessClusterInput,
   WeaknessClusterRecord,
 } from '../types';
+
+const ACTIVE_PROFILE_KEY = 'active_profile_id';
 
 interface LearnerProfileRow {
   id: string;
@@ -137,6 +141,123 @@ function mapWeaknessClusterRow(row: WeaknessClusterRow): WeaknessClusterRecord {
 
 export class SqliteLearnerRepository implements LearnerRepository {
   constructor(private readonly db: SqlDatabase) {}
+
+  async listProfiles(): Promise<LearnerProfileRecord[]> {
+    try {
+      const rows = await this.db.select<LearnerProfileRow>(
+        `
+        SELECT id, display_name, native_language_code, base_language_code, created_at, updated_at
+        FROM learner_profile
+        ORDER BY updated_at DESC, created_at DESC;
+        `,
+      );
+      return rows.map(mapLearnerProfileRow);
+    } catch (error) {
+      throw new RepositoryError('learner', 'listProfiles', error);
+    }
+  }
+
+  async getProfileById(id: string): Promise<LearnerProfileRecord | null> {
+    try {
+      const rows = await this.db.select<LearnerProfileRow>(
+        `
+        SELECT id, display_name, native_language_code, base_language_code, created_at, updated_at
+        FROM learner_profile
+        WHERE id = ?
+        LIMIT 1;
+        `,
+        [id],
+      );
+      if (rows.length === 0) {
+        return null;
+      }
+      return mapLearnerProfileRow(rows[0]);
+    } catch (error) {
+      throw new RepositoryError('learner', 'getProfileById', error);
+    }
+  }
+
+  async createProfile(input: CreateLearnerProfileInput): Promise<LearnerProfileRecord> {
+    try {
+      const timestamp = nowIso();
+      const id = makeId('learner');
+      await this.db.execute(
+        `
+        INSERT INTO learner_profile (id, display_name, native_language_code, base_language_code, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?);
+        `,
+        [
+          id,
+          input.displayName.trim(),
+          input.nativeLanguageCode.trim().toLowerCase(),
+          (input.baseLanguageCode ?? 'en').trim().toLowerCase(),
+          timestamp,
+          timestamp,
+        ],
+      );
+      return {
+        id,
+        displayName: input.displayName.trim(),
+        nativeLanguageCode: input.nativeLanguageCode.trim().toLowerCase(),
+        baseLanguageCode: (input.baseLanguageCode ?? 'en').trim().toLowerCase(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+    } catch (error) {
+      throw new RepositoryError('learner', 'createProfile', error);
+    }
+  }
+
+  async getActiveProfile(): Promise<LearnerProfileRecord | null> {
+    try {
+      const rows = await this.db.select<{ value_json: string }>(
+        'SELECT value_json FROM settings WHERE key = ? LIMIT 1;',
+        [ACTIVE_PROFILE_KEY],
+      );
+      if (rows.length === 0) {
+        return null;
+      }
+
+      const parsed = JSON.parse(rows[0].value_json) as { profileId?: string } | string | null;
+      const profileId = typeof parsed === 'string' ? parsed : parsed?.profileId;
+      if (!profileId) {
+        return null;
+      }
+      return this.getProfileById(profileId);
+    } catch (error) {
+      throw new RepositoryError('learner', 'getActiveProfile', error);
+    }
+  }
+
+  async setActiveProfile(profileId: string): Promise<void> {
+    try {
+      const profile = await this.getProfileById(profileId);
+      if (!profile) {
+        return;
+      }
+      await this.db.execute(
+        `
+        INSERT INTO settings (key, value_json, source, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value_json = excluded.value_json,
+          source = excluded.source,
+          updated_at = excluded.updated_at;
+        `,
+        [ACTIVE_PROFILE_KEY, stringifyJson({ profileId }), 'profile_session', nowIso()],
+      );
+    } catch (error) {
+      throw new RepositoryError('learner', 'setActiveProfile', error);
+    }
+  }
+
+  async clearActiveProfile(): Promise<void> {
+    try {
+      await this.db.execute('DELETE FROM settings WHERE key = ?;', [ACTIVE_PROFILE_KEY]);
+    } catch (error) {
+      throw new RepositoryError('learner', 'clearActiveProfile', error);
+    }
+  }
 
   async ensureDefaultProfile(): Promise<LearnerProfileRecord> {
     try {
@@ -281,6 +402,114 @@ export class SqliteLearnerRepository implements LearnerRepository {
       return rows.length > 0 ? mapLearnerNodeStateRow(rows[0]) : null;
     } catch (error) {
       throw new RepositoryError('learner', 'getLearnerNodeState', error);
+    }
+  }
+
+  async listLearnerNodeStates(
+    learnerId: string,
+    languageId: string,
+    limit = 200,
+  ): Promise<LearnerNodeStateRecord[]> {
+    try {
+      const rows = await this.db.select<LearnerNodeStateRow>(
+        `
+        SELECT
+          id, learner_id, language_id, node_id, mastery_score, confidence_score,
+          exposure_count, success_count, failure_count, last_seen_at, next_review_at,
+          forgetting_risk, recognition_score, production_score, listening_score,
+          reading_score, writing_score, speaking_score, pronunciation_score,
+          weak_tags_json, error_tags_json, manual_override_json, created_at, updated_at
+        FROM learner_node_state
+        WHERE learner_id = ? AND language_id = ?
+        ORDER BY updated_at DESC
+        LIMIT ?;
+        `,
+        [learnerId, languageId, limit],
+      );
+      return rows.map(mapLearnerNodeStateRow);
+    } catch (error) {
+      throw new RepositoryError('learner', 'listLearnerNodeStates', error);
+    }
+  }
+
+  async upsertWeaknessCluster(input: UpsertWeaknessClusterInput): Promise<WeaknessClusterRecord> {
+    try {
+      const timestamp = nowIso();
+      const rows = await this.db.select<WeaknessClusterRow>(
+        `
+        SELECT
+          id, learner_id, language_id, cluster_key, title, description,
+          severity_score, hit_count, last_seen_at, related_node_ids_json,
+          evidence_refs_json, tags_json, created_at, updated_at
+        FROM weakness_clusters
+        WHERE learner_id = ? AND language_id = ? AND cluster_key = ?
+        LIMIT 1;
+        `,
+        [input.learnerId, input.languageId, input.clusterKey],
+      );
+
+      const current = rows.length > 0 ? mapWeaknessClusterRow(rows[0]) : null;
+      const relatedNodeIds = Array.from(
+        new Set([...(current?.relatedNodeIds ?? []), ...(input.relatedNodeIds ?? [])]),
+      );
+      const evidenceRefs = Array.from(
+        new Set([...(current?.evidenceRefs ?? []), ...(input.evidenceRefs ?? [])]),
+      );
+      const tags = Array.from(new Set([...(current?.tags ?? []), ...(input.tags ?? [])]));
+      const severityScore = Math.max(0, Math.min(100, (current?.severityScore ?? 0) + (input.severityDelta ?? 0)));
+      const hitCount = Math.max(0, (current?.hitCount ?? 0) + (input.hitDelta ?? 1));
+
+      await this.db.execute(
+        `
+        INSERT INTO weakness_clusters (
+          id, learner_id, language_id, cluster_key, title, description, severity_score, hit_count,
+          last_seen_at, related_node_ids_json, evidence_refs_json, tags_json, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(learner_id, language_id, cluster_key) DO UPDATE SET
+          title = excluded.title,
+          description = excluded.description,
+          severity_score = excluded.severity_score,
+          hit_count = excluded.hit_count,
+          last_seen_at = excluded.last_seen_at,
+          related_node_ids_json = excluded.related_node_ids_json,
+          evidence_refs_json = excluded.evidence_refs_json,
+          tags_json = excluded.tags_json,
+          updated_at = excluded.updated_at;
+        `,
+        [
+          current?.id ?? makeId('wcl'),
+          input.learnerId,
+          input.languageId,
+          input.clusterKey,
+          input.title,
+          input.description ?? current?.description ?? null,
+          severityScore,
+          hitCount,
+          input.lastSeenAt ?? timestamp,
+          stringifyJson(relatedNodeIds),
+          stringifyJson(evidenceRefs),
+          stringifyJson(tags),
+          current?.createdAt ?? timestamp,
+          timestamp,
+        ],
+      );
+
+      const updatedRows = await this.db.select<WeaknessClusterRow>(
+        `
+        SELECT
+          id, learner_id, language_id, cluster_key, title, description,
+          severity_score, hit_count, last_seen_at, related_node_ids_json,
+          evidence_refs_json, tags_json, created_at, updated_at
+        FROM weakness_clusters
+        WHERE learner_id = ? AND language_id = ? AND cluster_key = ?
+        LIMIT 1;
+        `,
+        [input.learnerId, input.languageId, input.clusterKey],
+      );
+      return mapWeaknessClusterRow(updatedRows[0]);
+    } catch (error) {
+      throw new RepositoryError('learner', 'upsertWeaknessCluster', error);
     }
   }
 
