@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "curriculumId": "global-default-themes",
+  "unitCount": 30,
+  "expansionSystem": {
+    "name": "Everdark",
+    "displayFormat": "Everdark {level}",
+    "isInfinite": true,
+    "unlockMode": "after_core_progress"
+  },
+  "defaults": {
+    "coreSessionRange": {
+      "earlyUnits": [12, 16],
+      "midUnits": [10, 14],
+      "lateUnits": [8, 12]
+    },
+    "userReorderable": true,
+    "conceptsEmbedded": true,
+    "standaloneRuleUnits": false
+  },
+  "units": [
+    {
+      "id": "starter_survival",
+      "order": 1,
+      "phase": "survival_entry",
+      "title": "Starter Survival",
+      "shortDescription": "First useful phrases and the basic feel of the language through immediate usage.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["pronunciation_basics", "yes_no", "politeness", "simple_recognition"]
+    },
+    {
+      "id": "greetings_introductions",
+      "order": 2,
+      "phase": "survival_entry",
+      "title": "Greetings & Introductions",
+      "shortDescription": "Saying hello, introducing yourself, and handling the first simple exchanges.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["self_introduction", "basic_questions", "name_forms", "courtesy_patterns"]
+    },
+    {
+      "id": "people_identity",
+      "order": 3,
+      "phase": "survival_entry",
+      "title": "People & Identity",
+      "shortDescription": "Talking about who people are, where they are from, and simple personal details.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["pronouns", "identity_statements", "age", "nationality", "languages"]
+    },
+    {
+      "id": "questions_requests",
+      "order": 4,
+      "phase": "survival_entry",
+      "title": "Questions & Requests",
+      "shortDescription": "Asking for information, help, permission, and basic needs.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["question_words", "request_patterns", "need_want", "negation_basics"]
+    },
+    {
+      "id": "daily_actions_objects",
+      "order": 5,
+      "phase": "survival_entry",
+      "title": "Daily Actions & Common Objects",
+      "shortDescription": "Core verbs and objects used constantly in everyday life.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["common_verbs", "object_words", "simple_commands", "basic_sentence_order"]
+    },
+    {
+      "id": "home_daily_routine",
+      "order": 6,
+      "phase": "personal_daily_life",
+      "title": "Home & Daily Routine",
+      "shortDescription": "Talking about home life, routine actions, and everyday habits.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["routine_patterns", "time_frequency", "possession_basics", "ongoing_actions"]
+    },
+    {
+      "id": "family_relationships",
+      "order": 7,
+      "phase": "personal_daily_life",
+      "title": "Family & Relationships",
+      "shortDescription": "Family members, relationships, and describing close people.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["kinship_terms", "possessives", "describing_people", "simple_comparisons"]
+    },
+    {
+      "id": "food_drink",
+      "order": 8,
+      "phase": "personal_daily_life",
+      "title": "Food & Drink",
+      "shortDescription": "Eating, ordering, tastes, ingredients, and common meal situations.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["preferences", "quantities", "ordering_patterns", "countable_usage"]
+    },
+    {
+      "id": "shopping_money",
+      "order": 9,
+      "phase": "personal_daily_life",
+      "title": "Shopping & Money",
+      "shortDescription": "Buying things, asking prices, sizes, payment, and common store dialogue.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["numbers", "currency", "price_questions", "quantity_patterns"]
+    },
+    {
+      "id": "time_dates_planning",
+      "order": 10,
+      "phase": "personal_daily_life",
+      "title": "Time, Dates & Planning",
+      "shortDescription": "Days, months, time expressions, schedules, and making simple plans.",
+      "coreSessionRange": [12, 16],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["clock_time", "calendar_terms", "future_intent_basics", "sequencing"]
+    },
+    {
+      "id": "places_directions",
+      "order": 11,
+      "phase": "moving_through_world",
+      "title": "Places & Directions",
+      "shortDescription": "Finding places, giving directions, and describing location.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["location_words", "movement_verbs", "prepositions_or_particles", "imperatives"]
+    },
+    {
+      "id": "travel_transport",
+      "order": 12,
+      "phase": "moving_through_world",
+      "title": "Travel & Transport",
+      "shortDescription": "Buses, trains, taxis, tickets, stations, airports, and getting around.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["destination_patterns", "movement_direction", "travel_requests", "time_planning"]
+    },
+    {
+      "id": "health_body",
+      "order": 13,
+      "phase": "moving_through_world",
+      "title": "Health & Body",
+      "shortDescription": "Body parts, symptoms, feeling well or unwell, and getting help.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["state_descriptions", "pain_expressions", "necessity", "help_seeking"]
+    },
+    {
+      "id": "weather_nature",
+      "order": 14,
+      "phase": "moving_through_world",
+      "title": "Weather & Nature",
+      "shortDescription": "Weather, seasons, outside conditions, and basic nature vocabulary.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["descriptive_adjectives", "condition_statements", "time_seasons", "comparisons"]
+    },
+    {
+      "id": "technology_digital_life",
+      "order": 15,
+      "phase": "moving_through_world",
+      "title": "Technology & Digital Life",
+      "shortDescription": "Phones, apps, messages, accounts, online actions, and everyday digital language.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["tech_verbs", "instruction_patterns", "problem_reporting", "modern_everyday_vocab"]
+    },
+    {
+      "id": "school_learning",
+      "order": 16,
+      "phase": "social_personal_expression",
+      "title": "School & Learning",
+      "shortDescription": "Studying, reading, writing, asking questions, and understanding explanations.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["learning_verbs", "clarification_requests", "instruction_following", "ability_patterns"]
+    },
+    {
+      "id": "work_career",
+      "order": 17,
+      "phase": "social_personal_expression",
+      "title": "Work & Career",
+      "shortDescription": "Jobs, workplaces, tasks, meetings, and daily professional communication.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["responsibility_patterns", "formal_register_basics", "scheduling", "task_language"]
+    },
+    {
+      "id": "social_life_small_talk",
+      "order": 18,
+      "phase": "social_personal_expression",
+      "title": "Social Life & Small Talk",
+      "shortDescription": "Invitations, casual conversation, meeting people, and polite interaction.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["social_register", "invitation_patterns", "conversation_fillers", "politeness_expansion"]
+    },
+    {
+      "id": "hobbies_entertainment",
+      "order": 19,
+      "phase": "social_personal_expression",
+      "title": "Hobbies & Entertainment",
+      "shortDescription": "Free time, sports, music, games, movies, and enjoying things.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["preference_patterns", "frequency", "ability", "sharing_opinions"]
+    },
+    {
+      "id": "emotions_preferences_opinions",
+      "order": 20,
+      "phase": "social_personal_expression",
+      "title": "Emotions, Preferences & Opinions",
+      "shortDescription": "Expressing feelings, likes and dislikes, wants, and simple opinions.",
+      "coreSessionRange": [10, 14],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["emotion_words", "subjective_language", "reasons_basics", "intensity"]
+    },
+    {
+      "id": "describing_people_things_situations",
+      "order": 21,
+      "phase": "richer_expression",
+      "title": "Describing People, Things & Situations",
+      "shortDescription": "Appearance, quality, condition, and making clearer descriptions.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["adjectives", "comparison_patterns", "degree", "relative_detail"]
+    },
+    {
+      "id": "past_events_experiences",
+      "order": 22,
+      "phase": "richer_expression",
+      "title": "Past Events & Experiences",
+      "shortDescription": "Talking about what happened, what you did, and previous experiences.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["past_reference", "completed_actions", "time_markers", "sequence_of_events"]
+    },
+    {
+      "id": "future_plans_intentions",
+      "order": 23,
+      "phase": "richer_expression",
+      "title": "Future Plans & Intentions",
+      "shortDescription": "Talking about plans, hopes, upcoming actions, and intentions.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["future_reference", "intentions", "planning_patterns", "conditional_basics"]
+    },
+    {
+      "id": "problems_emergencies",
+      "order": 24,
+      "phase": "richer_expression",
+      "title": "Problems & Emergencies",
+      "shortDescription": "Lost items, broken things, urgent help, danger, and emergency communication.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["urgency", "problem_reporting", "requests_for_help", "clear_instruction_language"]
+    },
+    {
+      "id": "services_administration",
+      "order": 25,
+      "phase": "richer_expression",
+      "title": "Services & Administration",
+      "shortDescription": "Forms, appointments, offices, documents, and official interactions.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["formal_requests", "document_language", "institution_interaction", "confirmation_patterns"]
+    },
+    {
+      "id": "culture_traditions",
+      "order": 26,
+      "phase": "fluency_expansion",
+      "title": "Culture & Traditions",
+      "shortDescription": "Local customs, traditions, holidays, and culturally specific situations.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["cultural_context", "social_norms", "register_sensitivity", "contextual_vocab"]
+    },
+    {
+      "id": "storytelling_narration",
+      "order": 27,
+      "phase": "fluency_expansion",
+      "title": "Storytelling & Narration",
+      "shortDescription": "Connecting events, telling stories, and giving coherent narrative detail.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["narrative_sequence", "linking_words", "scene_description", "retelling"]
+    },
+    {
+      "id": "explaining_comparing_reasoning",
+      "order": 28,
+      "phase": "fluency_expansion",
+      "title": "Explaining, Comparing & Reasoning",
+      "shortDescription": "Giving explanations, comparing things, and expressing cause and logic.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["because_but_if", "comparison", "cause_effect", "structured_explanations"]
+    },
+    {
+      "id": "discussion_persuasion_nuance",
+      "order": 29,
+      "phase": "fluency_expansion",
+      "title": "Discussion, Persuasion & Nuance",
+      "shortDescription": "Agreeing, disagreeing, defending a point, and speaking with more nuance.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["argument_patterns", "softening", "nuance_markers", "positioning_opinions"]
+    },
+    {
+      "id": "real_world_fluency",
+      "order": 30,
+      "phase": "fluency_expansion",
+      "title": "Real-World Fluency",
+      "shortDescription": "Mixed open-world situations, natural interaction, and endless applied expansion.",
+      "coreSessionRange": [8, 12],
+      "everdarkEnabled": true,
+      "embeddedConceptFocus": ["mixed_registers", "repair_strategies", "natural_flow", "open_world_application"]
+    }
+  ]
+}

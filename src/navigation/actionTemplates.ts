@@ -85,10 +85,39 @@ function toQueryValue(value: TemplateQueryValue): string | null {
   return String(value);
 }
 
+export const TEMPLATE_PATH_MAP: Record<string, string> = {
+  'quick-session': '/practice/quick',
+  'learn-continue': '/learn/session',
+  'next-action': '/learn/session',
+  'insights-review': '/insights',
+  'insights-period': '/insights',
+  'library-practice': '/practice/quick',
+  'settings-export': '/settings',
+  'learn-quick-start': '/learn/session',
+  'review-flow': '/learn/session',
+  'speak-quick-practice': '/practice/quick',
+  'write-view-all': '/notebook',
+  'notebook-new-item': '/notebook',
+  'new-collection': '/notebook',
+  'notifications': '/notifications',
+  'profile': '/profile',
+  'echo-quick-practice': '/practice/quick',
+  'echo-live-conversation': '/speak',
+  'echo-mistake-analysis': '/insights',
+  'content-practice': '/practice/quick',
+  'content-related': '/learn/session',
+  'content-save': '/library',
+  'notebook-review': '/practice/quick',
+  'notebook-edit': '/notebook',
+  'write-continue': '/notebook',
+  'write-review': '/practice/quick',
+  'write-publish': '/notebook'
+};
+
 export function buildTemplateUrl(input: BuildTemplateUrlInput): string {
-  const base = `/templates/${encodeURIComponent(input.templateId)}${
-    input.entityId ? `/${encodeURIComponent(input.entityId)}` : ''
-  }`;
+  const path = TEMPLATE_PATH_MAP[input.templateId] || '/practice/quick';
+
+  const base = input.entityId ? `${path}/${encodeURIComponent(input.entityId)}` : path;
 
   const params = new URLSearchParams();
   Object.entries(input.params ?? {}).forEach(([key, value]) => {
