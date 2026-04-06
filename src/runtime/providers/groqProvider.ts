@@ -228,7 +228,7 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
       model,
       voice: request.voice ?? aiConfig.models.ttsVoice,
       input: request.text,
-      response_format: request.format ?? 'mp3',
+      response_format: request.format ?? 'wav',
     };
 
     const response = await fetch(endpoint, {

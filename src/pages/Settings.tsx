@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor
+    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, Brain
 } from 'lucide-react';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
@@ -14,12 +14,13 @@ import { useCurriculum } from '../contexts/CurriculumContext';
 import { useProfileSession } from '../contexts/ProfileSessionContext';
 import { backgroundImageService } from '../services/backgrounds';
 import type { BackgroundMappingPreview, BackgroundValidationResult } from '../services/backgrounds';
+import { aiConfig } from '../config/aiConfig';
 
 interface SettingItem {
     label: string;
     description: string;
-    type: 'select' | 'toggle' | 'info';
-    value: string | boolean;
+    type: 'select' | 'toggle' | 'info' | 'groq-apis';
+    value: string | boolean | string[];
     options?: string[];
 }
 
@@ -96,6 +97,12 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
+        id: 'ai', title: 'AI Providers', icon: Brain, color: '#22c55e',
+        settings: [
+            { label: 'GROQ APIs', description: 'Add one or more GROQ API keys and validate LLM/STT/TTS access.', type: 'groq-apis', value: [] },
+        ],
+    },
+    {
         id: 'desktop', title: 'Desktop Preferences', icon: Monitor, color: '#8b5cf6',
         settings: [
             { label: 'Start with System', description: 'Launch Numo when your computer starts', type: 'toggle', value: false },
@@ -118,6 +125,50 @@ const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val:
     </button>
 );
 
+function createProbeWavFile(): File {
+    const sampleRate = 16000;
+    const durationSeconds = 1;
+    const channelCount = 1;
+    const bitsPerSample = 16;
+    const totalSamples = sampleRate * durationSeconds;
+    const dataSize = totalSamples * channelCount * (bitsPerSample / 8);
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeText = (offset: number, value: string) => {
+        for (let i = 0; i < value.length; i += 1) {
+            view.setUint8(offset + i, value.charCodeAt(i));
+        }
+    };
+
+    writeText(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeText(8, 'WAVE');
+    writeText(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channelCount, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * channelCount * (bitsPerSample / 8), true);
+    view.setUint16(32, channelCount * (bitsPerSample / 8), true);
+    view.setUint16(34, bitsPerSample, true);
+    writeText(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let pcmOffset = 44;
+    const frequency = 220;
+    const amplitude = 0.18;
+    for (let sampleIndex = 0; sampleIndex < totalSamples; sampleIndex += 1) {
+        const angle = (2 * Math.PI * frequency * sampleIndex) / sampleRate;
+        const sample = Math.sin(angle) * amplitude;
+        const clamped = Math.max(-1, Math.min(1, sample));
+        view.setInt16(pcmOffset, clamped * 0x7fff, true);
+        pcmOffset += 2;
+    }
+
+    return new File([buffer], 'probe.wav', { type: 'audio/wav' });
+}
+
 export default function SettingsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -129,6 +180,7 @@ export default function SettingsPage() {
     const [bgMappings, setBgMappings] = useState<BackgroundMappingPreview[]>([]);
     const [bgValidation, setBgValidation] = useState<BackgroundValidationResult | null>(null);
     const [bgCacheFiles, setBgCacheFiles] = useState(0);
+    const [groqCheckStatus, setGroqCheckStatus] = useState<Record<number, { tone: 'ok' | 'warn' | 'error' | 'info'; message: string }>>({});
     const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
     const { activeLanguage } = useLanguage();
     const { recommendedCards } = useCurriculum();
@@ -202,6 +254,163 @@ export default function SettingsPage() {
             return next;
         });
         setStatus(`Saved "${label}" in ${sectionId}.`);
+    };
+
+    const readGroqApis = (): string[] => {
+        const value = settingsState.ai?.['GROQ APIs'];
+        if (!Array.isArray(value)) return [];
+        return value.map((entry) => String(entry ?? ''));
+    };
+
+    const writeGroqApis = (next: string[]) => {
+        updateSetting('ai', 'GROQ APIs', next);
+    };
+
+    const setGroqApiAt = (index: number, value: string) => {
+        const current = readGroqApis();
+        const next = [...current];
+        next[index] = value;
+        writeGroqApis(next);
+        setGroqCheckStatus((prev) => ({
+            ...prev,
+            [index]: { tone: 'info', message: 'Edited. Click check to validate this key.' },
+        }));
+    };
+
+    const addGroqApi = () => {
+        const current = readGroqApis();
+        writeGroqApis([...current, '']);
+    };
+
+    const detectQuotaIssue = (statusCode: number | undefined, message: string): boolean => {
+        if (statusCode === 429) return true;
+        const normalized = message.toLowerCase();
+        return normalized.includes('quota') || normalized.includes('rate limit') || normalized.includes('limit reached');
+    };
+
+    const postJsonWithKey = async (url: string, apiKey: string, body: unknown) => {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+        return response;
+    };
+
+    const parseErrorMessage = async (response: Response): Promise<string> => {
+        try {
+            const data = await response.json() as { error?: { message?: string } };
+            return data.error?.message?.trim() || `HTTP ${response.status}`;
+        } catch {
+            return `HTTP ${response.status}`;
+        }
+    };
+
+    const checkGroqApi = async (index: number) => {
+        const configuredApiKey = readGroqApis()[index]?.trim() ?? '';
+        const apiKey = configuredApiKey || aiConfig.apiKey.trim();
+        if (!apiKey) {
+            setGroqCheckStatus((prev) => ({ ...prev, [index]: { tone: 'error', message: 'API key is empty. Add one or set `VITE_GROQ_API_KEY` in `.env`.' } }));
+            return;
+        }
+
+        setGroqCheckStatus((prev) => ({ ...prev, [index]: { tone: 'info', message: 'Checking LLM/STT/TTS...' } }));
+
+        const base = aiConfig.baseUrl.replace(/\/+$/, '');
+        const llmUrl = `${base}/chat/completions`;
+        const sttUrl = `${base}/audio/transcriptions`;
+        const ttsUrl = `${base}/audio/speech`;
+
+        const checks = {
+            llm: { ok: false, quota: false, error: '' },
+            stt: { ok: false, quota: false, error: '' },
+            tts: { ok: false, quota: false, error: '' },
+        };
+
+        try {
+            const llmResponse = await postJsonWithKey(llmUrl, apiKey, {
+                model: aiConfig.models.chat,
+                messages: [{ role: 'user', content: 'ping' }],
+                max_tokens: 4,
+                temperature: 0,
+            });
+            if (llmResponse.ok) {
+                checks.llm.ok = true;
+            } else {
+                const message = await parseErrorMessage(llmResponse);
+                checks.llm.error = message;
+                checks.llm.quota = detectQuotaIssue(llmResponse.status, message);
+            }
+        } catch (error) {
+            checks.llm.error = error instanceof Error ? error.message : 'Request failed';
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('model', aiConfig.models.stt);
+            formData.append('language', 'en');
+            formData.append('file', createProbeWavFile());
+            const sttResponse = await fetch(sttUrl, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${apiKey}` },
+                body: formData,
+            });
+            if (sttResponse.ok) {
+                checks.stt.ok = true;
+            } else {
+                const message = await parseErrorMessage(sttResponse);
+                checks.stt.error = message;
+                checks.stt.quota = detectQuotaIssue(sttResponse.status, message);
+            }
+        } catch (error) {
+            checks.stt.error = error instanceof Error ? error.message : 'Request failed';
+        }
+
+        try {
+            const ttsResponse = await postJsonWithKey(ttsUrl, apiKey, {
+                model: aiConfig.models.tts,
+                voice: aiConfig.models.ttsVoice,
+                input: 'test',
+                response_format: 'wav',
+            });
+            if (ttsResponse.ok) {
+                checks.tts.ok = true;
+            } else {
+                const message = await parseErrorMessage(ttsResponse);
+                checks.tts.error = message;
+                checks.tts.quota = detectQuotaIssue(ttsResponse.status, message);
+            }
+        } catch (error) {
+            checks.tts.error = error instanceof Error ? error.message : 'Request failed';
+        }
+
+        const modalities = ['llm', 'stt', 'tts'] as const;
+        const failed = modalities.filter((modality) => !checks[modality].ok);
+        const quotaHit = failed.some((modality) => checks[modality].quota);
+
+        if (failed.length === 0) {
+            setGroqCheckStatus((prev) => ({
+                ...prev,
+                [index]: { tone: 'ok', message: 'Working: LLM, STT, and TTS are all available.' },
+            }));
+            return;
+        }
+
+        const failedSummary = failed.map((modality) => modality.toUpperCase()).join(', ');
+        const details = failed.map((modality) => `${modality.toUpperCase()}: ${checks[modality].error || 'Failed'}`).join(' | ');
+
+        setGroqCheckStatus((prev) => ({
+            ...prev,
+            [index]: {
+                tone: quotaHit ? 'warn' : 'error',
+                message: quotaHit
+                    ? `Quota/limit detected (${failedSummary}). ${details}`
+                    : `Check failed (${failedSummary}). ${details}`,
+            },
+        }));
     };
 
     const handleExportSettings = () => {
@@ -463,6 +672,54 @@ export default function SettingsPage() {
                                                 <span className="text-base text-gray-400 font-mono bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
                                                     {settingsState[activeSection.id][setting.label]}
                                                 </span>
+                                            )}
+                                            {setting.type === 'groq-apis' && (
+                                                <div className="min-w-[380px] space-y-3">
+                                                    {readGroqApis().map((apiValue, apiIndex) => {
+                                                        const check = groqCheckStatus[apiIndex];
+                                                        const toneClasses =
+                                                            check?.tone === 'ok'
+                                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                                                : check?.tone === 'warn'
+                                                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                                                                    : check?.tone === 'error'
+                                                                        ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                                                                        : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300';
+
+                                                        return (
+                                                            <div key={`groq-api-${apiIndex}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={apiValue}
+                                                                        onChange={(event) => setGroqApiAt(apiIndex, event.target.value)}
+                                                                        placeholder={`GROQ API key #${apiIndex + 1}`}
+                                                                        className="h-[40px] flex-1 rounded-lg border border-white/15 bg-[#0a1222]/80 px-3 text-sm text-gray-200 outline-none placeholder:text-gray-500 focus:border-cyan-400/60"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => void checkGroqApi(apiIndex)}
+                                                                        className="h-[40px] rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 text-sm text-cyan-200 hover:bg-cyan-500/20"
+                                                                    >
+                                                                        Check
+                                                                    </button>
+                                                                </div>
+                                                                {check && (
+                                                                    <p className={`mt-2 rounded-lg border px-2.5 py-2 text-[12px] leading-snug ${toneClasses}`}>
+                                                                        {check.message}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    <button
+                                                        type="button"
+                                                        onClick={addGroqApi}
+                                                        className="h-[38px] rounded-lg border border-white/15 px-3 text-sm text-gray-200 hover:bg-white/5"
+                                                    >
+                                                        Add New
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

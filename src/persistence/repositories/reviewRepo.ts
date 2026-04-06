@@ -15,6 +15,9 @@ interface ReviewItemRow {
   language_id: string;
   node_id: string | null;
   content_item_id: string | null;
+  source: ReviewItemRecord['source'];
+  source_ref: string | null;
+  content_domain: ReviewItemRecord['contentDomain'];
   state: ReviewItemRecord['state'];
   due_at: string;
   interval_days: number;
@@ -35,6 +38,9 @@ function mapReviewRow(row: ReviewItemRow): ReviewItemRecord {
     languageId: row.language_id,
     nodeId: row.node_id,
     contentItemId: row.content_item_id,
+    source: row.source,
+    sourceRef: row.source_ref,
+    contentDomain: row.content_domain,
     state: row.state,
     dueAt: row.due_at,
     intervalDays: row.interval_days,
@@ -60,11 +66,11 @@ export class SqliteReviewRepository implements ReviewRepository {
       await this.db.execute(
         `
         INSERT INTO review_items (
-          id, learner_id, language_id, node_id, content_item_id, state, due_at,
+          id, learner_id, language_id, node_id, content_item_id, source, source_ref, content_domain, state, due_at,
           interval_days, ease_factor, last_reviewed_at, last_result, strength,
           attempts_count, metadata_json, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         `,
         [
           id,
@@ -72,6 +78,9 @@ export class SqliteReviewRepository implements ReviewRepository {
           input.languageId,
           input.nodeId ?? null,
           input.contentItemId ?? null,
+          input.source ?? 'legacy_unit',
+          input.sourceRef ?? null,
+          input.contentDomain ?? 'vocabulary',
           input.state ?? 'pending',
           input.dueAt,
           input.intervalDays ?? 1,
@@ -99,6 +108,9 @@ export class SqliteReviewRepository implements ReviewRepository {
         `
         UPDATE review_items
         SET
+          source = ?,
+          source_ref = ?,
+          content_domain = ?,
           state = ?,
           due_at = ?,
           interval_days = ?,
@@ -112,6 +124,9 @@ export class SqliteReviewRepository implements ReviewRepository {
         WHERE id = ?;
         `,
         [
+          input.source ?? current.source,
+          input.sourceRef === undefined ? current.sourceRef : input.sourceRef,
+          input.contentDomain ?? current.contentDomain,
           input.state ?? current.state,
           input.dueAt ?? current.dueAt,
           input.intervalDays ?? current.intervalDays,
@@ -137,6 +152,7 @@ export class SqliteReviewRepository implements ReviewRepository {
         `
         SELECT
           id, learner_id, language_id, node_id, content_item_id, state, due_at,
+          source, source_ref, content_domain,
           interval_days, ease_factor, last_reviewed_at, last_result, strength,
           attempts_count, metadata_json, created_at, updated_at
         FROM review_items
@@ -165,6 +181,7 @@ export class SqliteReviewRepository implements ReviewRepository {
         `
         SELECT
           id, learner_id, language_id, node_id, content_item_id, state, due_at,
+          source, source_ref, content_domain,
           interval_days, ease_factor, last_reviewed_at, last_result, strength,
           attempts_count, metadata_json, created_at, updated_at
         FROM review_items
@@ -185,6 +202,7 @@ export class SqliteReviewRepository implements ReviewRepository {
       `
       SELECT
         id, learner_id, language_id, node_id, content_item_id, state, due_at,
+        source, source_ref, content_domain,
         interval_days, ease_factor, last_reviewed_at, last_result, strength,
         attempts_count, metadata_json, created_at, updated_at
       FROM review_items

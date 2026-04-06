@@ -7,6 +7,7 @@ import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { integrationService, type LibraryApprovedItem } from '../../services/integrationService';
+import { useAppData } from '../../contexts/AppDataContext';
 
 interface TranscriptLine {
   id: string;
@@ -60,6 +61,7 @@ export default function ContentDetail() {
   const { contentId } = useParams();
   const navigate = useNavigate();
   const { activeLanguage } = useLanguage();
+  const { saveImmersionPhrase } = useAppData();
 
   const [content, setContent] = useState<LibraryApprovedItem | null>(null);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
@@ -290,6 +292,7 @@ export default function ContentDetail() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    saveImmersionPhrase(content.contentItemId, line.source, line.translation);
                     setNotice(`Saved phrase at ${line.time}`);
                     navigate(
                       buildTemplateUrl({

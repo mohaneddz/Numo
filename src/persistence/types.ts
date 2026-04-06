@@ -36,6 +36,28 @@ export const REVIEW_ITEM_STATES = [
 
 export type ReviewItemState = (typeof REVIEW_ITEM_STATES)[number];
 
+export const REVIEW_ITEM_SOURCES = [
+  'notebook',
+  'learn_mistake',
+  'weak_node',
+  'legacy_unit',
+  'immerse_phrase',
+  'write_correction',
+  'speak_pronunciation',
+] as const;
+
+export type ReviewItemSource = (typeof REVIEW_ITEM_SOURCES)[number];
+
+export const REVIEW_CONTENT_DOMAINS = [
+  'vocabulary',
+  'grammar',
+  'pronunciation',
+  'sentence',
+  'communication',
+] as const;
+
+export type ReviewContentDomain = (typeof REVIEW_CONTENT_DOMAINS)[number];
+
 export interface SqlDatabase {
   execute(query: string, bindValues?: unknown[]): Promise<unknown>;
   select<T>(query: string, bindValues?: unknown[]): Promise<T[]>;
@@ -273,6 +295,9 @@ export interface ReviewItemRecord {
   languageId: string;
   nodeId: string | null;
   contentItemId: string | null;
+  source?: ReviewItemSource;
+  sourceRef?: string | null;
+  contentDomain?: ReviewContentDomain;
   state: ReviewItemState;
   dueAt: string;
   intervalDays: number;
@@ -291,6 +316,9 @@ export interface CreateReviewItemInput {
   languageId: string;
   nodeId?: string | null;
   contentItemId?: string | null;
+  source?: ReviewItemSource;
+  sourceRef?: string | null;
+  contentDomain?: ReviewContentDomain;
   state?: ReviewItemState;
   dueAt: string;
   intervalDays?: number;
@@ -304,6 +332,9 @@ export interface CreateReviewItemInput {
 
 export interface UpdateReviewItemInput {
   id: string;
+  source?: ReviewItemSource;
+  sourceRef?: string | null;
+  contentDomain?: ReviewContentDomain;
   state?: ReviewItemState;
   dueAt?: string;
   intervalDays?: number;
@@ -400,15 +431,184 @@ export interface ProgressAggregate {
   avgForgettingRisk: number;
 }
 
+export interface LearningUnitRecord {
+  id: string;
+  languageId: string;
+  unitKey: string;
+  title: string;
+  description: string;
+  levelBand: 'beginner' | 'intermediate' | 'advanced';
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LearningLessonRecord {
+  id: string;
+  languageId: string;
+  unitId: string;
+  lessonKey: string;
+  title: string;
+  description: string;
+  communicationGoal: string;
+  levelBand: 'beginner' | 'intermediate' | 'advanced';
+  orderIndex: number;
+  estimatedDurationMin: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonObjectiveRecord {
+  id: string;
+  languageId: string;
+  unitId: string;
+  lessonId: string;
+  objectiveKey: string;
+  title: string;
+  practicalGoal: string;
+  vocabularyFocus: string[];
+  grammarFocus: string[];
+  pronunciationFocus: string[];
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonTaskTemplateRecord {
+  id: string;
+  languageId: string;
+  unitId: string;
+  lessonId: string;
+  objectiveId: string;
+  taskType: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  instruction: string;
+  promptTemplate: string;
+  answerTemplate: string;
+  distractors: string[];
+  metadata: Record<string, unknown>;
+  orderIndex: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTaskAttemptInput {
+  learnerId: string;
+  languageId: string;
+  unitId: string | null;
+  lessonId: string | null;
+  objectiveId: string | null;
+  taskTemplateId: string | null;
+  taskType: string;
+  promptText: string;
+  expectedAnswer: string;
+  learnerAnswer: string;
+  isCorrect: boolean;
+  score: number;
+  evaluation: Record<string, unknown>;
+  durationMs?: number | null;
+  createdAt?: string;
+}
+
+export interface TaskAttemptRecord extends Omit<CreateTaskAttemptInput, 'createdAt'> {
+  id: string;
+  createdAt: string;
+}
+
+export interface NotebookCollectionRecord {
+  id: string;
+  learnerId: string;
+  languageId: string;
+  title: string;
+  description: string | null;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotebookItemRecord {
+  id: string;
+  learnerId: string;
+  languageId: string;
+  collectionId: string | null;
+  term: string;
+  translation: string | null;
+  itemKind: 'word' | 'phrase' | 'sentence' | 'grammar' | 'pronunciation' | 'translation' | 'mistake';
+  context: string | null;
+  notes: string | null;
+  personalHint: string | null;
+  personalExample: string | null;
+  tags: string[];
+  source: string;
+  sourceRef: string | null;
+  mastery: number;
+  favorited: boolean;
+  isDifficult: boolean;
+  isImportant: boolean;
+  flashcardEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNotebookCollectionInput {
+  learnerId: string;
+  languageId: string;
+  title: string;
+  description?: string | null;
+  color?: string | null;
+}
+
+export interface CreateNotebookItemInput {
+  learnerId: string;
+  languageId: string;
+  collectionId?: string | null;
+  term: string;
+  translation?: string | null;
+  itemKind: NotebookItemRecord['itemKind'];
+  context?: string | null;
+  notes?: string | null;
+  personalHint?: string | null;
+  personalExample?: string | null;
+  tags?: string[];
+  source?: string;
+  sourceRef?: string | null;
+  mastery?: number;
+  favorited?: boolean;
+  isDifficult?: boolean;
+  isImportant?: boolean;
+  flashcardEnabled?: boolean;
+}
+
+export interface UpdateNotebookItemInput {
+  id: string;
+  collectionId?: string | null;
+  term?: string;
+  translation?: string | null;
+  itemKind?: NotebookItemRecord['itemKind'];
+  context?: string | null;
+  notes?: string | null;
+  personalHint?: string | null;
+  personalExample?: string | null;
+  tags?: string[];
+  favorited?: boolean;
+  isDifficult?: boolean;
+  isImportant?: boolean;
+  flashcardEnabled?: boolean;
+  mastery?: number;
+}
+
 export interface PersistenceContext {
   db: SqlDatabase;
   repositories: {
     languages: LanguagesRepository;
     curriculum: CurriculumRepository;
+    learning: LearningRepository;
     learner: LearnerRepository;
     evidence: EvidenceRepository;
     review: ReviewRepository;
     content: ContentRepository;
+    notebook: NotebookRepository;
     settings: SettingsRepository;
   };
 }
@@ -425,6 +625,14 @@ export interface CurriculumRepository {
   getCurriculumByLanguageCode(languageCode: string, version?: number): Promise<CurriculumBundle | null>;
   listCurriculumNodes(curriculumId: string): Promise<CurriculumNodeRecord[]>;
   listCurriculumEdges(curriculumId: string): Promise<CurriculumEdgeRecord[]>;
+}
+
+export interface LearningRepository {
+  listUnitsByLanguage(languageId: string): Promise<LearningUnitRecord[]>;
+  listLessonsByUnit(unitId: string): Promise<LearningLessonRecord[]>;
+  listObjectivesByLesson(lessonId: string): Promise<LessonObjectiveRecord[]>;
+  listTaskTemplatesByObjective(objectiveId: string): Promise<LessonTaskTemplateRecord[]>;
+  createTaskAttempt(input: CreateTaskAttemptInput): Promise<TaskAttemptRecord>;
 }
 
 export interface LearnerRepository {
@@ -461,6 +669,14 @@ export interface ContentRepository {
   getRevisionHistory(contentItemId: string): Promise<ContentRevisionRecord[]>;
   getActiveRevision(contentItemId: string): Promise<ContentRevisionRecord | null>;
   linkContentToNode(input: { contentItemId: string; nodeId: string; languageId: string; relationType?: string; coverageWeight?: number }): Promise<void>;
+}
+
+export interface NotebookRepository {
+  createCollection(input: CreateNotebookCollectionInput): Promise<NotebookCollectionRecord>;
+  listCollections(learnerId: string, languageId: string): Promise<NotebookCollectionRecord[]>;
+  createItem(input: CreateNotebookItemInput): Promise<NotebookItemRecord>;
+  updateItem(input: UpdateNotebookItemInput): Promise<NotebookItemRecord>;
+  listItems(learnerId: string, languageId: string, limit?: number): Promise<NotebookItemRecord[]>;
 }
 
 export interface SettingsRepository {

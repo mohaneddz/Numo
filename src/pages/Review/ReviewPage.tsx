@@ -80,7 +80,7 @@ export default function ReviewPage() {
               <div key={item.id} className="card" style={{ padding: 10 }}>
                 <p style={{ margin: 0, fontWeight: 600 }}>{item.term}</p>
                 <p style={{ margin: 0, color: 'var(--color-dim)', fontSize: 13 }}>
-                  {item.translation || 'No translation yet'}
+                  {item.translation || 'No translation yet'} • {item.source ?? 'legacy_unit'}
                 </p>
               </div>
             ))}

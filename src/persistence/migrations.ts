@@ -39,6 +39,28 @@ const REVIEW_STATES_SQL = ['pending', 'due', 'in_progress', 'completed', 'snooze
   .map((value) => `'${value}'`)
   .join(', ');
 
+const REVIEW_SOURCES_SQL = [
+  'notebook',
+  'learn_mistake',
+  'weak_node',
+  'legacy_unit',
+  'immerse_phrase',
+  'write_correction',
+  'speak_pronunciation',
+]
+  .map((value) => `'${value}'`)
+  .join(', ');
+
+const REVIEW_CONTENT_DOMAINS_SQL = [
+  'vocabulary',
+  'grammar',
+  'pronunciation',
+  'sentence',
+  'communication',
+]
+  .map((value) => `'${value}'`)
+  .join(', ');
+
 const MIGRATIONS: MigrationDefinition[] = [
   {
     version: 1,
@@ -554,6 +576,257 @@ const MIGRATIONS: MigrationDefinition[] = [
       `
       CREATE INDEX IF NOT EXISTS idx_background_assets_provider
       ON background_image_assets(provider, provider_image_id);
+      `,
+    ],
+  },
+  {
+    version: 4,
+    name: 'six_pillar_mvp_reset_and_learning_schema',
+    statements: [
+      `
+      ALTER TABLE review_items ADD COLUMN source TEXT NOT NULL DEFAULT 'legacy_unit'
+      CHECK (source IN (${REVIEW_SOURCES_SQL}));
+      `,
+      `
+      ALTER TABLE review_items ADD COLUMN source_ref TEXT;
+      `,
+      `
+      ALTER TABLE review_items ADD COLUMN content_domain TEXT NOT NULL DEFAULT 'vocabulary'
+      CHECK (content_domain IN (${REVIEW_CONTENT_DOMAINS_SQL}));
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS learning_units (
+        id TEXT PRIMARY KEY,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        unit_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        level_band TEXT NOT NULL CHECK (level_band IN ('beginner', 'intermediate', 'advanced')),
+        order_index INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(language_id, unit_key)
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS learning_lessons (
+        id TEXT PRIMARY KEY,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        unit_id TEXT NOT NULL REFERENCES learning_units(id) ON DELETE CASCADE,
+        lesson_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        communication_goal TEXT NOT NULL DEFAULT '',
+        level_band TEXT NOT NULL CHECK (level_band IN ('beginner', 'intermediate', 'advanced')),
+        order_index INTEGER NOT NULL DEFAULT 0,
+        estimated_duration_min INTEGER NOT NULL DEFAULT 8,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(unit_id, lesson_key)
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS lesson_objectives (
+        id TEXT PRIMARY KEY,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        unit_id TEXT NOT NULL REFERENCES learning_units(id) ON DELETE CASCADE,
+        lesson_id TEXT NOT NULL REFERENCES learning_lessons(id) ON DELETE CASCADE,
+        objective_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        practical_goal TEXT NOT NULL,
+        vocabulary_focus_json TEXT NOT NULL DEFAULT '[]',
+        grammar_focus_json TEXT NOT NULL DEFAULT '[]',
+        pronunciation_focus_json TEXT NOT NULL DEFAULT '[]',
+        order_index INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(lesson_id, objective_key)
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS lesson_task_templates (
+        id TEXT PRIMARY KEY,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        unit_id TEXT NOT NULL REFERENCES learning_units(id) ON DELETE CASCADE,
+        lesson_id TEXT NOT NULL REFERENCES learning_lessons(id) ON DELETE CASCADE,
+        objective_id TEXT NOT NULL REFERENCES lesson_objectives(id) ON DELETE CASCADE,
+        task_type TEXT NOT NULL,
+        difficulty TEXT NOT NULL CHECK (difficulty IN ('beginner', 'intermediate', 'advanced')),
+        instruction TEXT NOT NULL,
+        prompt_template TEXT NOT NULL,
+        answer_template TEXT NOT NULL,
+        distractors_json TEXT NOT NULL DEFAULT '[]',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        order_index INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS task_attempts (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL REFERENCES learner_profile(id) ON DELETE CASCADE,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        unit_id TEXT REFERENCES learning_units(id) ON DELETE SET NULL,
+        lesson_id TEXT REFERENCES learning_lessons(id) ON DELETE SET NULL,
+        objective_id TEXT REFERENCES lesson_objectives(id) ON DELETE SET NULL,
+        task_template_id TEXT REFERENCES lesson_task_templates(id) ON DELETE SET NULL,
+        task_type TEXT NOT NULL,
+        prompt_text TEXT NOT NULL,
+        expected_answer TEXT NOT NULL,
+        learner_answer TEXT NOT NULL,
+        is_correct INTEGER NOT NULL CHECK (is_correct IN (0, 1)),
+        score REAL NOT NULL DEFAULT 0,
+        evaluation_json TEXT NOT NULL DEFAULT '{}',
+        duration_ms INTEGER,
+        created_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS notebook_collections (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL REFERENCES learner_profile(id) ON DELETE CASCADE,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        color TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS notebook_items (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL REFERENCES learner_profile(id) ON DELETE CASCADE,
+        language_id TEXT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
+        collection_id TEXT REFERENCES notebook_collections(id) ON DELETE SET NULL,
+        term TEXT NOT NULL,
+        translation TEXT,
+        item_kind TEXT NOT NULL CHECK (item_kind IN ('word', 'phrase', 'sentence', 'grammar', 'pronunciation', 'translation', 'mistake')),
+        context TEXT,
+        notes TEXT,
+        personal_hint TEXT,
+        personal_example TEXT,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        source TEXT NOT NULL DEFAULT 'manual',
+        source_ref TEXT,
+        mastery REAL NOT NULL DEFAULT 0,
+        favorited INTEGER NOT NULL DEFAULT 0 CHECK (favorited IN (0, 1)),
+        is_difficult INTEGER NOT NULL DEFAULT 0 CHECK (is_difficult IN (0, 1)),
+        is_important INTEGER NOT NULL DEFAULT 0 CHECK (is_important IN (0, 1)),
+        flashcard_enabled INTEGER NOT NULL DEFAULT 1 CHECK (flashcard_enabled IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_learning_units_language_order
+      ON learning_units(language_id, order_index);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_learning_lessons_unit_order
+      ON learning_lessons(unit_id, order_index);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_lesson_objectives_lesson_order
+      ON lesson_objectives(lesson_id, order_index);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_task_templates_objective_order
+      ON lesson_task_templates(objective_id, order_index);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_task_attempts_learner_created
+      ON task_attempts(learner_id, language_id, created_at DESC);
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_notebook_items_learner_updated
+      ON notebook_items(learner_id, language_id, updated_at DESC);
+      `,
+      `
+      DELETE FROM task_attempts;
+      `,
+      `
+      DELETE FROM notebook_items;
+      `,
+      `
+      DELETE FROM notebook_collections;
+      `,
+      `
+      DELETE FROM script_practice_attempts;
+      `,
+      `
+      DELETE FROM learner_script_state;
+      `,
+      `
+      DELETE FROM content_approval_events;
+      `,
+      `
+      DELETE FROM generation_evaluations;
+      `,
+      `
+      DELETE FROM generation_candidates;
+      `,
+      `
+      DELETE FROM content_usage;
+      `,
+      `
+      DELETE FROM content_node_links;
+      `,
+      `
+      DELETE FROM content_revisions;
+      `,
+      `
+      DELETE FROM content_items;
+      `,
+      `
+      DELETE FROM review_items;
+      `,
+      `
+      DELETE FROM evidence;
+      `,
+      `
+      DELETE FROM attempts;
+      `,
+      `
+      DELETE FROM sessions;
+      `,
+      `
+      DELETE FROM goals;
+      `,
+      `
+      DELETE FROM weakness_clusters;
+      `,
+      `
+      DELETE FROM learner_node_state;
+      `,
+      `
+      DELETE FROM learner_language_state;
+      `,
+      `
+      DELETE FROM learner_profile;
+      `,
+      `
+      DELETE FROM curriculum_node_capabilities;
+      `,
+      `
+      DELETE FROM curriculum_edges;
+      `,
+      `
+      DELETE FROM curriculum_nodes;
+      `,
+      `
+      DELETE FROM capabilities;
+      `,
+      `
+      DELETE FROM curricula;
+      `,
+      `
+      DELETE FROM languages;
+      `,
+      `
+      DELETE FROM settings;
       `,
     ],
   },
