@@ -2,10 +2,11 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     Home, GraduationCap, RotateCcw, Play, Mic, PenLine,
-    BookMarked, BarChart3, Library, BookCopy, Settings, Star, MessageCircle
+    BookMarked, BarChart3, Library, BookCopy, Settings, Star, MessageCircle, Dumbbell
 } from 'lucide-react';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguageProgression } from '../../hooks/useLanguageProgression';
+import { DEV_MODE } from '../../config/env';
 
 const secondaryNav = [
     { to: '/library', icon: Library, label: 'Library' },
@@ -29,6 +30,9 @@ export default function Sidebar() {
         { to: '/notebook', icon: BookMarked, label: 'Notebook' },
         { to: '/insights', icon: BarChart3, label: 'Insights' },
     ];
+    if (DEV_MODE) {
+        primaryNav.push({ to: '/exercises', icon: Dumbbell, label: 'Exercises' });
+    }
 
     return (
         <aside className="w-64 shrink-0 h-full flex flex-col pt-7 pb-5 px-4 z-50 bg-black/10 backdrop-blur-sm border-r border-white/5">

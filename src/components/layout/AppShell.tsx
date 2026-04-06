@@ -25,6 +25,7 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     '/write': { title: 'Write', subtitle: 'Practice writing in Spanish with guided prompts, feedback, and correction.' },
     '/notebook': { title: 'Notebook', subtitle: 'Save words, phrases, and notes in one place for fast review loops.' },
     '/insights': { title: 'Insights', subtitle: 'Your learning analytics and performance trends at a glance.' },
+    '/exercises': { title: 'Exercises', subtitle: 'DEV infinite mode for selecting and generating exercises continuously.' },
     '/library': { title: 'Your Library', subtitle: 'Your words, phrases, and saved gems — organized for you' },
     '/references': { title: 'References', subtitle: 'Explore character, sound, and word collections for your active language.' },
     '/chat': { title: 'Chat', subtitle: 'Have a natural conversation with Echo.' },

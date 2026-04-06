@@ -36,6 +36,9 @@ export interface ReviewItem {
   id: string;
   sourceNotebookId?: string;
   origin?: 'notebook' | 'legacy';
+  source?: 'notebook' | 'learn_mistake' | 'weak_node' | 'legacy_unit' | 'immerse_phrase' | 'write_correction' | 'speak_pronunciation';
+  sourceRef?: string;
+  contentDomain?: 'vocabulary' | 'grammar' | 'pronunciation' | 'sentence' | 'communication';
   term: string;
   translation: string;
   type: 'word' | 'phrase' | 'grammar';
@@ -147,13 +150,18 @@ export interface NotebookEntry {
   id: string;
   term: string;
   translation: string;
-  type: 'word' | 'phrase' | 'grammar' | 'mistake';
+  type: 'word' | 'phrase' | 'sentence' | 'grammar' | 'pronunciation' | 'translation' | 'mistake';
   context?: string;
   notes?: string;
+  collectionId?: string;
+  personalHint?: string;
+  personalExample?: string;
+  isDifficult?: boolean;
+  isImportant?: boolean;
   tags: string[];
   createdAt: string;
   mastery: number;
-  source?: 'immerse' | 'review' | 'write' | 'manual';
+  source?: 'immerse' | 'review' | 'write' | 'learn' | 'manual';
   favorited?: boolean;
   updatedAt?: string;
 }
