@@ -28,6 +28,8 @@ import { useProfileSession } from './contexts/ProfileSessionContext';
 import PracticeQuickPage from './pages/Practice/PracticeQuickPage';
 import LearnSessionPage from './pages/Learn/LearnSessionPage';
 import NotificationsPage from './pages/Notifications/NotificationsPage';
+import ExercisesPage from './pages/Exercises/ExercisesPage';
+import { DEV_MODE } from './config/env';
 
 function GuardedShell() {
   const location = useLocation();
@@ -35,8 +37,31 @@ function GuardedShell() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center text-dim text-sm">
-        Bootstrapping local profile session...
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        {/* Loading Image Placeholder */}
+        <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
+          {/* Animated background ring */}
+          <div className="absolute inset-0 rounded-full border-4 border-current opacity-10 animate-ping"></div>
+          
+          {/* Actual image placeholder - replace src when you have the image */}
+          <div className="relative z-10 w-20 h-20 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center overflow-hidden backdrop-blur-sm">
+            <img 
+              src="/loading-placeholder.png" 
+              alt="Loading" 
+              className="w-full h-full object-contain"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+        </div>
+        
+        {/* Brand Text & Loading Dots */}
+        <h2 className="text-2xl font-light tracking-widest mb-4 animate-pulse">NUMO</h2>
+        
+        <div className="flex items-center gap-2 text-dim opacity-70">
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }}></span>
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }}></span>
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }}></span>
+        </div>
       </div>
     );
   }
@@ -80,6 +105,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/language-setup" element={<LanguageSetupPage />} />
         <Route path="/language-welcome" element={<LanguageWelcomePage />} />
+        {DEV_MODE && <Route path="/exercises" element={<ExercisesPage />} />}
       </Route>
     </Routes>
   );
