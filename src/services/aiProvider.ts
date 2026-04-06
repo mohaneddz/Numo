@@ -93,11 +93,13 @@ export async function completeWithEcho(
   return text;
 }
 
-export async function transcribeSpeech(audioBlob: Blob): Promise<string> {
+export async function transcribeSpeech(audioBlob: Blob, languageCode = 'es'): Promise<string> {
+  const normalized = languageCode.trim().toLowerCase();
+  const sttLanguage = normalized === 'zh' ? 'zh' : normalized === 'fr' ? 'fr' : normalized === 'de' ? 'de' : normalized;
   const response = await runtimeKernel.transcribeWithForegroundTracking({
     model: aiConfig.models.stt,
     audio: audioBlob,
-    language: 'es',
+    language: sttLanguage,
   });
   return response.text?.trim() ?? '';
 }
@@ -110,7 +112,7 @@ export async function synthesizeSpeech(
     model: aiConfig.models.tts,
     text,
     voice,
-    format: 'mp3',
+    format: 'wav',
   });
   return response.audio;
 }

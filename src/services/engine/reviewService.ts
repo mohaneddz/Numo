@@ -102,7 +102,7 @@ export class ReviewService {
 
     const view = metadataView(current);
     const evidenceInput: EvidenceIngestionInput = {
-      activityType: 'review',
+      activityType: 'review_result',
       nodeIds: current.nodeId ? [current.nodeId] : undefined,
       rawInputText: extras?.answer ?? null,
       rawOutputText: view.translation,
