@@ -72,6 +72,25 @@ interface GenerateInfiniteExerciseInput extends GenerateSessionInput {
   forceType?: PracticeItemType;
 }
 
+export type ExerciseDomain = 'learn' | 'quick' | 'review' | 'script' | 'speak' | 'write';
+
+export interface GenerateExerciseDraftInput extends GenerateSessionInput {
+  exerciseDomain: ExerciseDomain;
+  exerciseType: string;
+  unit?: {
+    id: string;
+    title: string;
+  };
+  concept?: string;
+}
+
+export interface GenerateExerciseDraftOutput {
+  input: Record<string, unknown>;
+  template: Record<string, unknown>;
+  result: Record<string, unknown>;
+  quickItem: PracticeItem | null;
+}
+
 interface GeneratedPracticePayload {
   practiceItems?: Array<{
     id?: string;
@@ -90,6 +109,31 @@ interface GeneratedPracticePayload {
     context?: string;
     scriptHint?: string;
   }>;
+}
+
+interface QuickDraftPrompt {
+  method?: string;
+  text?: string;
+  variables?: Record<string, unknown>;
+}
+
+interface QuickDraftResultShape {
+  id?: unknown;
+  type?: unknown;
+  prompt?: string | QuickDraftPrompt;
+  answer?: unknown;
+  options?: unknown;
+  choices?: unknown;
+  correctAnswer?: unknown;
+  correctAnswers?: unknown;
+  correctChoices?: unknown;
+  pairs?: unknown;
+  tokens?: unknown;
+  imageUrl?: unknown;
+  imageAlt?: unknown;
+  audioText?: unknown;
+  context?: unknown;
+  scriptHint?: unknown;
 }
 
 const ALL_TYPES: PracticeItemType[] = [
@@ -700,6 +744,253 @@ function fallbackInfiniteExercise(input: GenerateInfiniteExerciseInput): Practic
     return { ...base, prompt: 'Complete: I ___ water.', answer: 'drink', options: undefined };
   }
   return base;
+}
+
+function buildExerciseTemplate(domain: ExerciseDomain, exerciseType: string): Record<string, unknown> {
+  if (domain === 'quick') {
+    return {
+      id: 'string',
+      type: exerciseType,
+      prompt: {
+        method: 'meaning | translation_to_target | translation_to_english | context_choice | fill_in_context | register_formality',
+        text: 'string (explicit English instruction)',
+        variables: {
+          word: 'string optional',
+          englishPhrase: 'string optional',
+          targetPhrase: 'string optional',
+          situation: 'string optional',
+          dialogueWithBlank: 'string optional',
+        },
+      },
+      choices: ['string', 'string', 'string', 'string'],
+      correctAnswer: 'string (must match one choice exactly)',
+      correctAnswers: ['string optional for multi-select MCQ'],
+      explanation: 'string optional',
+      promptMethods: [
+        { method: 'meaning', template: "What does '{word}' mean in English?" },
+        { method: 'translation_to_target', template: "How do we say '{englishPhrase}' in <target language>?" },
+        { method: 'translation_to_english', template: "Which option is the best English translation of '{targetPhrase}'?" },
+        { method: 'context_choice', template: "In this situation: '{situation}', which phrase is most natural?" },
+        { method: 'fill_in_context', template: "Complete the dialogue: '{dialogueWithBlank}'" },
+        { method: 'register_formality', template: 'Which phrase is more formal?' },
+      ],
+      pairs: [{ left: 'string', right: 'string' }],
+      tokens: ['string', 'string'],
+      imageUrl: 'string optional',
+      imageAlt: 'string optional',
+      audioText: 'string optional',
+      context: 'string optional',
+      scriptHint: 'string optional',
+    };
+  }
+  if (domain === 'learn') {
+    return {
+      taskType: exerciseType,
+      instruction: 'string (English instruction)',
+      prompt: 'string',
+      expectedAnswer: 'string',
+      distractors: ['string', 'string', 'string'],
+      payload: {
+        promptText: 'string optional',
+        expectedText: 'string optional',
+        options: ['string', 'string'],
+        correctOption: 'string optional',
+        pairs: [{ left: 'string', right: 'string' }],
+        tokens: ['string', 'string'],
+        groups: [{ name: 'string', items: ['string', 'string'] }],
+        statement: 'string optional',
+        audioText: 'string optional',
+        imageUrl: 'string optional',
+        imageAlt: 'string optional',
+      },
+    };
+  }
+  if (domain === 'review') {
+    return {
+      id: 'string',
+      type: exerciseType,
+      term: 'string',
+      prompt: 'string',
+      answer: 'string',
+      hint: 'string optional',
+      options: ['string', 'string', 'string', 'string'],
+      correctIndex: 0,
+      statement: 'string optional',
+      correctBool: true,
+      bank: ['string', 'string'],
+      expectedReason: 'string optional',
+      sourceId: 'string optional',
+      scriptHint: 'string optional',
+    };
+  }
+  if (domain === 'script') {
+    return {
+      mode: exerciseType,
+      payload: {
+        strokePaths: [],
+        width: 320,
+        height: 320,
+        modelKey: 'string optional',
+      },
+    };
+  }
+  if (domain === 'speak') {
+    return {
+      type: exerciseType,
+      target: 'string',
+      gloss: 'string',
+    };
+  }
+  return exerciseType === 'correction_review'
+    ? {
+      type: exerciseType,
+      corrections: [
+        {
+          original: 'string',
+          corrected: 'string',
+          type: 'grammar',
+          explanation: 'string',
+        },
+      ],
+    }
+    : {
+      type: exerciseType,
+      text: 'string',
+    };
+}
+
+function normalizeQuickItemFromDraft(input: GenerateExerciseDraftInput, result: Record<string, unknown>): PracticeItem {
+  const draft = result as QuickDraftResultShape;
+  const requestedType = isPracticeItemType(input.exerciseType) ? input.exerciseType : undefined;
+  const rawType = typeof draft.type === 'string' ? draft.type : requestedType;
+  const type = normalizeItemType(rawType, input.languageCode);
+  const options = parseStringArray(draft.choices ?? draft.options).slice(0, 4);
+  const pairs = parsePairs(draft.pairs).slice(0, 6);
+  const tokens = parseStringArray(draft.tokens);
+
+  const promptText = typeof draft.prompt === 'string'
+    ? draft.prompt.trim()
+    : (draft.prompt && typeof draft.prompt === 'object' && typeof draft.prompt.text === 'string'
+      ? draft.prompt.text.trim()
+      : '');
+
+  const normalizedCorrectAnswers = parseStringArray(draft.correctAnswers ?? draft.correctChoices);
+  const singleCorrectAnswer = typeof draft.correctAnswer === 'string' && draft.correctAnswer.trim()
+    ? draft.correctAnswer.trim()
+    : (typeof draft.answer === 'string' && draft.answer.trim() ? draft.answer.trim() : 'Sample answer');
+  const rawAnswers = normalizedCorrectAnswers.length > 0 ? normalizedCorrectAnswers : [singleCorrectAnswer];
+
+  const normalizedOptions = options.length >= 2
+    ? options
+    : type === 'mcq' || type === 'greeting_response' || type === 'context_meaning'
+      ? [rawAnswers[0], 'Distractor A', 'Distractor B', 'Distractor C']
+      : undefined;
+
+  const safeAnswers = normalizedOptions && normalizedOptions.length >= 2
+    ? rawAnswers.filter((entry) => normalizedOptions.includes(entry))
+    : rawAnswers;
+  const safeAnswer = safeAnswers.length > 0
+    ? safeAnswers.join(' || ')
+    : (normalizedOptions && normalizedOptions.length >= 2 ? normalizedOptions[0] : singleCorrectAnswer);
+
+  return withAudioFallback({
+    id: (typeof draft.id === 'string' && draft.id.trim()) || `${Date.now()}`,
+    type,
+    prompt: promptText || englishFallbackPrompt(input, type, input.concept),
+    answer: safeAnswer,
+    options: normalizedOptions,
+    pairs: pairs.length >= 2 ? pairs : undefined,
+    tokens: tokens.length >= 2 ? tokens : undefined,
+    imageUrl: typeof draft.imageUrl === 'string' ? draft.imageUrl : undefined,
+    imageAlt: typeof draft.imageAlt === 'string' ? draft.imageAlt : undefined,
+    audioText: typeof draft.audioText === 'string' ? draft.audioText : undefined,
+    context: typeof draft.context === 'string' ? draft.context : undefined,
+    scriptHint: typeof draft.scriptHint === 'string' ? draft.scriptHint : undefined,
+    languageCode: input.languageCode,
+  });
+}
+
+export async function generateExerciseDraft(input: GenerateExerciseDraftInput): Promise<GenerateExerciseDraftOutput> {
+  const requestInput: Record<string, unknown> = {
+    languageCode: input.languageCode,
+    languageName: input.languageName,
+    mode: input.mode ?? 'quick',
+    source: input.source ?? 'dev-exercises-page',
+    exerciseDomain: input.exerciseDomain,
+    exerciseType: input.exerciseType,
+    unit: input.unit ? { id: input.unit.id, title: input.unit.title } : null,
+    concept: input.concept?.trim() || null,
+    learnerLevel: input.journeyLevel ?? 'beginner',
+    difficulty: input.difficultyPreference ?? 'standard',
+  };
+  const template = buildExerciseTemplate(input.exerciseDomain, input.exerciseType);
+  const prompt: ChatMessage = {
+    id: `${Date.now()}-exercise-draft`,
+    role: 'user',
+    content: `You are generating one language-learning exercise draft.
+Input JSON:
+${JSON.stringify(requestInput)}
+
+Template JSON (follow this structure and field types):
+${JSON.stringify(template)}
+
+Return JSON only:
+{"result": <exercise object>}
+
+Rules:
+- The result must match the requested exerciseDomain and exerciseType exactly.
+- Prompt/instruction text must be in English.
+- Keep beginner-safe content and one clear concept.
+- If concept is provided, guide the content with it.
+- If unit is provided, align vocabulary/theme with that unit title.
+- For quick MCQ-style types, prefer explicit prompts such as:
+  - "What does '...' mean?"
+  - "How do we say '...' in <target language>?"
+  - "In this situation, which phrase is best?"
+  and set prompt.method accordingly.
+- For quick MCQ-style types, provide exactly 4 choices and make correctAnswer match one choice exactly.
+- If the MCQ has multiple correct choices, use correctAnswers array (each must exist in choices).
+- Do not return markdown.
+- Keep strings concise and practical.`,
+    createdAt: Date.now(),
+  };
+
+  try {
+    const responseText = await completeWithEcho([prompt], 'analyst', {
+      maxTokens: 1400,
+      responseFormat: { type: 'json_object' },
+    });
+    const parsed = parseJsonPayload<Record<string, unknown>>(responseText);
+    const result = parsed.result && typeof parsed.result === 'object'
+      ? (parsed.result as Record<string, unknown>)
+      : parsed;
+    const quickItem = input.exerciseDomain === 'quick'
+      ? normalizeQuickItemFromDraft(input, result)
+      : null;
+    return {
+      input: requestInput,
+      template,
+      result,
+      quickItem,
+    };
+  } catch (error) {
+    console.error('Failed to generate exercise draft', error);
+    const fallbackResult: Record<string, unknown> = {
+      ...template,
+      prompt: englishFallbackPrompt(
+        input,
+        isPracticeItemType(input.exerciseType) ? input.exerciseType : 'context_meaning',
+        input.concept,
+      ),
+      answer: 'Sample answer',
+    };
+    return {
+      input: requestInput,
+      template,
+      result: fallbackResult,
+      quickItem: input.exerciseDomain === 'quick' ? normalizeQuickItemFromDraft(input, fallbackResult) : null,
+    };
+  }
 }
 
 export async function generateSession(input: GenerateSessionInput): Promise<SessionState> {

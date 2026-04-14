@@ -26,6 +26,13 @@ function normalize(text: string): string {
     .trim();
 }
 
+function parseExpectedAnswers(answer: string): string[] {
+  return answer
+    .split('||')
+    .map((part) => normalize(part))
+    .filter(Boolean);
+}
+
 function evaluateItem(item: PracticeItem, answer: string, structuredResponse?: Record<string, unknown>) {
   if (item.type === 'match' && item.pairs && structuredResponse?.mapping && typeof structuredResponse.mapping === 'object') {
     const mapping = structuredResponse.mapping as Record<string, unknown>;
@@ -38,6 +45,20 @@ function evaluateItem(item: PracticeItem, answer: string, structuredResponse?: R
     const ordered = (structuredResponse.orderedTokens as unknown[]).map((token) => String(token)).join(' ');
     const correct = normalize(ordered) === normalize(item.answer);
     return { correct, score: correct ? 100 : 35 };
+  }
+
+  if (Array.isArray(structuredResponse?.selectedOptions)) {
+    const selected = (structuredResponse.selectedOptions as unknown[])
+      .map((entry) => normalize(String(entry)))
+      .filter(Boolean);
+    const expected = parseExpectedAnswers(item.answer);
+    const selectedSet = new Set(selected);
+    const expectedSet = new Set(expected);
+    const exact = selectedSet.size === expectedSet.size && Array.from(expectedSet).every((entry) => selectedSet.has(entry));
+    if (exact) return { correct: true, score: 100 };
+    const overlap = expected.filter((entry) => selectedSet.has(entry)).length;
+    const partialScore = expected.length > 0 ? Math.round((overlap / expected.length) * 100) : 20;
+    return { correct: false, score: Math.max(20, Math.min(72, partialScore)) };
   }
 
   const correct = normalize(answer) === normalize(item.answer);
@@ -70,6 +91,7 @@ export default function PracticeQuickPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<ExerciseFeedbackModel | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [startedAtMs, setStartedAtMs] = useState(Date.now());
   const [hintUsed, setHintUsed] = useState(false);
@@ -88,6 +110,7 @@ export default function PracticeQuickPage() {
     setLoadError(null);
     setRefreshError(null);
     setFeedback(null);
+    setSelectedOptions([]);
 
     try {
       const generated = await generateSession({
@@ -134,6 +157,10 @@ export default function PracticeQuickPage() {
 
   const handleAnswer = (answer: string, structuredResponse?: Record<string, unknown>) => {
     if (!currentItem || feedback !== null) return;
+    const picked = Array.isArray(structuredResponse?.selectedOptions)
+      ? (structuredResponse.selectedOptions as unknown[]).map((entry) => String(entry).trim()).filter(Boolean)
+      : [typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : answer].filter(Boolean);
+    setSelectedOptions(picked);
     const result = evaluateItem(currentItem, answer, structuredResponse);
 
     if (result.correct) {
@@ -157,6 +184,7 @@ export default function PracticeQuickPage() {
 
   const handleNext = () => {
     setFeedback(null);
+    setSelectedOptions([]);
     setStartedAtMs(Date.now());
     setHintUsed(false);
     setConfusedUsed(false);
@@ -191,6 +219,7 @@ export default function PracticeQuickPage() {
         return { ...previous, items: nextItems };
       });
       setFeedback(null);
+      setSelectedOptions([]);
       setStartedAtMs(Date.now());
     } catch (error) {
       setRefreshError(error instanceof Error ? error.message : 'Failed to refresh exercise');
@@ -291,7 +320,18 @@ export default function PracticeQuickPage() {
           ) : null}
 
           {activeExercise ? (
-            <activeExercise.component item={currentItem} disabled={feedback !== null} onAnswer={handleAnswer} />
+            <activeExercise.component
+              item={currentItem}
+              disabled={feedback !== null}
+              onAnswer={handleAnswer}
+              selectionFeedback={feedback ? {
+                selectedOption: selectedOptions[0],
+                selectedOptions,
+                isCorrect: feedback.correct,
+                correctAnswer: currentItem.answer,
+                correctAnswers: parseExpectedAnswers(currentItem.answer),
+              } : undefined}
+            />
           ) : (
             <UnsupportedExerciseCard reason={`Unsupported quick exercise payload for "${currentItem.type}".`} />
           )}
