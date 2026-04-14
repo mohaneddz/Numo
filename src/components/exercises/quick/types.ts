@@ -6,6 +6,13 @@ export interface QuickExerciseProps {
   item: PracticeItem;
   disabled: boolean;
   onAnswer: (answer: string, structuredResponse?: Record<string, unknown>) => void;
+  selectionFeedback?: {
+    selectedOption?: string;
+    selectedOptions?: string[];
+    isCorrect?: boolean;
+    correctAnswer?: string;
+    correctAnswers?: string[];
+  };
 }
 
 export interface QuickExerciseRegistration {
@@ -15,4 +22,3 @@ export interface QuickExerciseRegistration {
 }
 
 export type QuickExerciseRegistry = Record<PracticeItemType, QuickExerciseRegistration>;
-

@@ -1,4 +1,5 @@
-﻿import { Volume2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Volume2 } from 'lucide-react';
 import { synthesizeSpeech } from '../../../services/aiProvider';
 import { InteractiveText } from '../shared/InteractiveText';
 import type { QuickExerciseProps } from './types';
@@ -15,8 +16,62 @@ async function playAudio(text: string): Promise<void> {
   }
 }
 
-export function McqQuickExercise({ item, disabled, onAnswer }: QuickExerciseProps) {
+export function McqQuickExercise({ item, disabled, onAnswer, selectionFeedback }: QuickExerciseProps) {
   const options = item.options ?? [];
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedOptions([]);
+  }, [item.id]);
+
+  const localSelectedSet = useMemo(() => new Set(selectedOptions), [selectedOptions]);
+
+  const selectedOption = selectionFeedback?.selectedOption;
+  const selectedFromFeedback = selectionFeedback?.selectedOptions ?? (selectedOption ? [selectedOption] : []);
+  const selectedFeedbackSet = useMemo(() => new Set(selectedFromFeedback), [selectedFromFeedback]);
+  const isCorrect = selectionFeedback?.isCorrect;
+  const correctAnswers = selectionFeedback?.correctAnswers && selectionFeedback.correctAnswers.length > 0
+    ? selectionFeedback.correctAnswers
+    : [selectionFeedback?.correctAnswer ?? item.answer];
+  const correctSet = useMemo(() => new Set(correctAnswers), [correctAnswers]);
+
+  function optionClass(option: string): string {
+    const base = 'w-full rounded-lg border px-4 py-3 text-left text-mist transition-colors disabled:opacity-65';
+    if (typeof isCorrect === 'boolean') {
+      if (isCorrect && selectedFeedbackSet.has(option)) {
+        return `${base} border-emerald-400/70 bg-emerald-500/20 text-emerald-100`;
+      }
+      if (isCorrect === false && correctSet.has(option)) {
+        return `${base} border-rose-400/70 bg-rose-500/20 text-rose-100`;
+      }
+      if (selectedFeedbackSet.has(option)) {
+        return `${base} border-white/20 bg-white/10`;
+      }
+      return `${base} border-white/10 bg-white/5`;
+    }
+
+    if (localSelectedSet.has(option)) {
+      return `${base} border-cyan-300/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/20`;
+    }
+
+    return `${base} border-white/10 bg-white/5 hover:bg-white/10`;
+  }
+
+  function toggleOption(option: string): void {
+    setSelectedOptions((previous) => (
+      previous.includes(option)
+        ? previous.filter((entry) => entry !== option)
+        : [...previous, option]
+    ));
+  }
+
+  function confirmSelection(): void {
+    if (selectedOptions.length === 0) return;
+    onAnswer(selectedOptions.join(' || '), {
+      selectedOption: selectedOptions[0],
+      selectedOptions,
+    });
+  }
 
   return (
     <div className="grid gap-3">
@@ -44,12 +99,23 @@ export function McqQuickExercise({ item, disabled, onAnswer }: QuickExerciseProp
           key={option}
           type="button"
           disabled={disabled}
-          onClick={() => onAnswer(option, { selectedOption: option })}
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-left text-mist transition-colors hover:bg-white/10 disabled:opacity-65"
+          onClick={() => toggleOption(option)}
+          className={optionClass(option)}
         >
           <InteractiveText text={option} languageCode={item.languageCode} className="text-[14px]" />
         </button>
       ))}
+
+      {typeof isCorrect !== 'boolean' ? (
+        <button
+          type="button"
+          disabled={disabled || selectedOptions.length === 0}
+          onClick={confirmSelection}
+          className="mt-2 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-4 py-2 text-[13px] font-medium text-cyan-100 transition-colors hover:bg-cyan-500/20 disabled:opacity-55"
+        >
+          Confirm
+        </button>
+      ) : null}
     </div>
   );
 }

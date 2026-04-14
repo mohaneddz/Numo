@@ -48,9 +48,11 @@ export default function AppShell() {
     const shortcutPrefixRef = useRef<{ key: string; at: number } | null>(null);
     const [showShortcutHelp, setShowShortcutHelp] = useState(false);
     const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     const shortcutRows = useMemo(
         () => [
+            { keys: 'Ctrl + Shift + S', action: 'Toggle Sidebar' },
             { keys: 'g h', action: 'Go to Home' },
             { keys: 'g l', action: 'Go to Learn' },
             { keys: 'g r', action: 'Go to Review' },
@@ -194,6 +196,12 @@ export default function AppShell() {
             const meta = event.metaKey || event.ctrlKey;
             const inReviewSession = location.pathname.startsWith('/review/session');
 
+            if (event.ctrlKey && event.shiftKey && !event.altKey && key === 's') {
+                event.preventDefault();
+                setSidebarCollapsed((prev) => !prev);
+                return;
+            }
+
             if (!shortcutsEnabled) {
                 if ((event.key === '?' || (event.key === '/' && event.shiftKey)) && !meta && !event.altKey) {
                     event.preventDefault();
@@ -267,7 +275,10 @@ export default function AppShell() {
                     <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
                 </div>
 
-                <Sidebar />
+                <Sidebar
+                    collapsed={sidebarCollapsed}
+                    onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
+                />
                 <main className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
                     {/* Top Bar for all pages */}
                     <header className="flex items-start justify-between shrink-0 px-[clamp(1rem,2.2vw,2.5rem)] pt-[max(1rem,env(safe-area-inset-top))] gap-6">

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import HomePage from './pages/Home';
@@ -30,6 +31,14 @@ import LearnSessionPage from './pages/Learn/LearnSessionPage';
 import NotificationsPage from './pages/Notifications/NotificationsPage';
 import ExercisesPage from './pages/Exercises/ExercisesPage';
 import { DEV_MODE } from './config/env';
+
+const MIN_ZOOM = 0.7;
+const MAX_ZOOM = 1.8;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 100) / 100));
+}
 
 function GuardedShell() {
   const location = useLocation();
@@ -75,6 +84,42 @@ function GuardedShell() {
 }
 
 export default function App() {
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.zoom = String(zoomLevel);
+    return () => {
+      root.style.zoom = '1';
+    };
+  }, [zoomLevel]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const meta = event.ctrlKey || event.metaKey;
+      if (!meta || event.altKey) return;
+
+      const key = event.key;
+      if (key === '+' || key === '=' || key === 'NumpadAdd') {
+        event.preventDefault();
+        setZoomLevel((previous) => clampZoom(previous + ZOOM_STEP));
+        return;
+      }
+      if (key === '-' || key === '_' || key === 'NumpadSubtract') {
+        event.preventDefault();
+        setZoomLevel((previous) => clampZoom(previous - ZOOM_STEP));
+        return;
+      }
+      if (key === '0' || key === 'Numpad0') {
+        event.preventDefault();
+        setZoomLevel(1);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
