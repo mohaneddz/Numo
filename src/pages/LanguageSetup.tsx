@@ -5,9 +5,11 @@ import { PageContent } from '../components/layout/PageLayout';
 import {
   DifficultyPreference,
   JourneyFocus,
+  JourneyGoal,
   JourneyIntensity,
   JourneyLevel,
   JourneyPace,
+  JourneyTimeframe,
   ScriptStartTiming,
   useLanguageJourney,
 } from '../contexts/LanguageJourneyContext';
@@ -106,7 +108,7 @@ const scriptTimingDetails: Record<ScriptStartTiming, { label: string; detail: st
 export default function LanguageSetupPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { activeLanguage, setActiveLanguage, languages } = useLanguage();
+  const { activeLanguage, setActiveLanguage, languages, addLanguages } = useLanguage();
   const { getSettings, completeOnboarding } = useLanguageJourney();
 
   const langFromQuery = (searchParams.get('lang') ?? '').trim().toLowerCase();
@@ -137,6 +139,11 @@ export default function LanguageSetupPage() {
   const [intensity, setIntensity] = useState<JourneyIntensity>(defaults.intensity);
   const [pace, setPace] = useState<JourneyPace>(defaults.pace);
   const [scriptStartTiming, setScriptStartTiming] = useState<ScriptStartTiming>(defaults.scriptStartTiming);
+  const [primaryGoal, setPrimaryGoal] = useState<JourneyGoal>(defaults.primaryGoal);
+  const [timeframe, setTimeframe] = useState<JourneyTimeframe>(defaults.timeframe);
+  const [sessionsPerWeek, setSessionsPerWeek] = useState(defaults.sessionsPerWeek);
+  const [sessionMinutes, setSessionMinutes] = useState(defaults.sessionMinutes);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
 
   useEffect(() => {
     setLevel(defaults.level);
@@ -144,15 +151,98 @@ export default function LanguageSetupPage() {
     setIntensity(defaults.intensity);
     setPace(defaults.pace);
     setScriptStartTiming(defaults.scriptStartTiming);
-  }, [defaults.focus, defaults.intensity, defaults.level, defaults.pace, defaults.scriptStartTiming, selectedLanguage.code]);
+    setPrimaryGoal(defaults.primaryGoal);
+    setTimeframe(defaults.timeframe);
+    setSessionsPerWeek(defaults.sessionsPerWeek);
+    setSessionMinutes(defaults.sessionMinutes);
+  }, [
+    defaults.focus,
+    defaults.intensity,
+    defaults.level,
+    defaults.pace,
+    defaults.primaryGoal,
+    defaults.scriptStartTiming,
+    defaults.sessionMinutes,
+    defaults.sessionsPerWeek,
+    defaults.timeframe,
+    selectedLanguage.code,
+  ]);
 
-  const isScriptLanguage = selectedLanguage.code === 'zh' || selectedLanguage.code === 'ja';
+  const isScriptLanguage = ['zh', 'ja', 'ko', 'ru', 'ar'].includes(selectedLanguage.code);
   const currentLevel = levelDetails[level];
   const currentFocus = focusDetails[focus];
   const currentIntensity = intensityDetails[intensity];
   const currentPace = paceDetails[pace];
   const currentScriptTiming = scriptTimingDetails[scriptStartTiming];
-  const estimatedSessionsPerWeek = Math.max(3, Math.round(currentIntensity.weeklyMinutes / 25));
+  const estimatedWeeklyMinutes = sessionsPerWeek * sessionMinutes;
+
+  if (languages.length === 0) {
+    return (
+      <PageContent width="narrow" className="flex min-h-[85vh] flex-col justify-center pb-10">
+        <SpotlightCard className="p-7 md:p-8">
+          <div className="mb-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-200">English-first setup</p>
+            <h1 className="mt-2 text-[32px] font-bold leading-tight text-white">Which languages do you want to learn?</h1>
+            <p className="mt-2 max-w-2xl text-[14px] text-dim">
+              English is the app language and will not appear as a learning language. Choose at least one language to build your learning plan.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {languageCatalog.map((language) => {
+              const selected = selectedCodes.includes(language.code);
+              return (
+                <button
+                  key={language.code}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCodes((current) =>
+                      selected
+                        ? current.filter((code) => code !== language.code)
+                        : [...current, language.code],
+                    )
+                  }
+                  className={`flex items-center justify-between rounded-2xl border px-4 py-4 text-left transition-colors ${
+                    selected
+                      ? 'border-indigo-400/60 bg-indigo-500/20'
+                      : 'border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="text-3xl">{language.flag}</span>
+                    <span>
+                      <span className="block text-[15px] font-semibold text-white">{language.name}</span>
+                      <span className="text-[11px] uppercase tracking-wider text-dim">{language.code}</span>
+                    </span>
+                  </span>
+                  <span className={`h-5 w-5 rounded-full border ${selected ? 'border-indigo-300 bg-indigo-400' : 'border-white/25'}`} />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 flex items-center justify-between gap-4">
+            <p className="text-sm text-dim">
+              {selectedCodes.length === 0 ? 'Select at least one language to continue.' : `${selectedCodes.length} selected`}
+            </p>
+            <button
+              type="button"
+              disabled={selectedCodes.length === 0}
+              className="page-primary-action disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                const added = addLanguages(selectedCodes);
+                if (added.length > 0) {
+                  navigate(`/language-setup?lang=${added[0]}`, { replace: true });
+                }
+              }}
+            >
+              Continue
+            </button>
+          </div>
+        </SpotlightCard>
+      </PageContent>
+    );
+  }
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -166,9 +256,22 @@ export default function LanguageSetupPage() {
       pace,
       difficulty,
       scriptStartTiming,
+      primaryGoal,
+      timeframe,
+      sessionsPerWeek,
+      sessionMinutes,
     });
 
-    navigate(`/language-welcome?lang=${selectedLanguage.code}`);
+    const nextLanguage = languages.find(
+      (language) =>
+        language.code !== selectedLanguage.code
+        && !getSettings(language.code).onboardingCompleted,
+    );
+    navigate(
+      nextLanguage
+        ? `/language-setup?lang=${nextLanguage.code}`
+        : `/language-welcome?lang=${selectedLanguage.code}`,
+    );
   };
 
   return (
@@ -196,11 +299,11 @@ export default function LanguageSetupPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
               <p className="text-[11px] uppercase tracking-[0.13em] text-dim">Estimated weekly time</p>
-              <p className="mt-1 text-[18px] font-semibold text-white">{currentIntensity.weeklyMinutes} min</p>
+              <p className="mt-1 text-[18px] font-semibold text-white">{estimatedWeeklyMinutes} min</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
               <p className="text-[11px] uppercase tracking-[0.13em] text-dim">Session rhythm</p>
-              <p className="mt-1 text-[18px] font-semibold text-white">{estimatedSessionsPerWeek} sessions/week</p>
+              <p className="mt-1 text-[18px] font-semibold text-white">{sessionsPerWeek} sessions/week</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
               <p className="text-[11px] uppercase tracking-[0.13em] text-dim">Current focus mode</p>
@@ -218,6 +321,54 @@ export default function LanguageSetupPage() {
                   <option className="bg-slate-900" value="beginner">Beginner</option>
                   <option className="bg-slate-900" value="lower_intermediate">Lower intermediate</option>
                   <option className="bg-slate-900" value="intermediate_plus">Intermediate+</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-4 flex flex-col">
+              <label className="flex-1 flex flex-col">
+                <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Primary goal</span>
+                <span className="mb-3 block text-[12px] text-dim flex-1">Used to prioritize curriculum topics and measure relevant progress.</span>
+                <select value={primaryGoal} onChange={(event) => setPrimaryGoal(event.target.value as JourneyGoal)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white">
+                  <option className="bg-slate-900" value="conversation">Everyday conversation</option>
+                  <option className="bg-slate-900" value="travel">Travel</option>
+                  <option className="bg-slate-900" value="career">Career and work</option>
+                  <option className="bg-slate-900" value="study">School or study</option>
+                  <option className="bg-slate-900" value="exam">Exam preparation</option>
+                  <option className="bg-slate-900" value="culture">Media and culture</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-4 flex flex-col">
+              <label className="flex-1 flex flex-col">
+                <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Target timeframe</span>
+                <span className="mb-3 block text-[12px] text-dim flex-1">Helps set milestones without inventing unrealistic fluency promises.</span>
+                <select value={timeframe} onChange={(event) => setTimeframe(event.target.value as JourneyTimeframe)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white">
+                  <option className="bg-slate-900" value="relaxed">No deadline</option>
+                  <option className="bg-slate-900" value="three_months">3 months</option>
+                  <option className="bg-slate-900" value="six_months">6 months</option>
+                  <option className="bg-slate-900" value="one_year">1 year</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-4 flex flex-col">
+              <label className="flex-1 flex flex-col">
+                <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Study days per week</span>
+                <span className="mb-3 block text-[12px] text-dim flex-1">Used for weekly goals, streak expectations, and workload planning.</span>
+                <select value={sessionsPerWeek} onChange={(event) => setSessionsPerWeek(Number(event.target.value))} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white">
+                  {[2, 3, 4, 5, 6, 7].map((days) => <option className="bg-slate-900" key={days} value={days}>{days} days</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-4 flex flex-col">
+              <label className="flex-1 flex flex-col">
+                <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Typical session length</span>
+                <span className="mb-3 block text-[12px] text-dim flex-1">Tunes lesson size and daily-plan estimates.</span>
+                <select value={sessionMinutes} onChange={(event) => setSessionMinutes(Number(event.target.value))} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white">
+                  {[10, 15, 20, 30, 45].map((minutes) => <option className="bg-slate-900" key={minutes} value={minutes}>{minutes} minutes</option>)}
                 </select>
               </label>
             </div>

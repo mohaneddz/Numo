@@ -14,6 +14,7 @@ import {
 } from '../../lib/sessionEngine';
 import { resolveQuickExercise } from '../../components/exercises/quick/registry';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
+import NotebookSectionNav from '../../components/notebook/NotebookSectionNav';
 import { getLessonCatalog } from '../../services/learningPlanService';
 import {
   getExerciseByUserKey,
@@ -302,6 +303,7 @@ export default function ExercisesPage() {
   return (
     <PageContent className="max-w-none pb-12">
       <PageActions>
+        <NotebookSectionNav />
         <button className="page-primary-action" onClick={() => navigate(-1)}>
           <ArrowLeft size={16} /> Back
         </button>

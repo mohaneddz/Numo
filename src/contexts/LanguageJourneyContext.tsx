@@ -8,6 +8,8 @@ export type JourneyIntensity = 'very_light' | 'normal' | 'serious';
 export type JourneyPace = 'gentler' | 'standard' | 'harder';
 export type ScriptStartTiming = 'start_now' | 'start_later' | 'start_gradually';
 export type DifficultyPreference = 'easier' | 'standard' | 'harder';
+export type JourneyGoal = 'conversation' | 'travel' | 'career' | 'study' | 'exam' | 'culture';
+export type JourneyTimeframe = 'relaxed' | 'three_months' | 'six_months' | 'one_year';
 
 export interface LanguageJourneySettings {
   level: JourneyLevel;
@@ -16,6 +18,10 @@ export interface LanguageJourneySettings {
   pace: JourneyPace;
   difficulty: DifficultyPreference;
   scriptStartTiming: ScriptStartTiming;
+  primaryGoal: JourneyGoal;
+  timeframe: JourneyTimeframe;
+  sessionsPerWeek: number;
+  sessionMinutes: number;
   onboardingCompleted: boolean;
   welcomeSeen: boolean;
 }
@@ -41,6 +47,10 @@ const defaultJourneySettings: LanguageJourneySettings = {
   pace: 'gentler',
   difficulty: 'easier',
   scriptStartTiming: 'start_gradually',
+  primaryGoal: 'conversation',
+  timeframe: 'relaxed',
+  sessionsPerWeek: 5,
+  sessionMinutes: 20,
   onboardingCompleted: false,
   welcomeSeen: false,
 };
@@ -128,6 +138,24 @@ export const LanguageJourneyProvider: React.FC<{ children: React.ReactNode }> = 
       onboardingCompleted: true,
       welcomeSeen: false,
     });
+    if (activeProfile?.id && typeof input.sessionMinutes === 'number') {
+      void (async () => {
+        try {
+          const persistence = await initializePersistence();
+          await persistence.db.execute(
+            `
+            UPDATE learner_language_state
+            SET daily_goal_minutes = ?, updated_at = datetime('now')
+            WHERE learner_id = ?
+              AND language_id = (SELECT id FROM languages WHERE code = ?);
+            `,
+            [input.sessionMinutes, activeProfile.id, normalizeLanguageCode(languageCode)],
+          );
+        } catch (error) {
+          console.error('Failed to update the language daily goal', error);
+        }
+      })();
+    }
   };
 
   const markWelcomeSeen = (languageCode: string) => {

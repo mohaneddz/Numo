@@ -101,9 +101,8 @@ export function useLanguageProgression() {
       },
     };
 
-    const intensityMinutes = settings.intensity === 'very_light' ? 12 : settings.intensity === 'serious' ? 35 : 22;
     const densityFactor = settings.difficulty === 'easier' ? 0.8 : settings.difficulty === 'harder' ? 1.2 : 1;
-    const targetMinutes = clamp(Math.round(intensityMinutes * densityFactor), 10, 45);
+    const targetMinutes = clamp(Math.round(settings.sessionMinutes * densityFactor), 10, 45);
 
     const todayPlan: TodayPlanItem[] = [
       {
