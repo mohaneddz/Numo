@@ -28,3 +28,5 @@ src-tauri/weights/**
 src-tauri/lib/whisper-bin-x64.zip
 
 docs/**
+!docs/app/
+!docs/app/**

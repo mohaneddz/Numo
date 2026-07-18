@@ -15,8 +15,8 @@ import WriteEditor from './pages/Write/WriteEditor';
 import NotebookPage from './pages/Notebook/NotebookPage';
 import NotebookDetail from './pages/Notebook/NotebookDetail';
 import InsightsPage from './pages/Insights';
-import LibraryPage from './pages/Library';
-import ReferencesPage from './pages/References';
+import NotebookLibraryPage from './pages/Library';
+import LibrariesPage from './pages/References';
 import SettingsPage from './pages/Settings';
 import ChatPage from './pages/Chat';
 import WebSearchPage from './pages/WebSearch';
@@ -32,7 +32,6 @@ import PracticeQuickPage from './pages/Practice/PracticeQuickPage';
 import LearnSessionPage from './pages/Learn/LearnSessionPage';
 import NotificationsPage from './pages/Notifications/NotificationsPage';
 import ExercisesPage from './pages/Exercises/ExercisesPage';
-import { DEV_MODE } from './config/env';
 
 const MIN_ZOOM = 0.7;
 const MAX_ZOOM = 1.8;
@@ -45,7 +44,7 @@ function clampZoom(value: number): number {
 function GuardedShell() {
   const location = useLocation();
   const { status } = useProfileSession();
-  const { activeLanguage } = useLanguage();
+  const { activeLanguage, languages, languageStatus } = useLanguage();
   const { getSettings } = useLanguageJourney();
 
   if (status === 'loading') {
@@ -84,9 +83,29 @@ function GuardedShell() {
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
 
-  // Ensure active language setup is complete
+  if (languageStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-dim">
+        Loading your languages…
+      </div>
+    );
+  }
+
+  if (languages.length === 0) {
+    const allowedWithoutLanguage = location.pathname === '/language-setup' || location.pathname === '/settings';
+    if (!allowedWithoutLanguage) {
+      return <Navigate to="/language-setup" replace />;
+    }
+    return <AppShell />;
+  }
+
+  // Ensure active language setup is complete while Settings remains globally available.
   const settings = getSettings(activeLanguage.code);
-  if (!settings.onboardingCompleted && location.pathname !== '/language-setup') {
+  if (
+    !settings.onboardingCompleted
+    && location.pathname !== '/language-setup'
+    && location.pathname !== '/settings'
+  ) {
     return <Navigate to={`/language-setup?lang=${activeLanguage.code}`} replace />;
   }
 
@@ -150,9 +169,12 @@ export default function App() {
         <Route path="/notebook" element={<NotebookPage />} />
         <Route path="/notebook/:itemId" element={<NotebookDetail />} />
         <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/library" element={<LibraryPage />} />
+        <Route path="/library" element={<LibrariesPage />} />
         <Route path="/script-practice" element={<ScriptPracticePage />} />
-        <Route path="/references" element={<ReferencesPage />} />
+        <Route path="/notebook/library" element={<NotebookLibraryPage />} />
+        <Route path="/notebook/exercises" element={<ExercisesPage />} />
+        <Route path="/references" element={<Navigate to="/library" replace />} />
+        <Route path="/exercises" element={<Navigate to="/notebook/exercises" replace />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/web-search" element={<WebSearchPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
@@ -160,7 +182,6 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/language-setup" element={<LanguageSetupPage />} />
         <Route path="/language-welcome" element={<LanguageWelcomePage />} />
-        {DEV_MODE && <Route path="/exercises" element={<ExercisesPage />} />}
       </Route>
     </Routes>
   );
