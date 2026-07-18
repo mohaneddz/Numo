@@ -162,6 +162,51 @@ function norm(value: string): string {
     .trim();
 }
 
+function markTargetText(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.includes('[[') && trimmed.includes(']]')) return trimmed;
+  return `[[${trimmed}]]`;
+}
+
+function markTargetArray(values: string[] | undefined): string[] | undefined {
+  if (!values) return values;
+  return values.map((value) => markTargetText(value));
+}
+
+function markTaskPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...payload };
+  if (typeof next.promptText === 'string') next.promptText = markTargetText(next.promptText);
+  if (typeof next.expectedText === 'string') next.expectedText = markTargetText(next.expectedText);
+  if (typeof next.correctOption === 'string') next.correctOption = markTargetText(next.correctOption);
+  if (typeof next.statement === 'string') next.statement = markTargetText(next.statement);
+  if (typeof next.audioText === 'string') next.audioText = markTargetText(next.audioText);
+  if (Array.isArray(next.options)) next.options = markTargetArray(next.options as string[]);
+  if (Array.isArray(next.tokens)) next.tokens = markTargetArray(next.tokens as string[]);
+  if (Array.isArray(next.pairs)) {
+    next.pairs = (next.pairs as Array<{ left?: unknown; right?: unknown }>).map((pair) => ({
+      left: typeof pair.left === 'string' ? markTargetText(pair.left) : pair.left,
+      right: typeof pair.right === 'string' ? markTargetText(pair.right) : pair.right,
+    }));
+  }
+  if (Array.isArray(next.groups)) {
+    next.groups = (next.groups as Array<{ name?: unknown; items?: unknown }>).map((group) => ({
+      name: group.name,
+      items: Array.isArray(group.items) ? markTargetArray(group.items as string[]) : group.items,
+    }));
+  }
+  return next;
+}
+
+function withTaskMarkers(task: LearnTaskRuntime): LearnTaskRuntime {
+  return {
+    ...task,
+    expectedAnswer: markTargetText(task.expectedAnswer),
+    distractors: markTargetArray(task.distractors) ?? task.distractors,
+    payload: markTaskPayload(task.payload),
+  };
+}
+
 function isTaskType(value: string): value is TaskType {
   return (LESSON_TASK_TYPES as readonly string[]).includes(value);
 }
@@ -280,7 +325,7 @@ function fallbackTask(template: LessonTaskTemplateRecord): LearnTaskRuntime {
     ? (template.metadata.payload as Record<string, unknown>)
     : {};
   const fallbackPayload = createFallbackPayload(taskType, template.promptTemplate, template.answerTemplate, template.distractors);
-  return {
+  return withTaskMarkers({
     templateId: template.id,
     objectiveId: template.objectiveId,
     unitId: template.unitId,
@@ -292,7 +337,7 @@ function fallbackTask(template: LessonTaskTemplateRecord): LearnTaskRuntime {
     distractors: template.distractors,
     gradingMode: defaultGradingMode(taskType),
     payload: mergePayload(fallbackPayload, templatePayload),
-  };
+  });
 }
 
 async function generateVariants(
@@ -379,10 +424,11 @@ Rules:
       };
     });
     const withMedia = await Promise.all(hydrated.map((task) => enrichTaskMedia(task, languageCode)));
-    return withMedia;
+    return withMedia.map(withTaskMarkers);
   } catch {
     const fallback = templates.map(fallbackTask);
-    return Promise.all(fallback.map((task) => enrichTaskMedia(task, languageCode)));
+    const withMedia = await Promise.all(fallback.map((task) => enrichTaskMedia(task, languageCode)));
+    return withMedia.map(withTaskMarkers);
   }
 }
 
@@ -429,7 +475,7 @@ function buildSyntheticLearnTask(
   seed: SyntheticLearnTaskSeed,
   context: { objectiveId: string; unitId: string; lessonId: string; suffix: number },
 ): LearnTaskRuntime {
-  return {
+  return withTaskMarkers({
     templateId: `synthetic:${seed.taskType}:${context.suffix}`,
     objectiveId: context.objectiveId,
     unitId: context.unitId,
@@ -441,7 +487,7 @@ function buildSyntheticLearnTask(
     distractors: seed.distractors,
     gradingMode: defaultGradingMode(seed.taskType),
     payload: createFallbackPayload(seed.taskType, seed.prompt, seed.expectedAnswer, seed.distractors),
-  };
+  });
 }
 
 function ensureLearnCoverage(
