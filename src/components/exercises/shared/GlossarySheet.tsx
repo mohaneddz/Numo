@@ -17,7 +17,7 @@ export function GlossarySheet({ entry, onClose, onSave, onHear }: GlossarySheetP
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
         <p className="text-[16px] font-semibold text-white">{entry.token}</p>
         <p className="mt-1 text-[15px] text-cyan-200">{entry.translation}</p>
-        {entry.romanization ? <p className="mt-1 text-[13px] text-dim">{entry.romanization}</p> : null}
+        {entry.romanization ? <p className="mt-1 text-[13px] text-dim">Pronunciation: {entry.romanization}</p> : null}
         {entry.partOfSpeech ? <p className="mt-1 text-[12px] uppercase tracking-wide text-amber-300">{entry.partOfSpeech}</p> : null}
         {entry.example ? <p className="mt-3 text-[13px] text-mist">{entry.example}</p> : null}
         <div className="mt-4 flex gap-2">

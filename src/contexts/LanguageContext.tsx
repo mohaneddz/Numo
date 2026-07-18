@@ -302,6 +302,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setLanguages((prev) => [...prev, nextLanguage]);
     setLanguageScores((prev) => ({ ...prev, [code]: DEFAULT_NEW_LANGUAGE_SCORE }));
+    setActiveLanguageCode(code);
 
     void (async () => {
       if (!activeProfile?.id) {
@@ -314,6 +315,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           name: catalog.name,
           flag: catalog.flag,
         });
+        await persistence.repositories.languages.setActiveLanguage(code);
         await persistence.db.execute(
           `
           INSERT INTO learner_language_state (

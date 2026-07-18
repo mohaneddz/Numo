@@ -95,6 +95,7 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                     const isActive =
                         location.pathname === item.to ||
                         (item.to !== '/' && location.pathname.startsWith(item.to));
+                    const isDisabled = !progression.onboardingCompleted;
 
                     return (
                         <NavLink
@@ -102,15 +103,22 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                             to={item.to}
                             end={item.to === '/'}
                             title={collapsed ? item.label : undefined}
+                            onClick={(e) => {
+                                if (isDisabled) {
+                                    e.preventDefault();
+                                }
+                            }}
                             className={`group relative flex items-center rounded-xl px-3 py-2.5 text-[14px] no-underline transition-colors duration-200 ${
                                 collapsed ? 'justify-center' : 'gap-3'
                             } ${
-                                isActive
+                                isDisabled
+                                    ? 'opacity-30 cursor-not-allowed pointer-events-none'
+                                    : isActive
                                     ? 'font-bold text-white'
                                     : 'font-medium text-dim hover:bg-white/[0.04] hover:text-mist'
                             }`}
                         >
-                            {isActive && (
+                            {isActive && !isDisabled && (
                                 <motion.div
                                     layoutId="sidebar-active-indicator"
                                     className="absolute inset-0 rounded-xl border border-white/10 bg-white/[0.08]"
@@ -130,9 +138,11 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                             >
                                 <item.icon
                                     size={18}
-                                    strokeWidth={isActive ? 2.5 : 2}
+                                    strokeWidth={isActive && !isDisabled ? 2.5 : 2}
                                     className={`transition-colors duration-200 ${
-                                        isActive
+                                        isDisabled
+                                            ? 'text-dim'
+                                            : isActive
                                             ? 'text-[#8B5CF6]'
                                             : 'text-dim group-hover:text-mist'
                                     }`}
@@ -145,7 +155,7 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                                 >
                                     {item.label}
                                 </motion.span>
-                                {item.badge &&
+                                {item.badge && !isDisabled &&
                                     (collapsed ? (
                                         <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full border border-[#0B1020] bg-coral" />
                                     ) : (
@@ -164,21 +174,29 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                     const isActive =
                         location.pathname === item.to ||
                         (item.to !== '/' && location.pathname.startsWith(item.to));
+                    const isDisabled = !progression.onboardingCompleted;
 
                     return (
                         <NavLink
                             key={item.to}
                             to={item.to}
                             title={collapsed ? item.label : undefined}
+                            onClick={(e) => {
+                                if (isDisabled) {
+                                    e.preventDefault();
+                                }
+                            }}
                             className={`group relative flex items-center rounded-xl px-3 py-2.5 text-[14px] no-underline transition-colors duration-200 ${
                                 collapsed ? 'justify-center' : 'gap-3'
                             } ${
-                                isActive
+                                isDisabled
+                                    ? 'opacity-30 cursor-not-allowed pointer-events-none'
+                                    : isActive
                                     ? 'font-bold text-white'
                                     : 'font-medium text-dim hover:bg-white/[0.04] hover:text-mist'
                             }`}
                         >
-                            {isActive && (
+                            {isActive && !isDisabled && (
                                 <motion.div
                                     layoutId="sidebar-active-indicator"
                                     className="absolute inset-0 rounded-xl border border-white/10 bg-white/[0.08]"
@@ -198,9 +216,11 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                             >
                                 <item.icon
                                     size={18}
-                                    strokeWidth={isActive ? 2.5 : 2}
+                                    strokeWidth={isActive && !isDisabled ? 2.5 : 2}
                                     className={`transition-colors duration-200 ${
-                                        isActive
+                                        isDisabled
+                                            ? 'text-dim'
+                                            : isActive
                                             ? 'text-[#8B5CF6]'
                                             : 'text-dim group-hover:text-mist'
                                     }`}

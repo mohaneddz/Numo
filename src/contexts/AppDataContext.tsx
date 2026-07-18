@@ -10,6 +10,7 @@ import type {
 import { initializeEngineServices, type EngineServices } from '../services/engine';
 import type { EvidenceRecord } from '../persistence';
 import { useProfileSession } from './ProfileSessionContext';
+import { useLanguage } from './LanguageContext';
 import { evaluateLearnTaskSubmission, type LearnGradingMode } from '../services/learningPlanService';
 import type { TaskType } from '../types/learningPlan';
 
@@ -229,6 +230,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [state, setState] = useState<AppDataState>(EMPTY_STATE);
   const [engine, setEngine] = useState<EngineServices | null>(null);
   const { activeProfile, status: profileStatus } = useProfileSession();
+  const { activeLanguage } = useLanguage();
 
   const refreshFromPersistence = useCallback(async (engineServices: EngineServices) => {
     // Guardrail: core study state is hydrated from persistence only; never from seeded/localStorage snapshots.
@@ -298,6 +300,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const initialized = await initializeEngineServices({
         learnerId: activeProfile.id,
+        languageCode: activeLanguage.code,
         forceReload: true,
       });
       if (cancelled || !initialized) return;
@@ -311,7 +314,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => {
       cancelled = true;
     };
-  }, [activeProfile?.id, profileStatus, refreshFromPersistence]);
+  }, [activeProfile?.id, profileStatus, refreshFromPersistence, activeLanguage.code]);
 
   const startReviewSession = useCallback((mode: ReviewMode): ReviewSessionSummary => {
     return {

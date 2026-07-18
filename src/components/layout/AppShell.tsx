@@ -234,6 +234,10 @@ export default function AppShell() {
 
             if (isTypingTarget(event.target)) return;
 
+            if (!progression.onboardingCompleted) {
+                return;
+            }
+
             if (meta && key >= '1' && key <= '9') {
                 event.preventDefault();
                 routeByDigit(key);
