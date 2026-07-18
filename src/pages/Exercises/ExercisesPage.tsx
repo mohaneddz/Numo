@@ -5,31 +5,22 @@ import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { PracticeCard } from '../../components/practice/PracticeCard';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
 import { DropdownSelect, type DropdownOption } from '../../components/ui/DropdownSelect';
+import { InteractiveText } from '../../components/exercises/shared/InteractiveText';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   generateExerciseDraft,
-  type ExerciseDomain,
   type GenerateExerciseDraftOutput,
   type PracticeItem,
 } from '../../lib/sessionEngine';
 import { resolveQuickExercise } from '../../components/exercises/quick/registry';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
-import { learnExerciseRegistry } from '../../components/exercises/learn/registry';
-import { quickExerciseRegistry } from '../../components/exercises/quick/registry';
-import { reviewExerciseRegistry } from '../../components/exercises/review/registry';
-import { scriptExerciseRegistry } from '../../components/exercises/script/registry';
-import { speakExerciseRegistry } from '../../components/exercises/speak/registry';
-import { writeExerciseRegistry } from '../../components/exercises/write/registry';
 import { getLessonCatalog } from '../../services/learningPlanService';
-
-const exerciseGroupOptions: Array<{ value: ExerciseDomain; label: string }> = [
-  { value: 'learn', label: 'Learn' },
-  { value: 'quick', label: 'Quick' },
-  { value: 'review', label: 'Review' },
-  { value: 'script', label: 'Script' },
-  { value: 'speak', label: 'Speak' },
-  { value: 'write', label: 'Write' },
-];
+import {
+  getExerciseByUserKey,
+  getExerciseCategories,
+  getExercisesByCategory,
+  type ExerciseCatalogCategory,
+} from '../../services/exercises/exerciseCatalog';
 
 const conceptSuggestions = [
   'greetings',
@@ -40,22 +31,6 @@ const conceptSuggestions = [
   'pronunciation',
   'grammar',
 ];
-
-const hiddenQuickExerciseTypes = new Set([
-  'greeting_response',
-  'context_meaning',
-  'hanzi_pinyin',
-  'kanji_reading',
-  'radical_match',
-  'kana_confusion',
-]);
-
-function toLabel(value: string): string {
-  return value
-    .split('_')
-    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
-    .join(' ');
-}
 
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -72,17 +47,14 @@ export default function ExercisesPage() {
   const navigate = useNavigate();
   const { activeLanguage, languages } = useLanguage();
 
-  const exerciseCatalog = useMemo<Record<ExerciseDomain, string[]>>(
-    () => ({
-      learn: Object.keys(learnExerciseRegistry).sort(),
-      quick: Object.keys(quickExerciseRegistry).filter((type) => !hiddenQuickExerciseTypes.has(type)).sort(),
-      review: Object.keys(reviewExerciseRegistry).sort(),
-      script: Object.keys(scriptExerciseRegistry).sort(),
-      speak: Object.keys(speakExerciseRegistry).sort(),
-      write: Object.keys(writeExerciseRegistry).sort(),
-    }),
-    [],
+  const categories = useMemo(() => getExerciseCategories(), []);
+  const categoryOptions = useMemo<DropdownOption[]>(
+    () => categories.map((category) => ({ value: category, label: category })),
+    [categories],
   );
+
+  const [category, setCategory] = useState<ExerciseCatalogCategory>(categories[0] ?? 'Selection');
+  const [exerciseKey, setExerciseKey] = useState<string>('');
 
   const languageOptions = useMemo(() => {
     const entries = new Map<string, string>();
@@ -99,14 +71,12 @@ export default function ExercisesPage() {
   }, [activeLanguage.code, activeLanguage.name, languages]);
 
   const [languageCode, setLanguageCode] = useState(activeLanguage.code);
-  const [exerciseDomain, setExerciseDomain] = useState<ExerciseDomain>('quick');
-  const [exerciseType, setExerciseType] = useState<string>(exerciseCatalog.quick[0] ?? '');
   const [unitOptions, setUnitOptions] = useState<DropdownOption[]>([]);
   const [unitId, setUnitId] = useState<string>('');
   const [concept, setConcept] = useState('');
 
   const [generated, setGenerated] = useState<GenerateExerciseDraftOutput | null>(null);
-  const [generatedAll, setGeneratedAll] = useState<Array<{ exerciseType: string; draft: GenerateExerciseDraftOutput }>>([]);
+  const [generatedAll, setGeneratedAll] = useState<Array<{ exerciseKey: string; draft: GenerateExerciseDraftOutput }>>([]);
   const [quickItem, setQuickItem] = useState<PracticeItem | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -116,15 +86,20 @@ export default function ExercisesPage() {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [allFeedback, setAllFeedback] = useState<Record<string, 'correct' | 'incorrect' | null>>({});
   const [allSelectedOptions, setAllSelectedOptions] = useState<Record<string, string[]>>({});
+  const [rapidMode, setRapidMode] = useState(false);
 
   const languageName = useMemo(() => {
     return languageOptions.find((entry) => entry.value === languageCode)?.label.split(' (')[0] ?? languageCode.toUpperCase();
   }, [languageCode, languageOptions]);
 
+  const exercisesInCategory = useMemo(() => getExercisesByCategory(category), [category]);
+
   const exerciseOptions = useMemo<DropdownOption[]>(
-    () => exerciseCatalog[exerciseDomain].map((value) => ({ value, label: toLabel(value) })),
-    [exerciseCatalog, exerciseDomain],
+    () => exercisesInCategory.map((entry) => ({ value: entry.userKey, label: entry.displayName })),
+    [exercisesInCategory],
   );
+
+  const selectedEntry = useMemo(() => getExerciseByUserKey(exerciseKey), [exerciseKey]);
 
   const selectedUnit = useMemo(() => {
     if (!unitId) return null;
@@ -142,11 +117,15 @@ export default function ExercisesPage() {
   }, [activeLanguage.code, languageCode, languageOptions]);
 
   useEffect(() => {
-    const next = exerciseCatalog[exerciseDomain];
-    if (!next.includes(exerciseType)) {
-      setExerciseType(next[0] ?? '');
+    const available = getExercisesByCategory(category);
+    if (available.length === 0) {
+      setExerciseKey('');
+      return;
     }
-  }, [exerciseCatalog, exerciseDomain, exerciseType]);
+    if (!available.some((entry) => entry.userKey === exerciseKey)) {
+      setExerciseKey(available[0].userKey);
+    }
+  }, [category, exerciseKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,7 +158,7 @@ export default function ExercisesPage() {
   }, [languageCode, unitId]);
 
   const handleCreate = async () => {
-    if (!exerciseType) return;
+    if (!selectedEntry) return;
     setIsGenerating(true);
     setLoadError(null);
     setCopyStatus(null);
@@ -192,8 +171,9 @@ export default function ExercisesPage() {
       const draft = await generateExerciseDraft({
         languageCode,
         languageName,
-        exerciseDomain,
-        exerciseType,
+        exerciseDomain: selectedEntry.adapter.engineDomain,
+        exerciseType: selectedEntry.adapter.internalType,
+        userExerciseKey: selectedEntry.userKey,
         unit: selectedUnit ?? undefined,
         concept: concept.trim() || undefined,
       });
@@ -209,8 +189,7 @@ export default function ExercisesPage() {
   };
 
   const handleGenerateAll = async () => {
-    const types = exerciseCatalog[exerciseDomain] ?? [];
-    if (types.length === 0) return;
+    if (exercisesInCategory.length === 0) return;
     setIsGeneratingAll(true);
     setLoadError(null);
     setCopyStatus(null);
@@ -221,16 +200,17 @@ export default function ExercisesPage() {
     setGenerated(null);
     setQuickItem(null);
     try {
-      const drafts = await Promise.all(types.map(async (type) => {
+      const drafts = await Promise.all(exercisesInCategory.map(async (entry) => {
         const draft = await generateExerciseDraft({
           languageCode,
           languageName,
-          exerciseDomain,
-          exerciseType: type,
+          exerciseDomain: entry.adapter.engineDomain,
+          exerciseType: entry.adapter.internalType,
+          userExerciseKey: entry.userKey,
           unit: selectedUnit ?? undefined,
           concept: concept.trim() || undefined,
         });
-        return { exerciseType: type, draft };
+        return { exerciseKey: entry.userKey, draft };
       }));
       setGeneratedAll(drafts);
       setAllFeedback({});
@@ -249,6 +229,7 @@ export default function ExercisesPage() {
       ? (structuredResponse.selectedOptions as unknown[]).map((entry) => String(entry).trim()).filter(Boolean)
       : [typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : answer].filter(Boolean);
     setSelectedOptions(picked);
+
     const isMatchCorrect =
       quickItem.type === 'match'
       && quickItem.pairs
@@ -257,6 +238,7 @@ export default function ExercisesPage() {
       && typeof structuredResponse.mapping === 'object'
         ? quickItem.pairs.every((pair) => (structuredResponse.mapping as Record<string, unknown>)[pair.left] === pair.right)
         : null;
+
     const isCorrect = isMatchCorrect ?? (() => {
       const expected = new Set(parseExpectedAnswers(quickItem.answer));
       const selected = new Set(picked.map((entry) => entry.toLowerCase()));
@@ -264,6 +246,7 @@ export default function ExercisesPage() {
       if (expected.size !== selected.size) return false;
       return Array.from(expected).every((entry) => selected.has(entry));
     })();
+
     setFeedback(isCorrect ? 'correct' : 'incorrect');
   };
 
@@ -297,16 +280,27 @@ export default function ExercisesPage() {
       ? (structuredResponse.selectedOptions as unknown[]).map((entry) => String(entry).trim()).filter(Boolean)
       : [typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : answer].filter(Boolean);
     setAllSelectedOptions((previous) => ({ ...previous, [exerciseTypeKey]: picked }));
-    const expected = new Set(parseExpectedAnswers(item.answer));
-    const selected = new Set(picked.map((entry) => entry.toLowerCase()));
-    const isCorrect = expected.size > 0
-      && expected.size === selected.size
-      && Array.from(expected).every((entry) => selected.has(entry));
+    const isMatchCorrect =
+      item.type === 'match'
+      && item.pairs
+      && structuredResponse
+      && structuredResponse.mapping
+      && typeof structuredResponse.mapping === 'object'
+        ? item.pairs.every((pair) => (structuredResponse.mapping as Record<string, unknown>)[pair.left] === pair.right)
+        : null;
+
+    const isCorrect = isMatchCorrect ?? (() => {
+      const expected = new Set(parseExpectedAnswers(item.answer));
+      const selected = new Set(picked.map((entry) => entry.toLowerCase()));
+      return expected.size > 0
+        && expected.size === selected.size
+        && Array.from(expected).every((entry) => selected.has(entry));
+    })();
     setAllFeedback((previous) => ({ ...previous, [exerciseTypeKey]: isCorrect ? 'correct' : 'incorrect' }));
   };
 
   return (
-    <PageContent width="narrow" className="pb-12">
+    <PageContent className="max-w-none pb-12">
       <PageActions>
         <button className="page-primary-action" onClick={() => navigate(-1)}>
           <ArrowLeft size={16} /> Back
@@ -325,17 +319,17 @@ export default function ExercisesPage() {
           </label>
 
           <label className="grid gap-1.5 text-[12px] uppercase tracking-wide text-dim">
-            Type
+            Category
             <DropdownSelect
-              value={exerciseDomain}
-              onChange={(value) => setExerciseDomain(value as ExerciseDomain)}
-              options={exerciseGroupOptions}
+              value={category}
+              onChange={(value) => setCategory(value as ExerciseCatalogCategory)}
+              options={categoryOptions}
             />
           </label>
 
           <label className="grid gap-1.5 text-[12px] uppercase tracking-wide text-dim">
             Exercise
-            <DropdownSelect value={exerciseType} onChange={setExerciseType} options={exerciseOptions} />
+            <DropdownSelect value={exerciseKey} onChange={setExerciseKey} options={exerciseOptions} />
           </label>
 
           <label className="grid gap-1.5 text-[12px] uppercase tracking-wide text-dim">
@@ -368,24 +362,41 @@ export default function ExercisesPage() {
         <div className="mt-4 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => void handleCreate()}
-            disabled={isGenerating || isGeneratingAll || !exerciseType}
+            onClick={() => {
+              void handleCreate();
+            }}
+            disabled={isGenerating || isGeneratingAll || !selectedEntry}
             className="page-primary-action"
             style={{ opacity: isGenerating ? 0.6 : 1 }}
           >
             {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
-            {isGenerating ? 'Creating...' : `Create ${toLabel(exerciseType)}`}
+            {isGenerating ? 'Creating...' : `Create ${selectedEntry?.displayName ?? 'Exercise'}`}
           </button>
 
           <button
             type="button"
-            onClick={() => void handleGenerateAll()}
+            onClick={() => {
+              void handleGenerateAll();
+            }}
             disabled={isGenerating || isGeneratingAll || exerciseOptions.length === 0}
             className="page-primary-action"
             style={{ opacity: isGeneratingAll ? 0.6 : 1 }}
           >
             {isGeneratingAll ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
             {isGeneratingAll ? 'Creating All...' : `Generate All (${exerciseOptions.length})`}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRapidMode((value) => !value)}
+            className={`rounded-lg border px-4 py-2 text-[13px] font-medium transition-colors ${
+              rapidMode
+                ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+                : 'border-white/15 bg-white/5 text-dim hover:text-white'
+            }`}
+            aria-pressed={rapidMode}
+          >
+            Rapid mode: {rapidMode ? 'ON' : 'OFF'}
           </button>
         </div>
       </SpotlightCard>
@@ -400,7 +411,9 @@ export default function ExercisesPage() {
         <SpotlightCard className="p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-[18px] font-semibold text-white">Generated Exercise</h3>
-            <button type="button" className="page-primary-action" onClick={() => void handleCopy()}>
+            <button type="button" className="page-primary-action" onClick={() => {
+              void handleCopy();
+            }}>
               <Copy size={16} /> Copy
             </button>
           </div>
@@ -410,16 +423,21 @@ export default function ExercisesPage() {
           {quickItem ? (
             <PracticeCard>
               <div className="text-[12px] uppercase tracking-wider text-dim mb-2">
-                {toLabel(quickItem.type)} | {languageName}
+                {selectedEntry?.displayName ?? quickItem.userKey ?? quickItem.type} | {languageName}
                 {selectedUnit ? ` | ${selectedUnit.title}` : ''}
                 {concept.trim() ? ` | ${concept.trim()}` : ''}
               </div>
-              <p className="text-[18px] text-white font-medium mb-6">{quickItem.prompt}</p>
+              <InteractiveText
+                text={quickItem.prompt}
+                languageCode={quickItem.languageCode ?? languageCode}
+                className="text-[18px] text-white font-medium mb-6 block"
+              />
 
               {activeQuickExercise ? (
                 <activeQuickExercise.component
                   item={quickItem}
                   disabled={feedback !== null || isGenerating}
+                  rapidMode={rapidMode}
                   onAnswer={handleAnswer}
                   selectionFeedback={feedback ? {
                     selectedOption: selectedOptions[0],
@@ -433,7 +451,9 @@ export default function ExercisesPage() {
                 <UnsupportedExerciseCard reason={`Unsupported quick exercise payload for "${quickItem.type}".`} />
               )}
             </PracticeCard>
-          ) : null}
+          ) : (
+            <UnsupportedExerciseCard reason="Draft did not produce a runnable preview component." />
+          )}
 
           <div className="mt-4 grid gap-3">
             <details className="rounded-lg border border-white/10 bg-black/20 p-3" open>
@@ -502,76 +522,91 @@ export default function ExercisesPage() {
 
           {copyStatus ? <p className="mb-4 text-[12px] text-dim">{copyStatus}</p> : null}
 
-          <div className="grid gap-3">
-            {generatedAll.map((entry) => (
-              <div key={entry.exerciseType} className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-[14px] font-semibold text-white">
-                    {toLabel(entry.exerciseType)} | {languageName}
-                  </p>
-                </div>
-                {entry.draft.quickItem ? (
-                  <div className="mb-3">
-                    {(() => {
-                      const item = entry.draft.quickItem as PracticeItem;
-                      const registration = resolveQuickExercise(item);
-                      if (!registration) {
-                        return <UnsupportedExerciseCard reason={`Unsupported quick exercise payload for "${item.type}".`} />;
-                      }
-                      const exerciseTypeKey = entry.exerciseType;
-                      const itemFeedback = allFeedback[exerciseTypeKey] ?? null;
-                      const itemSelected = allSelectedOptions[exerciseTypeKey] ?? [];
-                      return (
-                        <PracticeCard>
-                          <p className="text-[16px] text-white font-medium mb-4">{item.prompt}</p>
-                          <registration.component
-                            item={item}
-                            disabled={itemFeedback !== null || isGeneratingAll}
-                            onAnswer={(answer, structuredResponse) => handleAllAnswer(exerciseTypeKey, item, answer, structuredResponse)}
-                            selectionFeedback={itemFeedback ? {
-                              selectedOption: itemSelected[0],
-                              selectedOptions: itemSelected,
-                              isCorrect: itemFeedback === 'correct',
-                              correctAnswer: item.answer,
-                              correctAnswers: parseExpectedAnswers(item.answer),
-                            } : undefined}
-                          />
-                        </PracticeCard>
-                      );
-                    })()}
+          <div className="grid gap-3 md:grid-cols-3">
+            {generatedAll.map((entry) => {
+              const catalogEntry = getExerciseByUserKey(entry.exerciseKey);
+              return (
+                <div key={entry.exerciseKey} className="rounded-lg border border-white/10 bg-black/20 p-3 flex flex-col h-full">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-[14px] font-semibold text-white">
+                      {catalogEntry?.displayName ?? entry.exerciseKey} | {languageName}
+                    </p>
                   </div>
-                ) : null}
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="page-primary-action"
-                    onClick={() => {
-                      void handleCopyBlock(entry.draft.input, `${toLabel(entry.exerciseType)} input`);
-                    }}
-                  >
-                    <Copy size={14} /> Copy Input JSON
-                  </button>
-                  <button
-                    type="button"
-                    className="page-primary-action"
-                    onClick={() => {
-                      void handleCopyBlock(entry.draft.template, `${toLabel(entry.exerciseType)} template`);
-                    }}
-                  >
-                    <Copy size={14} /> Copy Template JSON
-                  </button>
-                  <button
-                    type="button"
-                    className="page-primary-action"
-                    onClick={() => {
-                      void handleCopyBlock(entry.draft.result, `${toLabel(entry.exerciseType)} result`);
-                    }}
-                  >
-                    <Copy size={14} /> Copy Result JSON
-                  </button>
+                  {entry.draft.quickItem ? (
+                    <div className="mb-3 flex-1">
+                      {(() => {
+                        const item = entry.draft.quickItem as PracticeItem;
+                        const registration = resolveQuickExercise(item);
+                        if (!registration) {
+                          return <UnsupportedExerciseCard reason={`Unsupported quick exercise payload for "${item.type}".`} />;
+                        }
+                        const exerciseTypeKey = entry.exerciseKey;
+                        const itemFeedback = allFeedback[exerciseTypeKey] ?? null;
+                        const itemSelected = allSelectedOptions[exerciseTypeKey] ?? [];
+                        return (
+                          <PracticeCard>
+                            <InteractiveText
+                              text={item.prompt}
+                              languageCode={item.languageCode ?? languageCode}
+                              className="text-[16px] text-white font-medium mb-4 block"
+                            />
+                            <registration.component
+                              item={item}
+                              disabled={itemFeedback !== null || isGeneratingAll}
+                              rapidMode={rapidMode}
+                              onAnswer={(answer, structuredResponse) => handleAllAnswer(exerciseTypeKey, item, answer, structuredResponse)}
+                              selectionFeedback={itemFeedback ? {
+                                selectedOption: itemSelected[0],
+                                selectedOptions: itemSelected,
+                                isCorrect: itemFeedback === 'correct',
+                                correctAnswer: item.answer,
+                                correctAnswers: parseExpectedAnswers(item.answer),
+                              } : undefined}
+                            />
+                          </PracticeCard>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="mb-3 flex-1">
+                      <UnsupportedExerciseCard reason="Draft did not produce a runnable preview component." />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 mt-auto">
+                    <button
+                      type="button"
+                      className="p-2 rounded-md hover:bg-white/10 transition-colors text-blue-400"
+                      title="Copy Input JSON"
+                      onClick={() => {
+                        void handleCopyBlock(entry.draft.input, `${catalogEntry?.displayName ?? entry.exerciseKey} input`);
+                      }}
+                    >
+                      <Copy size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-2 rounded-md hover:bg-white/10 transition-colors text-emerald-400"
+                      title="Copy Template JSON"
+                      onClick={() => {
+                        void handleCopyBlock(entry.draft.template, `${catalogEntry?.displayName ?? entry.exerciseKey} template`);
+                      }}
+                    >
+                      <Copy size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-2 rounded-md hover:bg-white/10 transition-colors text-amber-400"
+                      title="Copy Result JSON"
+                      onClick={() => {
+                        void handleCopyBlock(entry.draft.result, `${catalogEntry?.displayName ?? entry.exerciseKey} result`);
+                      }}
+                    >
+                      <Copy size={16} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </SpotlightCard>
       ) : null}

@@ -5,7 +5,8 @@ import { useProfileSession } from '../contexts/ProfileSessionContext';
 import { completeWithEcho } from '../services/aiProvider';
 import {
   lookupStarterGlossary,
-  tokenizeInteractiveText,
+  normalizeGlossaryLanguageCode,
+  tokenizeMarkedInteractiveText,
   upsertStarterGlossary,
   type GlossaryEntry,
 } from '../services/exercises/glossaryData';
@@ -29,7 +30,10 @@ Return JSON only: {"translation":"...","romanization":"...","partOfSpeech":"..."
       maxTokens: 180,
       responseFormat: { type: 'json_object' },
     });
-    const parsed = JSON.parse(raw) as Partial<GlossaryEntry>;
+    const fenced = raw.match(/```(?:json)?\n([\s\S]*?)\n```/);
+    const body = fenced ? fenced[1] : raw;
+    const objectText = body.match(/\{[\s\S]*\}/)?.[0] ?? body;
+    const parsed = JSON.parse(objectText) as Partial<GlossaryEntry>;
     if (!parsed.translation || typeof parsed.translation !== 'string') return null;
     return {
       token,
@@ -51,7 +55,7 @@ export function useGlossary(languageCode?: string) {
   const [loadingToken, setLoadingToken] = useState<string | null>(null);
   const [hoverCount, setHoverCount] = useState(0);
 
-  const targetLanguage = languageCode || activeLanguage.code;
+  const targetLanguage = normalizeGlossaryLanguageCode(languageCode || activeLanguage.code);
   const mainLanguageCode = activeProfile?.nativeLanguageCode ?? activeProfile?.baseLanguageCode ?? 'en';
 
   const resolveEntry = useCallback(async (token: string): Promise<GlossaryEntry | null> => {
@@ -102,10 +106,7 @@ export function useGlossary(languageCode?: string) {
   }, [createNotebookEntry, targetLanguage]);
 
   const tokenized = useCallback((text: string) => {
-    return tokenizeInteractiveText(text, targetLanguage).map((token) => ({
-      token,
-      interactive: isCandidateWord(token),
-    }));
+    return tokenizeMarkedInteractiveText(text, targetLanguage);
   }, [targetLanguage]);
 
   const api = useMemo(() => ({

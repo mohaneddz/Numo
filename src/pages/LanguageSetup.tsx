@@ -11,7 +11,7 @@ import {
   ScriptStartTiming,
   useLanguageJourney,
 } from '../contexts/LanguageJourneyContext';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useLanguage, languageCatalog } from '../contexts/LanguageContext';
 
 const levelDetails: Record<JourneyLevel, { label: string; detail: string }> = {
   complete_beginner: {
@@ -111,8 +111,16 @@ export default function LanguageSetupPage() {
 
   const langFromQuery = (searchParams.get('lang') ?? '').trim().toLowerCase();
   const selectedLanguage = useMemo(() => {
-    if (langFromQuery && languages.some((language) => language.code === langFromQuery)) {
-      return languages.find((language) => language.code === langFromQuery) ?? activeLanguage;
+    const catalogEntry = languageCatalog.find((l) => l.code === langFromQuery);
+    if (catalogEntry) {
+      return (
+        languages.find((language) => language.code === langFromQuery) ?? {
+          code: catalogEntry.code,
+          name: catalogEntry.name,
+          flag: catalogEntry.flag,
+          progress: { dailyGoalMinutes: 30, currentStreak: 0, longestStreak: 0, todayMinutes: 0, totalXP: 0 },
+        }
+      );
     }
     return activeLanguage;
   }, [activeLanguage, langFromQuery, languages]);
@@ -205,7 +213,7 @@ export default function LanguageSetupPage() {
               <label className="flex-1 flex flex-col">
                 <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Rough level</span>
                 <span className="mb-3 block text-[12px] text-dim flex-1">{currentLevel.detail}</span>
-                <select value={level} onChange={(event) => setLevel(event.target.value as JourneyLevel)} className="w-full rounded-xl border border-white/10 bg-black/25 pl-3 pr-10 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors bg-[position:calc(100%-0.75rem)_center]">
+                <select value={level} onChange={(event) => setLevel(event.target.value as JourneyLevel)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors">
                   <option className="bg-slate-900" value="complete_beginner">Complete beginner</option>
                   <option className="bg-slate-900" value="beginner">Beginner</option>
                   <option className="bg-slate-900" value="lower_intermediate">Lower intermediate</option>
@@ -218,7 +226,7 @@ export default function LanguageSetupPage() {
               <label className="flex-1 flex flex-col">
                 <span className="mb-1 block text-[12px] font-semibold text-indigo-100">What matters most right now?</span>
                 <span className="mb-3 block text-[12px] text-dim flex-1">{currentFocus.detail}</span>
-                <select value={focus} onChange={(event) => setFocus(event.target.value as JourneyFocus)} className="w-full rounded-xl border border-white/10 bg-black/25 pl-3 pr-10 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors bg-[position:calc(100%-0.75rem)_center]">
+                <select value={focus} onChange={(event) => setFocus(event.target.value as JourneyFocus)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors">
                   <option className="bg-slate-900" value="speaking">Speaking</option>
                   <option className="bg-slate-900" value="understanding">Understanding</option>
                   <option className="bg-slate-900" value="reading">Reading</option>
@@ -232,7 +240,7 @@ export default function LanguageSetupPage() {
               <label className="flex-1 flex flex-col">
                 <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Daily intensity</span>
                 <span className="mb-3 block text-[12px] text-dim flex-1">{currentIntensity.detail}</span>
-                <select value={intensity} onChange={(event) => setIntensity(event.target.value as JourneyIntensity)} className="w-full rounded-xl border border-white/10 bg-black/25 pl-3 pr-10 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors bg-[position:calc(100%-0.75rem)_center]">
+                <select value={intensity} onChange={(event) => setIntensity(event.target.value as JourneyIntensity)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors">
                   <option className="bg-slate-900" value="very_light">Very light</option>
                   <option className="bg-slate-900" value="normal">Normal</option>
                   <option className="bg-slate-900" value="serious">Serious</option>
@@ -244,7 +252,7 @@ export default function LanguageSetupPage() {
               <label className="flex-1 flex flex-col">
                 <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Pace</span>
                 <span className="mb-3 block text-[12px] text-dim flex-1">{currentPace.detail}</span>
-                <select value={pace} onChange={(event) => setPace(event.target.value as JourneyPace)} className="w-full rounded-xl border border-white/10 bg-black/25 pl-3 pr-10 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors bg-[position:calc(100%-0.75rem)_center]">
+                <select value={pace} onChange={(event) => setPace(event.target.value as JourneyPace)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors">
                   <option className="bg-slate-900" value="gentler">Gentler</option>
                   <option className="bg-slate-900" value="standard">Standard</option>
                   <option className="bg-slate-900" value="harder">Harder</option>
@@ -257,7 +265,7 @@ export default function LanguageSetupPage() {
                 <label className="flex-1 flex flex-col">
                   <span className="mb-1 block text-[12px] font-semibold text-indigo-100">Script-writing timing</span>
                   <span className="mb-3 block text-[12px] text-dim flex-1">{currentScriptTiming.detail}</span>
-                  <select value={scriptStartTiming} onChange={(event) => setScriptStartTiming(event.target.value as ScriptStartTiming)} className="w-full rounded-xl border border-white/10 bg-black/25 pl-3 pr-10 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors bg-[position:calc(100%-0.75rem)_center] sm:w-1/2">
+                  <select value={scriptStartTiming} onChange={(event) => setScriptStartTiming(event.target.value as ScriptStartTiming)} className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white cursor-pointer hover:bg-black/40 transition-colors sm:w-1/2">
                     <option className="bg-slate-900" value="start_now">Start script-writing now</option>
                     <option className="bg-slate-900" value="start_later">Start later</option>
                     <option className="bg-slate-900" value="start_gradually">Start gradually</option>

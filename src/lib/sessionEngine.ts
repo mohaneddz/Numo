@@ -7,6 +7,12 @@ import {
   type JourneyLevel,
 } from '../services/exercises/exercisePolicy';
 import { resolveExerciseImage } from '../services/exercises/exerciseMediaService';
+import {
+  getExerciseByUserKey,
+  resolveExerciseByInternal,
+  type ExerciseAdapter,
+  type ExerciseCatalogEntry,
+} from '../services/exercises/exerciseCatalog';
 
 export type PracticeItemType =
   | 'mcq'
@@ -34,6 +40,7 @@ export interface PracticeMatchPair {
 export interface PracticeItem {
   id: string;
   type: PracticeItemType;
+  userKey?: string;
   prompt: string;
   answer: string;
   options?: string[];
@@ -77,6 +84,7 @@ export type ExerciseDomain = 'learn' | 'quick' | 'review' | 'script' | 'speak' |
 export interface GenerateExerciseDraftInput extends GenerateSessionInput {
   exerciseDomain: ExerciseDomain;
   exerciseType: string;
+  userExerciseKey?: string;
   unit?: {
     id: string;
     title: string;
@@ -208,6 +216,465 @@ function parsePairs(value: unknown): PracticeMatchPair[] {
     .filter((item): item is PracticeMatchPair => Boolean(item));
 }
 
+function parseCompositeAnswer(answer: string): string[] {
+  return answer
+    .split('||')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function markTargetText(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.includes('[[') && trimmed.includes(']]')) return trimmed;
+  return `[[${trimmed}]]`;
+}
+
+function markTargetArray(values: string[] | undefined): string[] | undefined {
+  if (!values) return values;
+  return values.map((value) => markTargetText(value));
+}
+
+function markTargetAnswer(value: string): string {
+  const parts = parseCompositeAnswer(value);
+  if (parts.length > 1) {
+    return parts.map((part) => markTargetText(part)).join(' || ');
+  }
+  return markTargetText(value);
+}
+
+function withTargetMarkers(item: PracticeItem): PracticeItem {
+  return {
+    ...item,
+    answer: markTargetAnswer(item.answer),
+    options: markTargetArray(item.options),
+    pairs: item.pairs?.map((pair) => ({ left: markTargetText(pair.left), right: markTargetText(pair.right) })),
+    tokens: markTargetArray(item.tokens),
+    context: item.context ? markTargetText(item.context) : item.context,
+  };
+}
+
+function withCatalogKey(item: PracticeItem): PracticeItem {
+  return {
+    ...item,
+    userKey: item.userKey ?? resolveExerciseByInternal('quick', item.type)?.userKey ?? undefined,
+  };
+}
+
+function resolveCatalogEntry(
+  input: Pick<GenerateExerciseDraftInput, 'exerciseDomain' | 'exerciseType' | 'userExerciseKey'>,
+): ExerciseCatalogEntry | null {
+  const byUserKey = getExerciseByUserKey(input.userExerciseKey);
+  if (byUserKey) return byUserKey;
+  return resolveExerciseByInternal(input.exerciseDomain, input.exerciseType);
+}
+
+function hasMarkedTarget(text: string): boolean {
+  return /\[\[[\s\S]+?\]\]/.test(text);
+}
+
+function isDraftPromptValid(prompt: string): boolean {
+  const cleaned = prompt.trim();
+  if (!cleaned) return false;
+  if (cleaned.includes('...') && !hasMarkedTarget(cleaned)) return false;
+  return true;
+}
+
+function stripTargetMarkers(text: string): string {
+  return text.replace(/\[\[|\]\]/g, '').trim();
+}
+
+function normalizeBooleanToken(value: string): string {
+  const normalized = stripTargetMarkers(value)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '');
+  if (normalized === 'true' || normalized === 'wahr') return 'true';
+  if (normalized === 'false' || normalized === 'falsch') return 'false';
+  return normalized;
+}
+
+function optionsAreBooleanPair(options: string[]): boolean {
+  if (options.length !== 2) return false;
+  const normalized = new Set(options.map((option) => normalizeBooleanToken(option)));
+  return normalized.size === 2 && normalized.has('true') && normalized.has('false');
+}
+
+function looksLikeGenericChoicePrompt(prompt: string): boolean {
+  const cleaned = stripTargetMarkers(prompt).toLowerCase();
+  return (
+    /^choose the best answer in\b/.test(cleaned)
+    || /^select the best answer in\b/.test(cleaned)
+    || /^choose the correct answer in\b/.test(cleaned)
+    || /^choose the best option in\b/.test(cleaned)
+    || /^choose the best answer\b/.test(cleaned)
+  );
+}
+
+function hasConcreteChoiceContext(prompt: string): boolean {
+  const cleaned = prompt.trim();
+  if (!cleaned) return false;
+  if (hasMarkedTarget(cleaned)) return true;
+  if (/["'][^"']+["']/.test(cleaned)) return true;
+  return /\b(what does|what do we call|how do we say|which option|which phrase|which word|translate|in this situation|complete the dialogue|true or false|statement|most natural|more formal)\b/i.test(cleaned);
+}
+
+function isImageExerciseType(type: PracticeItemType): boolean {
+  return type === 'image_to_word' || type === 'word_to_image' || type === 'sound_to_image';
+}
+
+function isImageAdapter(adapter: ExerciseAdapter): boolean {
+  return (
+    adapter.previewQuickType === 'image_to_word'
+    || adapter.internalType === 'image_to_word'
+    || adapter.internalType === 'word_to_image'
+    || adapter.internalType === 'sound_to_image'
+    || adapter.internalType === 'image_word_recognition'
+  );
+}
+
+function looksLikePlaceholderImageUrl(url: string): boolean {
+  const normalized = url.trim().toLowerCase();
+  if (!normalized) return true;
+  if (normalized.startsWith('data:')) return true;
+  return (
+    normalized.includes('example.com')
+    || normalized.includes('dummyimage.com')
+    || normalized.includes('placehold.co')
+    || normalized.includes('placeholder.com')
+    || normalized.includes('loremflickr.com')
+  );
+}
+
+function hasImagePromptContext(prompt: string): boolean {
+  const cleaned = stripTargetMarkers(prompt).toLowerCase();
+  return /\b(image|photo|picture|visual|look at the image|shown)\b/.test(cleaned);
+}
+
+let imagePromptVariantCursor = 0;
+
+function nextImagePromptVariant(): number {
+  imagePromptVariantCursor = (imagePromptVariantCursor + 1) % 4;
+  return imagePromptVariantCursor;
+}
+
+function buildDeterministicImageChoiceFallback(input: GenerateSessionInput): DeterministicChoiceFallback {
+  const variant = nextImagePromptVariant();
+  if (input.languageCode === 'de') {
+    if (variant === 0) {
+      return {
+        prompt: 'What do we call the thing in this picture in German?',
+        choices: ['[[Katze]]', '[[Hund]]', '[[Haus]]', '[[Buch]]'],
+        correctAnswer: '[[Katze]]',
+      };
+    }
+    if (variant === 1) {
+      return {
+        prompt: 'Which German word best labels the object shown in the photo?',
+        choices: ['[[Katze]]', '[[Hund]]', '[[Haus]]', '[[Buch]]'],
+        correctAnswer: '[[Katze]]',
+      };
+    }
+    if (variant === 2) {
+      return {
+        prompt: 'Choose the German word that matches this picture.',
+        choices: ['[[Katze]]', '[[Hund]]', '[[Haus]]', '[[Buch]]'],
+        correctAnswer: '[[Katze]]',
+      };
+    }
+    return {
+      prompt: 'Which option is NOT a correct label for the animal in this picture?',
+      choices: ['[[Katze]]', '[[Kätzchen]]', '[[Stubentiger]]', '[[Hund]]'],
+      correctAnswer: '[[Hund]]',
+    };
+  }
+  if (input.languageCode === 'zh') {
+    if (variant === 0) {
+      return {
+        prompt: 'What do we call the thing in this picture in Chinese?',
+        choices: ['[[猫]]', '[[狗]]', '[[房子]]', '[[书]]'],
+        correctAnswer: '[[猫]]',
+      };
+    }
+    if (variant === 1) {
+      return {
+        prompt: 'Which Chinese word best labels the object shown in the photo?',
+        choices: ['[[猫]]', '[[狗]]', '[[房子]]', '[[书]]'],
+        correctAnswer: '[[猫]]',
+      };
+    }
+    if (variant === 2) {
+      return {
+        prompt: 'Choose the Chinese word that matches this picture.',
+        choices: ['[[猫]]', '[[狗]]', '[[房子]]', '[[书]]'],
+        correctAnswer: '[[猫]]',
+      };
+    }
+    return {
+      prompt: 'Which option is NOT a correct label for the animal in this picture?',
+      choices: ['[[猫]]', '[[小猫]]', '[[猫咪]]', '[[狗]]'],
+      correctAnswer: '[[狗]]',
+    };
+  }
+  if (input.languageCode === 'ja') {
+    if (variant === 0) {
+      return {
+        prompt: 'What do we call the thing in this picture in Japanese?',
+        choices: ['[[猫]]', '[[犬]]', '[[家]]', '[[本]]'],
+        correctAnswer: '[[猫]]',
+      };
+    }
+    if (variant === 1) {
+      return {
+        prompt: 'Which Japanese word best labels the object shown in the photo?',
+        choices: ['[[猫]]', '[[犬]]', '[[家]]', '[[本]]'],
+        correctAnswer: '[[猫]]',
+      };
+    }
+    if (variant === 2) {
+      return {
+        prompt: 'Choose the Japanese word that matches this picture.',
+        choices: ['[[猫]]', '[[犬]]', '[[家]]', '[[本]]'],
+        correctAnswer: '[[猫]]',
+      };
+    }
+    return {
+      prompt: 'Which option is NOT a correct label for the animal in this picture?',
+      choices: ['[[猫]]', '[[ねこ]]', '[[ネコ]]', '[[犬]]'],
+      correctAnswer: '[[犬]]',
+    };
+  }
+  const languageLabel = input.languageName || input.languageCode.toUpperCase();
+  if (variant === 0) {
+    return {
+      prompt: `What do we call the thing in this picture in ${languageLabel}?`,
+      choices: ['[[cat]]', '[[dog]]', '[[house]]', '[[book]]'],
+      correctAnswer: '[[cat]]',
+    };
+  }
+  if (variant === 1) {
+    return {
+      prompt: `Which ${languageLabel} word best labels the object shown in the photo?`,
+      choices: ['[[cat]]', '[[dog]]', '[[house]]', '[[book]]'],
+      correctAnswer: '[[cat]]',
+    };
+  }
+  if (variant === 2) {
+    return {
+      prompt: `Choose the ${languageLabel} word that matches this picture.`,
+      choices: ['[[cat]]', '[[dog]]', '[[house]]', '[[book]]'],
+      correctAnswer: '[[cat]]',
+    };
+  }
+  return {
+    prompt: 'Which option is NOT a correct label for the animal in this picture?',
+    choices: ['[[cat]]', '[[kitty]]', '[[feline]]', '[[dog]]'],
+    correctAnswer: '[[dog]]',
+  };
+}
+
+interface DeterministicChoiceFallback {
+  prompt: string;
+  choices: string[];
+  correctAnswer: string;
+}
+
+function buildDeterministicChoiceFallback(input: GenerateSessionInput): DeterministicChoiceFallback {
+  if (input.languageCode === 'de') {
+    return {
+      prompt: "How do we say 'hello' in German?",
+      choices: ['[[Hallo]]', '[[Guten Tag]]', '[[Auf Wiedersehen]]', '[[Gute Nacht]]'],
+      correctAnswer: '[[Hallo]]',
+    };
+  }
+
+  if (input.languageCode === 'zh') {
+    return {
+      prompt: "How do we say 'hello' in Chinese?",
+      choices: ['[[你好]]', '[[谢谢]]', '[[再见]]', '[[请]]'],
+      correctAnswer: '[[你好]]',
+    };
+  }
+
+  if (input.languageCode === 'ja') {
+    return {
+      prompt: "How do we say 'hello' in Japanese?",
+      choices: ['[[こんにちは]]', '[[ありがとう]]', '[[さようなら]]', '[[お願いします]]'],
+      correctAnswer: '[[こんにちは]]',
+    };
+  }
+
+  const languageLabel = input.languageName || input.languageCode.toUpperCase();
+  return {
+    prompt: `How do we say 'hello' in ${languageLabel}?`,
+    choices: ['[[hello]]', '[[goodbye]]', '[[thank you]]', '[[good night]]'],
+    correctAnswer: '[[hello]]',
+  };
+}
+
+function buildDeterministicBinaryFallback(input: GenerateSessionInput): DeterministicChoiceFallback {
+  if (input.languageCode === 'de') {
+    return {
+      prompt: 'True or False: In German, [[Guten Tag]] means "good day."',
+      choices: ['[[True]]', '[[False]]'],
+      correctAnswer: '[[True]]',
+    };
+  }
+  if (input.languageCode === 'zh') {
+    return {
+      prompt: 'True or False: In Chinese, [[你好]] means "hello."',
+      choices: ['[[True]]', '[[False]]'],
+      correctAnswer: '[[True]]',
+    };
+  }
+  if (input.languageCode === 'ja') {
+    return {
+      prompt: 'True or False: In Japanese, [[ありがとう]] means "thank you."',
+      choices: ['[[True]]', '[[False]]'],
+      correctAnswer: '[[True]]',
+    };
+  }
+  const languageLabel = input.languageName || input.languageCode.toUpperCase();
+  return {
+    prompt: `True or False: In ${languageLabel}, "hello" is a greeting.`,
+    choices: ['[[True]]', '[[False]]'],
+    correctAnswer: '[[True]]',
+  };
+}
+
+function validateQuickDraftResult(
+  adapter: ExerciseAdapter,
+  result: QuickDraftResultShape,
+): { valid: boolean; reason?: string } {
+  const promptText = typeof result.prompt === 'string'
+    ? result.prompt.trim()
+    : (result.prompt && typeof result.prompt === 'object' && typeof result.prompt.text === 'string'
+      ? result.prompt.text.trim()
+      : '');
+  if (!isDraftPromptValid(promptText)) return { valid: false, reason: 'Prompt missing or incomplete' };
+
+  const options = parseStringArray(result.choices ?? result.options);
+  const pairs = parsePairs(result.pairs);
+  const tokens = parseStringArray(result.tokens);
+  const singleAnswer = typeof result.correctAnswer === 'string' && result.correctAnswer.trim()
+    ? result.correctAnswer.trim()
+    : (typeof result.answer === 'string' && result.answer.trim() ? result.answer.trim() : '');
+  const answerList = parseStringArray(result.correctAnswers ?? result.correctChoices);
+  const answers = answerList.length > 0 ? answerList : (singleAnswer ? [singleAnswer] : []);
+
+  if (adapter.validationFamily === 'choice' || adapter.validationFamily === 'binary_choice') {
+    if (options.length < 2) return { valid: false, reason: 'Choice exercise needs options' };
+    if (answers.length === 0) return { valid: false, reason: 'Choice exercise needs an answer' };
+    if (!answers.every((answer) => options.includes(answer))) return { valid: false, reason: 'Answer must exist in options' };
+    if (!hasConcreteChoiceContext(promptText) || looksLikeGenericChoicePrompt(promptText)) {
+      return { valid: false, reason: 'Prompt must reference a concrete statement or phrase' };
+    }
+    if (adapter.validationFamily === 'choice') {
+      if (options.length < 4) return { valid: false, reason: 'MCQ-style choice needs 4 options' };
+      if (optionsAreBooleanPair(options)) return { valid: false, reason: 'MCQ cannot be plain True/False' };
+      if (isImageAdapter(adapter)) {
+        if (!hasImagePromptContext(promptText)) return { valid: false, reason: 'Image choice prompt must reference an image' };
+        if (typeof result.imageUrl === 'string' && looksLikePlaceholderImageUrl(result.imageUrl)) {
+          return { valid: false, reason: 'Image choice cannot use placeholder URLs' };
+        }
+      }
+    }
+    if (adapter.validationFamily === 'binary_choice') {
+      if (options.length !== 2) return { valid: false, reason: 'True/False needs exactly 2 options' };
+      if (!optionsAreBooleanPair(options)) return { valid: false, reason: 'True/False must use True/False options' };
+    }
+  }
+
+  if (adapter.validationFamily === 'pair' && pairs.length < 2) {
+    return { valid: false, reason: 'Matching exercise needs at least 2 pairs' };
+  }
+
+  if (adapter.validationFamily === 'ordering' && tokens.length < 2) {
+    return { valid: false, reason: 'Ordering exercise needs at least 2 tokens' };
+  }
+
+  if ((adapter.validationFamily === 'text' || adapter.validationFamily === 'speech') && answers.length === 0) {
+    return { valid: false, reason: 'Text/speech exercise needs a target answer' };
+  }
+
+  if (adapter.validationFamily === 'script' && options.length < 2 && answers.length === 0) {
+    return { valid: false, reason: 'Script preview needs minimal prompt/answer data' };
+  }
+
+  if (adapter.validationFamily === 'review_preset' && !promptText) {
+    return { valid: false, reason: 'Review preset preview needs a prompt' };
+  }
+
+  return { valid: true };
+}
+
+function toPreviewQuickType(previewType: string | undefined, languageCode: string): PracticeItemType {
+  if (isPracticeItemType(previewType)) return previewType;
+  return normalizeItemType(previewType, languageCode);
+}
+
+function createFallbackDraftResult(input: GenerateExerciseDraftInput, adapter: ExerciseAdapter | null): Record<string, unknown> {
+  const previewType = toPreviewQuickType(adapter?.previewQuickType, input.languageCode);
+  if (adapter?.validationFamily === 'pair') {
+    return {
+      id: `${Date.now()}`,
+      type: previewType,
+      prompt: englishFallbackPrompt(input, previewType, input.concept),
+      pairs: [
+        { left: '[[hello]]', right: '[[greeting]]' },
+        { left: '[[thank you]]', right: '[[gratitude]]' },
+      ],
+      answer: '[[Pair matching]]',
+    };
+  }
+  if (adapter?.validationFamily === 'ordering') {
+    return {
+      id: `${Date.now()}`,
+      type: previewType,
+      prompt: englishFallbackPrompt(input, previewType, input.concept),
+      tokens: ['[[I]]', '[[like]]', '[[water]]'],
+      answer: '[[I like water]]',
+    };
+  }
+  if (adapter?.validationFamily === 'binary_choice') {
+    const fallback = buildDeterministicBinaryFallback(input);
+    return {
+      id: `${Date.now()}`,
+      type: previewType,
+      prompt: fallback.prompt,
+      choices: fallback.choices,
+      correctAnswer: fallback.correctAnswer,
+    };
+  }
+  if (adapter?.validationFamily === 'speech') {
+    return {
+      id: `${Date.now()}`,
+      type: previewType,
+      prompt: englishFallbackPrompt(input, previewType, input.concept),
+      answer: '[[Sample spoken response]]',
+    };
+  }
+  if (adapter && isImageAdapter(adapter)) {
+    const fallback = buildDeterministicImageChoiceFallback(input);
+    return {
+      id: `${Date.now()}`,
+      type: previewType,
+      prompt: fallback.prompt,
+      choices: fallback.choices,
+      correctAnswer: fallback.correctAnswer,
+      answer: fallback.correctAnswer,
+    };
+  }
+  const fallbackChoice = buildDeterministicChoiceFallback(input);
+  return {
+    id: `${Date.now()}`,
+    type: previewType,
+    prompt: fallbackChoice.prompt,
+    choices: fallbackChoice.choices,
+    correctAnswer: fallbackChoice.correctAnswer,
+    answer: fallbackChoice.correctAnswer,
+  };
+}
+
 function normalizeItemType(rawType: string | undefined, languageCode: string): PracticeItemType {
   if (isPracticeItemType(rawType)) return rawType;
   if (languageCode === 'zh') return 'hanzi_pinyin';
@@ -226,6 +693,7 @@ function normalizeItems(languageCode: string, payload: GeneratedPracticePayload)
       return {
         id: (item.id && item.id.trim()) || String(index + 1),
         type,
+        userKey: resolveExerciseByInternal('quick', type)?.userKey ?? undefined,
         prompt: (item.prompt && item.prompt.trim()) || 'Practice prompt unavailable.',
         answer: (item.answer && item.answer.trim()) || '',
         options: options.length >= 2 ? options : undefined,
@@ -261,7 +729,7 @@ function normalizeItems(languageCode: string, payload: GeneratedPracticePayload)
       return true;
     });
 
-  return normalized;
+  return normalized.map(withCatalogKey).map(withTargetMarkers);
 }
 
 function zhFallbackItems(languageLabel: string): PracticeItem[] {
@@ -408,10 +876,19 @@ function defaultFallbackItems(languageLabel: string, languageCode: string): Prac
   ];
 }
 
-async function hydrateImageItems(items: PracticeItem[], input: GenerateSessionInput): Promise<PracticeItem[]> {
+async function hydrateImageItems(
+  items: PracticeItem[],
+  input: GenerateSessionInput,
+  options?: { forceSearch?: boolean },
+): Promise<PracticeItem[]> {
+  const forceSearch = options?.forceSearch === true;
   const mapped = await Promise.all(
     items.map(async (item) => {
-      if ((item.type !== 'image_to_word' && item.type !== 'word_to_image' && item.type !== 'sound_to_image') || item.imageUrl) {
+      if (!isImageExerciseType(item.type)) {
+        return item;
+      }
+      const hasUsableImage = typeof item.imageUrl === 'string' && item.imageUrl.trim().length > 0 && !looksLikePlaceholderImageUrl(item.imageUrl);
+      if (hasUsableImage && !forceSearch) {
         return item;
       }
       try {
@@ -473,7 +950,7 @@ async function fallbackSession(input: GenerateSessionInput): Promise<SessionStat
   const hydrated = await hydrateImageItems(covered, input);
 
   return {
-    items: hydrated,
+    items: hydrated.map(withCatalogKey).map(withTargetMarkers),
     currentIndex: 0,
     correctAnswers: 0,
     completed: false,
@@ -497,7 +974,7 @@ function englishFallbackPrompt(input: GenerateSessionInput, type: PracticeItemTy
   if (type === 'single_cloze') return `Fill the missing word in the ${languageLabel} sentence.${conceptSuffix}`;
   if (type === 'translate') return `Translate this into ${languageLabel}.${conceptSuffix}`;
   if (type === 'speak') return `Speak a short response in ${languageLabel}.${conceptSuffix}`;
-  return `Choose the best answer in ${languageLabel}.${conceptSuffix}`;
+  return `${buildDeterministicChoiceFallback(input).prompt}${conceptSuffix}`;
 }
 
 function enforceEnglishPrompts(input: GenerateSessionInput, items: PracticeItem[], concept?: string): PracticeItem[] {
@@ -701,20 +1178,35 @@ Rules:
 - Generate exactly ${opts.count} items.
 - Keep one concept per item and short prompts.
 - Use practical examples, fair distractors, and no grammar traps.
+- Never return placeholder prompts or incomplete questions.
 - Beginners should receive recognition/select/matching/cloze style items.
 - For zh include pinyin/tone cues where useful.
 - For ja include kana/kanji reading clarity where useful.
 - Prompt/instruction text must be in English.
+- Wrap any target-language token or phrase shown to learners in [[...]] markers.
 - Output JSON only.`,
     createdAt: Date.now(),
   };
 
-  const responseText = await completeWithEcho([prompt], 'analyst', {
-    maxTokens: 1800,
-    responseFormat: { type: 'json_object' },
-  });
-  const payload = parseJsonPayload<GeneratedPracticePayload>(responseText);
-  return normalizeItems(input.languageCode, payload);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const responseText = await completeWithEcho([prompt], 'analyst', {
+        maxTokens: 1800,
+        responseFormat: { type: 'json_object' },
+      });
+      const payload = parseJsonPayload<GeneratedPracticePayload>(responseText);
+      const items = normalizeItems(input.languageCode, payload)
+        .filter((item) => isDraftPromptValid(item.prompt));
+      if (items.length > 0) {
+        return items;
+      }
+      lastError = new Error('No valid practice items returned');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw (lastError instanceof Error ? lastError : new Error('Failed to generate valid practice items'));
 }
 
 function fallbackInfiniteExercise(input: GenerateInfiniteExerciseInput): PracticeItem {
@@ -728,32 +1220,56 @@ function fallbackInfiniteExercise(input: GenerateInfiniteExerciseInput): Practic
   };
 
   if (base.type === 'phrase_assembly') {
-    return { ...base, answer: 'I like tea', tokens: ['I', 'like', 'tea'] };
+    return withTargetMarkers(withCatalogKey({ ...base, answer: 'I like tea', tokens: ['I', 'like', 'tea'] }));
   }
   if (base.type === 'match') {
-    return {
+    return withTargetMarkers(withCatalogKey({
       ...base,
       answer: 'Pair matching',
       pairs: [
         { left: 'hello', right: 'greeting' },
         { left: 'thanks', right: 'gratitude' },
       ],
-    };
+    }));
   }
   if (base.type === 'single_cloze') {
-    return { ...base, prompt: 'Complete: I ___ water.', answer: 'drink', options: undefined };
+    return withTargetMarkers(withCatalogKey({ ...base, prompt: 'Complete: I ___ water.', answer: 'drink', options: undefined }));
   }
-  return base;
+  return withTargetMarkers(withCatalogKey(base));
 }
 
-function buildExerciseTemplate(domain: ExerciseDomain, exerciseType: string): Record<string, unknown> {
+function buildExerciseTemplate(
+  domain: ExerciseDomain,
+  exerciseType: string,
+  userExerciseKey?: string,
+  adapter?: ExerciseAdapter | null,
+): Record<string, unknown> {
   if (domain === 'quick') {
+    const imageAdapter = Boolean(adapter && isImageAdapter(adapter));
+    const promptMethodSpec = imageAdapter
+      ? 'image_label_match | image_name_object | image_not_matching'
+      : 'meaning | translation_to_target | translation_to_english | context_choice | fill_in_context | register_formality';
+    const promptMethods = imageAdapter
+      ? [
+        { method: 'image_label_match', template: 'Which word matches the object in this image?' },
+        { method: 'image_name_object', template: "What do we call the thing in this picture in <target language>?" },
+        { method: 'image_not_matching', template: 'Which option is NOT a correct label for the object in this picture?' },
+      ]
+      : [
+        { method: 'meaning', template: "What does '{word}' mean in English?" },
+        { method: 'translation_to_target', template: "How do we say '{englishPhrase}' in <target language>?" },
+        { method: 'translation_to_english', template: "Which option is the best English translation of '{targetPhrase}'?" },
+        { method: 'context_choice', template: "In this situation: '{situation}', which phrase is most natural?" },
+        { method: 'fill_in_context', template: "Complete the dialogue: '{dialogueWithBlank}'" },
+        { method: 'register_formality', template: 'Which phrase is more formal?' },
+      ];
     return {
       id: 'string',
-      type: exerciseType,
+      userKey: userExerciseKey ?? 'string',
+      type: adapter?.previewQuickType ?? exerciseType,
       prompt: {
-        method: 'meaning | translation_to_target | translation_to_english | context_choice | fill_in_context | register_formality',
-        text: 'string (explicit English instruction)',
+        method: promptMethodSpec,
+        text: 'string (explicit English instruction, wrap target-language words/phrases with [[...]] markers)',
         variables: {
           word: 'string optional',
           englishPhrase: 'string optional',
@@ -766,14 +1282,7 @@ function buildExerciseTemplate(domain: ExerciseDomain, exerciseType: string): Re
       correctAnswer: 'string (must match one choice exactly)',
       correctAnswers: ['string optional for multi-select MCQ'],
       explanation: 'string optional',
-      promptMethods: [
-        { method: 'meaning', template: "What does '{word}' mean in English?" },
-        { method: 'translation_to_target', template: "How do we say '{englishPhrase}' in <target language>?" },
-        { method: 'translation_to_english', template: "Which option is the best English translation of '{targetPhrase}'?" },
-        { method: 'context_choice', template: "In this situation: '{situation}', which phrase is most natural?" },
-        { method: 'fill_in_context', template: "Complete the dialogue: '{dialogueWithBlank}'" },
-        { method: 'register_formality', template: 'Which phrase is more formal?' },
-      ],
+      promptMethods,
       pairs: [{ left: 'string', right: 'string' }],
       tokens: ['string', 'string'],
       imageUrl: 'string optional',
@@ -859,10 +1368,14 @@ function buildExerciseTemplate(domain: ExerciseDomain, exerciseType: string): Re
     };
 }
 
-function normalizeQuickItemFromDraft(input: GenerateExerciseDraftInput, result: Record<string, unknown>): PracticeItem {
+function normalizeQuickItemFromDraft(
+  input: GenerateExerciseDraftInput,
+  result: Record<string, unknown>,
+  adapter?: ExerciseAdapter | null,
+  userKey?: string,
+): PracticeItem {
   const draft = result as QuickDraftResultShape;
-  const requestedType = isPracticeItemType(input.exerciseType) ? input.exerciseType : undefined;
-  const rawType = typeof draft.type === 'string' ? draft.type : requestedType;
+  const rawType = typeof draft.type === 'string' ? draft.type : adapter?.previewQuickType ?? input.exerciseType;
   const type = normalizeItemType(rawType, input.languageCode);
   const options = parseStringArray(draft.choices ?? draft.options).slice(0, 4);
   const pairs = parsePairs(draft.pairs).slice(0, 6);
@@ -878,13 +1391,55 @@ function normalizeQuickItemFromDraft(input: GenerateExerciseDraftInput, result: 
   const singleCorrectAnswer = typeof draft.correctAnswer === 'string' && draft.correctAnswer.trim()
     ? draft.correctAnswer.trim()
     : (typeof draft.answer === 'string' && draft.answer.trim() ? draft.answer.trim() : 'Sample answer');
-  const rawAnswers = normalizedCorrectAnswers.length > 0 ? normalizedCorrectAnswers : [singleCorrectAnswer];
+  let rawAnswers = normalizedCorrectAnswers.length > 0 ? normalizedCorrectAnswers : [singleCorrectAnswer];
+  let effectivePrompt = promptText || englishFallbackPrompt(input, type, input.concept);
 
-  const normalizedOptions = options.length >= 2
+  let normalizedOptions = options.length >= 2
     ? options
-    : type === 'mcq' || type === 'greeting_response' || type === 'context_meaning'
+    : adapter?.validationFamily === 'binary_choice'
+      ? [rawAnswers[0], rawAnswers[0] === 'True' ? 'False' : 'True']
+      : type === 'mcq' || type === 'greeting_response' || type === 'context_meaning' || type === 'image_to_word' || type === 'sound_to_word' || type === 'sound_to_image'
       ? [rawAnswers[0], 'Distractor A', 'Distractor B', 'Distractor C']
       : undefined;
+
+  if (adapter?.validationFamily === 'choice') {
+    const fallback = buildDeterministicChoiceFallback(input);
+    if (!normalizedOptions || normalizedOptions.length < 4 || optionsAreBooleanPair(normalizedOptions)) {
+      normalizedOptions = [...fallback.choices];
+    }
+    if (looksLikeGenericChoicePrompt(effectivePrompt) || !hasConcreteChoiceContext(effectivePrompt)) {
+      effectivePrompt = fallback.prompt;
+    }
+    const optionPool = normalizedOptions ?? [];
+    const validAnswers = rawAnswers.filter((entry) => optionPool.includes(entry));
+    rawAnswers = validAnswers.length > 0 ? validAnswers : [fallback.correctAnswer];
+  }
+
+  if (adapter?.validationFamily === 'binary_choice') {
+    const fallback = buildDeterministicBinaryFallback(input);
+    if (!normalizedOptions || normalizedOptions.length !== 2 || !optionsAreBooleanPair(normalizedOptions)) {
+      normalizedOptions = [...fallback.choices];
+    }
+    if (looksLikeGenericChoicePrompt(effectivePrompt) || !hasConcreteChoiceContext(effectivePrompt)) {
+      effectivePrompt = fallback.prompt;
+    }
+    const optionPool = normalizedOptions ?? [];
+    const validAnswers = rawAnswers.filter((entry) => optionPool.includes(entry));
+    rawAnswers = validAnswers.length > 0 ? validAnswers : [fallback.correctAnswer];
+  }
+
+  if (isImageExerciseType(type)) {
+    const fallback = buildDeterministicImageChoiceFallback(input);
+    if (!normalizedOptions || normalizedOptions.length < 4 || optionsAreBooleanPair(normalizedOptions)) {
+      normalizedOptions = [...fallback.choices];
+    }
+    if (!hasImagePromptContext(effectivePrompt)) {
+      effectivePrompt = fallback.prompt;
+    }
+    const optionPool = normalizedOptions ?? [];
+    const validAnswers = rawAnswers.filter((entry) => optionPool.includes(entry));
+    rawAnswers = validAnswers.length > 0 ? validAnswers : [fallback.correctAnswer];
+  }
 
   const safeAnswers = normalizedOptions && normalizedOptions.length >= 2
     ? rawAnswers.filter((entry) => normalizedOptions.includes(entry))
@@ -893,10 +1448,11 @@ function normalizeQuickItemFromDraft(input: GenerateExerciseDraftInput, result: 
     ? safeAnswers.join(' || ')
     : (normalizedOptions && normalizedOptions.length >= 2 ? normalizedOptions[0] : singleCorrectAnswer);
 
-  return withAudioFallback({
+  return withTargetMarkers(withAudioFallback({
     id: (typeof draft.id === 'string' && draft.id.trim()) || `${Date.now()}`,
     type,
-    prompt: promptText || englishFallbackPrompt(input, type, input.concept),
+    userKey: userKey ?? resolveExerciseByInternal(input.exerciseDomain, input.exerciseType)?.userKey ?? resolveExerciseByInternal('quick', type)?.userKey ?? undefined,
+    prompt: effectivePrompt,
     answer: safeAnswer,
     options: normalizedOptions,
     pairs: pairs.length >= 2 ? pairs : undefined,
@@ -907,23 +1463,48 @@ function normalizeQuickItemFromDraft(input: GenerateExerciseDraftInput, result: 
     context: typeof draft.context === 'string' ? draft.context : undefined,
     scriptHint: typeof draft.scriptHint === 'string' ? draft.scriptHint : undefined,
     languageCode: input.languageCode,
-  });
+  }));
 }
 
 export async function generateExerciseDraft(input: GenerateExerciseDraftInput): Promise<GenerateExerciseDraftOutput> {
+  const catalogEntry = resolveCatalogEntry(input);
+  const effectiveAdapter = catalogEntry?.adapter ?? null;
+  const effectiveDomain: ExerciseDomain = effectiveAdapter?.engineDomain ?? input.exerciseDomain;
+  const effectiveType = effectiveAdapter?.internalType ?? input.exerciseType;
+
   const requestInput: Record<string, unknown> = {
     languageCode: input.languageCode,
     languageName: input.languageName,
     mode: input.mode ?? 'quick',
     source: input.source ?? 'dev-exercises-page',
-    exerciseDomain: input.exerciseDomain,
-    exerciseType: input.exerciseType,
+    exerciseDomain: effectiveDomain,
+    exerciseType: effectiveType,
+    userExerciseKey: input.userExerciseKey ?? catalogEntry?.userKey ?? null,
     unit: input.unit ? { id: input.unit.id, title: input.unit.title } : null,
     concept: input.concept?.trim() || null,
     learnerLevel: input.journeyLevel ?? 'beginner',
     difficulty: input.difficultyPreference ?? 'standard',
   };
-  const template = buildExerciseTemplate(input.exerciseDomain, input.exerciseType);
+  const normalizedInput: GenerateExerciseDraftInput = {
+    ...input,
+    exerciseDomain: effectiveDomain,
+    exerciseType: effectiveType,
+    userExerciseKey: input.userExerciseKey ?? catalogEntry?.userKey ?? input.userExerciseKey,
+  };
+  const template = buildExerciseTemplate(
+    effectiveDomain,
+    effectiveType,
+    normalizedInput.userExerciseKey,
+    effectiveAdapter,
+  );
+  const imageRuleBlock = effectiveAdapter && isImageAdapter(effectiveAdapter)
+    ? `
+- This is an image-choice exercise:
+  - Use one of these prompt styles: "What do we call the thing in this picture ...?", "Which word matches the object in this image?", or "Which option is NOT a correct label for the object in this picture?"
+  - Ensure prompt.method is one of: image_label_match | image_name_object | image_not_matching.
+  - Keep the prompt explicitly visual (mention image/picture/photo).
+  - Do NOT use placeholder URLs like example.com or dummyimage.com.`
+    : '';
   const prompt: ChatMessage = {
     id: `${Date.now()}-exercise-draft`,
     role: 'user',
@@ -940,6 +1521,7 @@ Return JSON only:
 Rules:
 - The result must match the requested exerciseDomain and exerciseType exactly.
 - Prompt/instruction text must be in English.
+- If any target-language token/phrase appears to learners, wrap it with [[...]] markers.
 - Keep beginner-safe content and one clear concept.
 - If concept is provided, guide the content with it.
 - If unit is provided, align vocabulary/theme with that unit title.
@@ -950,47 +1532,74 @@ Rules:
   and set prompt.method accordingly.
 - For quick MCQ-style types, provide exactly 4 choices and make correctAnswer match one choice exactly.
 - If the MCQ has multiple correct choices, use correctAnswers array (each must exist in choices).
+- For image-choice exercises, choices must be visually grounded and prompt style must match the image context.
+${imageRuleBlock}
 - Do not return markdown.
 - Keep strings concise and practical.`,
     createdAt: Date.now(),
   };
 
-  try {
-    const responseText = await completeWithEcho([prompt], 'analyst', {
-      maxTokens: 1400,
-      responseFormat: { type: 'json_object' },
-    });
-    const parsed = parseJsonPayload<Record<string, unknown>>(responseText);
-    const result = parsed.result && typeof parsed.result === 'object'
-      ? (parsed.result as Record<string, unknown>)
-      : parsed;
-    const quickItem = input.exerciseDomain === 'quick'
-      ? normalizeQuickItemFromDraft(input, result)
-      : null;
-    return {
-      input: requestInput,
-      template,
-      result,
-      quickItem,
-    };
-  } catch (error) {
-    console.error('Failed to generate exercise draft', error);
-    const fallbackResult: Record<string, unknown> = {
-      ...template,
-      prompt: englishFallbackPrompt(
-        input,
-        isPracticeItemType(input.exerciseType) ? input.exerciseType : 'context_meaning',
-        input.concept,
-      ),
-      answer: 'Sample answer',
-    };
-    return {
-      input: requestInput,
-      template,
-      result: fallbackResult,
-      quickItem: input.exerciseDomain === 'quick' ? normalizeQuickItemFromDraft(input, fallbackResult) : null,
-    };
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const responseText = await completeWithEcho([prompt], 'analyst', {
+        maxTokens: 1400,
+        responseFormat: { type: 'json_object' },
+      });
+      const parsed = parseJsonPayload<Record<string, unknown>>(responseText);
+      const result = parsed.result && typeof parsed.result === 'object'
+        ? (parsed.result as Record<string, unknown>)
+        : parsed;
+      if (effectiveAdapter) {
+        const validation = validateQuickDraftResult(effectiveAdapter, result as QuickDraftResultShape);
+        if (!validation.valid) {
+          lastError = new Error(validation.reason || 'Invalid generated draft');
+          continue;
+        }
+      }
+
+      const quickItem = normalizeQuickItemFromDraft(
+        normalizedInput,
+        result,
+        effectiveAdapter,
+        normalizedInput.userExerciseKey,
+      );
+      const hydratedQuickItem = quickItem
+        ? (await hydrateImageItems([quickItem], normalizedInput, { forceSearch: true }))[0]
+        : quickItem;
+
+      return {
+        input: requestInput,
+        template,
+        result,
+        quickItem: hydratedQuickItem,
+      };
+    } catch (error) {
+      lastError = error;
+    }
   }
+
+  console.error('Failed to generate exercise draft', lastError);
+  const fallbackResult = createFallbackDraftResult(normalizedInput, effectiveAdapter);
+  return {
+    input: requestInput,
+    template,
+    result: fallbackResult,
+    quickItem: (
+      await hydrateImageItems(
+        [
+          normalizeQuickItemFromDraft(
+            normalizedInput,
+            fallbackResult,
+            effectiveAdapter,
+            normalizedInput.userExerciseKey,
+          ),
+        ],
+        normalizedInput,
+        { forceSearch: true },
+      )
+    )[0],
+  };
 }
 
 export async function generateSession(input: GenerateSessionInput): Promise<SessionState> {
@@ -1004,7 +1613,7 @@ export async function generateSession(input: GenerateSessionInput): Promise<Sess
     }
     const hydrated = await hydrateImageItems(coveredItems, input);
     return {
-      items: hydrated,
+      items: hydrated.map(withCatalogKey).map(withTargetMarkers),
       currentIndex: 0,
       correctAnswers: 0,
       completed: false,
@@ -1028,14 +1637,14 @@ export async function regenerateExercise(input: RegenerateExerciseInput): Promis
     }
     const polished = withAudioFallback(enforceEnglishPrompts(input, [candidate])[0]);
     const hydrated = await hydrateImageItems([{ ...polished, id: input.currentItem.id }], input);
-    return hydrated[0];
+    return withTargetMarkers(withCatalogKey(hydrated[0]));
   } catch (error) {
     console.error('Failed to regenerate exercise', error);
-    return {
+    return withTargetMarkers(withCatalogKey({
       ...input.currentItem,
       prompt: `${input.currentItem.prompt} (refreshed)`,
       options: input.currentItem.options ? [...input.currentItem.options].reverse() : input.currentItem.options,
-    };
+    }));
   }
 }
 
@@ -1057,7 +1666,7 @@ export async function generateInfiniteExercise(input: GenerateInfiniteExerciseIn
       return fallbackInfiniteExercise(input);
     }
     const hydrated = await hydrateImageItems([withAudioFallback(candidate)], input);
-    return hydrated[0];
+    return withTargetMarkers(withCatalogKey(hydrated[0]));
   } catch (error) {
     console.error('Failed to generate infinite exercise', error);
     return fallbackInfiniteExercise(input);

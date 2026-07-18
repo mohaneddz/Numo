@@ -19,9 +19,9 @@ polyfillCountryFlagEmojis();
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ProfileSessionProvider>
-      <AppDataProvider>
-        <LanguageProvider>
-          <LanguageJourneyProvider>
+      <LanguageProvider>
+        <LanguageJourneyProvider>
+          <AppDataProvider>
             <CurriculumProvider>
               <RuntimeProvider>
                 <BrowserRouter>
@@ -29,9 +29,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
                 </BrowserRouter>
               </RuntimeProvider>
             </CurriculumProvider>
-          </LanguageJourneyProvider>
-        </LanguageProvider>
-      </AppDataProvider>
+          </AppDataProvider>
+        </LanguageJourneyProvider>
+      </LanguageProvider>
     </ProfileSessionProvider>
   </React.StrictMode>,
 );
