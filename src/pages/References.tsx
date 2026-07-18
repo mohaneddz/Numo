@@ -779,7 +779,7 @@ function ReferenceCardTile({ card, activeTab }: { card: ReferenceCard; activeTab
   );
 }
 
-export default function ReferencesPage() {
+export default function LibrariesPage() {
   const navigate = useNavigate();
   const { activeLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState<ReferenceTab>('characters');
@@ -846,7 +846,7 @@ export default function ReferencesPage() {
 
   const activeStat = statByTab[activeTab];
   const activeTheme = tabThemeByKey[activeTab];
-  const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label ?? 'References';
+  const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label ?? 'Library';
   const totalUnlockedAcrossTabs = statByTab.characters.unlocked + statByTab.sounds.unlocked + statByTab.words.unlocked;
   const totalAcrossTabs = statByTab.characters.total + statByTab.sounds.total + statByTab.words.total;
   const visibleCardCount = currentSections.reduce((sum, section) => sum + section.cards.length, 0);

@@ -1,6 +1,7 @@
 import { getDatabase } from './db';
 import { runLegacyMigrationIfNeeded } from './legacyMigration';
 import { runMigrations } from './migrations';
+import { resetLegacyAppDataOnce } from './appDataReset';
 import { SqliteContentRepository } from './repositories/contentRepo';
 import { SqliteCurriculumRepository } from './repositories/curriculumRepo';
 import { SqliteEvidenceRepository } from './repositories/evidenceRepo';
@@ -30,6 +31,7 @@ export async function initializePersistence(): Promise<PersistenceContext> {
 async function createPersistenceContext(): Promise<PersistenceContext> {
   const db = await getDatabase();
   await runMigrations(db);
+  await resetLegacyAppDataOnce(db);
 
   const context: PersistenceContext = {
     db,
