@@ -40,11 +40,14 @@ export interface LanguageCatalogEntry {
 interface LanguageContextType {
   activeLanguage: Language;
   languages: Language[];
+  languageStatus: 'loading' | 'ready';
+  hasSelectedLanguages: boolean;
   availableLanguages: LanguageCatalogEntry[];
   isBaseLanguage: (code: string) => boolean;
   getLanguageScore: (code: string) => number;
   setActiveLanguage: (code: string) => void;
   addLanguage: (code: string) => boolean;
+  addLanguages: (codes: string[]) => string[];
   removeLanguage: (_code: string) => void;
   moveLanguage: (_code: string, _direction: 'up' | 'down') => void;
   setLanguageScore: (code: string, score: number) => void;
@@ -53,12 +56,16 @@ interface LanguageContextType {
 }
 
 export const languageCatalog: LanguageCatalogEntry[] = [
+  { code: 'zh', name: 'Chinese', flag: '🇨🇳', starterModule: 'Chinese Core Path', starterLesson: 'Core tones and greetings', starterDescription: 'Start with practical Mandarin sounds and expressions.' },
+  { code: 'de', name: 'German', flag: '🇩🇪', starterModule: 'German Core Path', starterLesson: 'Common phrases', starterDescription: 'Build practical everyday German.' },
   { code: 'es', name: 'Spanish', flag: '🇪🇸', starterModule: 'Spanish Core Path', starterLesson: 'Core phrases', starterDescription: 'Build practical daily Spanish.' },
-  { code: 'en', name: 'English', flag: '🇬🇧', starterModule: 'English Foundations', starterLesson: 'Daily Conversation Basics', starterDescription: 'Build practical fluency with high-frequency conversation patterns.' },
-  { code: 'fr', name: 'French', flag: '🇫🇷', starterModule: 'French Foundations', starterLesson: 'Greetings and Introductions', starterDescription: 'Learn how to say hello and introduce yourself.' },
-  { code: 'de', name: 'German', flag: '🇩🇪', starterModule: 'German Foundations', starterLesson: 'Common Phrases', starterDescription: 'Master everyday German expressions.' },
-  { code: 'zh', name: 'Chinese', flag: '🇨🇳', starterModule: 'Mandarin Basics', starterLesson: 'Core Tones and Greetings', starterDescription: 'Start with practical Mandarin sounds and expressions.' },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵', starterModule: 'Japanese Basics', starterLesson: 'Writing Basics', starterDescription: 'Master the first set of the Japanese alphabet.' },
+  { code: 'it', name: 'Italian', flag: '🇮🇹', starterModule: 'Italian Core Path', starterLesson: 'Greetings and essentials', starterDescription: 'Build useful Italian for everyday situations.' },
+  { code: 'ru', name: 'Russian', flag: '🇷🇺', starterModule: 'Russian Core Path', starterLesson: 'Sounds and essential phrases', starterDescription: 'Start Russian with practical speech and Cyrillic recognition.' },
+  { code: 'fr', name: 'French', flag: '🇫🇷', starterModule: 'French Core Path', starterLesson: 'Greetings and introductions', starterDescription: 'Learn how to greet people and introduce yourself.' },
+  { code: 'ja', name: 'Japanese', flag: '🇯🇵', starterModule: 'Japanese Core Path', starterLesson: 'Sounds and writing basics', starterDescription: 'Build practical Japanese alongside gradual script recognition.' },
+  { code: 'ko', name: 'Korean', flag: '🇰🇷', starterModule: 'Korean Core Path', starterLesson: 'Hangul and greetings', starterDescription: 'Start with useful Korean and gradual Hangul recognition.' },
+  { code: 'pt', name: 'Portuguese', flag: '🇵🇹', starterModule: 'Portuguese Core Path', starterLesson: 'Core phrases', starterDescription: 'Build practical Portuguese for everyday communication.' },
+  { code: 'ar', name: 'Arabic', flag: '🇸🇦', starterModule: 'Arabic Core Path', starterLesson: 'Sounds and essential phrases', starterDescription: 'Start with practical Modern Standard Arabic and gradual script recognition.' },
 ];
 
 const catalogMap = new Map(languageCatalog.map((entry) => [entry.code, entry]));
@@ -115,19 +122,20 @@ function toLanguage(input: {
   };
 }
 
-const FALLBACK_LANGUAGE = toLanguage({
-  code: 'es',
-  name: 'Spanish',
-  flag: '🇪🇸',
+const NO_LANGUAGE_SELECTED = toLanguage({
+  code: '',
+  name: 'Choose language',
+  flag: '🌐',
 });
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { activeProfile, status: profileStatus } = useProfileSession();
-  const [languages, setLanguages] = useState<Language[]>([FALLBACK_LANGUAGE]);
-  const [activeLanguageCode, setActiveLanguageCode] = useState<string>(FALLBACK_LANGUAGE.code);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [activeLanguageCode, setActiveLanguageCode] = useState<string>('');
   const [languageScores, setLanguageScores] = useState<Record<string, number>>({});
+  const [languageStatus, setLanguageStatus] = useState<'loading' | 'ready'>('loading');
 
   const baseLanguageCodes = useMemo(
     () =>
@@ -166,8 +174,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let cancelled = false;
     void (async () => {
       if (profileStatus !== 'ready' || !activeProfile?.id) {
+        setLanguageStatus('loading');
         return;
       }
+      setLanguageStatus('loading');
       try {
         const persistence = await initializePersistence();
         const persistedLanguages = await persistence.repositories.languages.listLanguages();
@@ -194,13 +204,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         );
         const stateByCode = new Map(stateRows.map((row) => [row.code, row]));
         const persistedByCode = new Map(persistedLanguages.map((language) => [language.code, language]));
-        const defaultSelectedCodes =
-          persistedLanguages.length > 0 ? persistedLanguages.map((language) => language.code) : [FALLBACK_LANGUAGE.code];
-        const nextSelectedCodes = (preferences?.selectedCodes?.length ? preferences.selectedCodes : defaultSelectedCodes)
+        const nextSelectedCodes = (preferences?.selectedCodes ?? [])
           .map((code) => code.trim().toLowerCase())
           .filter((code, index, all) => all.indexOf(code) === index)
-          .filter((code) => persistedByCode.has(code) || catalogMap.has(code));
-        const selectedCodes = nextSelectedCodes.length > 0 ? nextSelectedCodes : [FALLBACK_LANGUAGE.code];
+          .filter((code) => catalogMap.has(code));
+        const selectedCodes = nextSelectedCodes;
 
         const nextLanguages = selectedCodes.map((code) => {
           const language = persistedByCode.get(code);
@@ -223,8 +231,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         if (cancelled) return;
         if (nextLanguages.length === 0) {
-          setLanguages([FALLBACK_LANGUAGE]);
-          setActiveLanguageCode(FALLBACK_LANGUAGE.code);
+          setLanguages([]);
+          setActiveLanguageCode('');
+          setLanguageScores({});
+          setLanguageStatus('ready');
           return;
         }
         setLanguages(nextLanguages);
@@ -238,6 +248,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             typeof persistedScore === 'number' ? sanitizeScore(persistedScore) : DEFAULT_NEW_LANGUAGE_SCORE;
         }
         setLanguageScores(initialScores);
+        setLanguageStatus('ready');
 
         if (
           !preferences
@@ -249,6 +260,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to load profile-scoped languages', error);
+          setLanguages([]);
+          setActiveLanguageCode('');
+          setLanguageScores({});
+          setLanguageStatus('ready');
         }
       }
     })();
@@ -258,7 +273,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [activeProfile?.id, profileStatus]);
 
-  const activeLanguage = languages.find((language) => language.code === activeLanguageCode) || languages[0] || FALLBACK_LANGUAGE;
+  const activeLanguage = languages.find((language) => language.code === activeLanguageCode) || languages[0] || NO_LANGUAGE_SELECTED;
 
   const availableLanguages = useMemo(
     () => languageCatalog.filter((entry) => !languages.some((language) => language.code === entry.code)),
@@ -340,11 +355,78 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return true;
   };
 
-  const removeLanguage = (code: string) => {
-    if (languages.length <= 1) {
-      return;
+  const addLanguages = (codes: string[]) => {
+    const existingCodes = new Set(languages.map((language) => language.code));
+    const validCodes = codes
+      .map((code) => code.trim().toLowerCase())
+      .filter((code, index, all) => all.indexOf(code) === index)
+      .filter((code) => catalogMap.has(code) && !existingCodes.has(code));
+
+    if (validCodes.length === 0) {
+      return [];
     }
 
+    const addedLanguages = validCodes.map((code) => {
+      const catalog = catalogMap.get(code)!;
+      return toLanguage({
+        code: catalog.code,
+        name: catalog.name,
+        flag: catalog.flag,
+      });
+    });
+    const nextLanguages = [...languages, ...addedLanguages];
+    const nextScores = { ...languageScores };
+    for (const code of validCodes) {
+      nextScores[code] = DEFAULT_NEW_LANGUAGE_SCORE;
+    }
+
+    setLanguages(nextLanguages);
+    setLanguageScores(nextScores);
+    setActiveLanguageCode(validCodes[0]);
+
+    void (async () => {
+      if (!activeProfile?.id) {
+        return;
+      }
+      try {
+        const persistence = await initializePersistence();
+        for (const code of validCodes) {
+          const catalog = catalogMap.get(code)!;
+          await persistence.repositories.languages.upsertLanguage({
+            code: catalog.code,
+            name: catalog.name,
+            flag: catalog.flag,
+          });
+          await persistence.db.execute(
+            `
+            INSERT INTO learner_language_state (
+              id, learner_id, language_id, total_xp, daily_goal_minutes, today_minutes, current_streak, longest_streak,
+              last_activity_at, progress_json, created_at, updated_at
+            )
+            SELECT
+              lower(hex(randomblob(8))), ?, l.id, 0, 30, 0, 0, 0, NULL, '{}', datetime('now'), datetime('now')
+            FROM languages l
+            WHERE l.code = ?
+            ON CONFLICT(learner_id, language_id) DO NOTHING;
+            `,
+            [activeProfile.id, code],
+          );
+        }
+        await persistence.repositories.languages.setActiveLanguage(validCodes[0]);
+        await persistLanguagePreferences(
+          activeProfile.id,
+          nextLanguages.map((language) => language.code),
+          nextScores,
+        );
+      } catch (error) {
+        console.error('Failed to add languages', error);
+      }
+    })();
+
+    return validCodes;
+  };
+
+  const removeLanguage = (code: string) => {
     const nextLanguages = languages.filter((language) => language.code !== code);
     if (nextLanguages.length === languages.length) {
       return;
@@ -358,7 +440,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     const removedWasActive = activeLanguageCode === code;
-    const nextActive = removedWasActive ? nextLanguages[0]?.code ?? FALLBACK_LANGUAGE.code : activeLanguageCode;
+    const nextActive = removedWasActive ? nextLanguages[0]?.code ?? '' : activeLanguageCode;
     if (removedWasActive) {
       setActiveLanguageCode(nextActive);
     }
@@ -369,8 +451,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       try {
         const persistence = await initializePersistence();
-        if (removedWasActive) {
+        if (removedWasActive && nextActive) {
           await persistence.repositories.languages.setActiveLanguage(nextActive);
+        } else if (removedWasActive) {
+          await persistence.db.execute('UPDATE languages SET is_active = 0;');
         }
         const selectedCodes = nextLanguages.map((language) => language.code);
         const nextScores = Object.fromEntries(
@@ -449,11 +533,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         activeLanguage,
         languages,
+        languageStatus,
+        hasSelectedLanguages: languages.length > 0,
         availableLanguages,
         isBaseLanguage,
         getLanguageScore,
         setActiveLanguage,
         addLanguage,
+        addLanguages,
         removeLanguage,
         moveLanguage,
         setLanguageScore,

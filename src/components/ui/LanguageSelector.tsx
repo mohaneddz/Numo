@@ -18,7 +18,7 @@ export function LanguageSelector({ className = '', size = 'default' }: LanguageS
     availableLanguages,
     isBaseLanguage,
     setActiveLanguage,
-    addLanguage,
+    addLanguages,
     removeLanguage,
     moveLanguage,
   } = useLanguage();
@@ -76,7 +76,9 @@ export function LanguageSelector({ className = '', size = 'default' }: LanguageS
         onClick={() => setIsOpen((prev) => !prev)}
         className={triggerClass}
       >
-        <span className="text-xl leading-none">{resolveLanguageFlag(activeLanguage.code, activeLanguage.flag)}</span>
+        <span className="text-xl leading-none">
+          {languages.length > 0 ? resolveLanguageFlag(activeLanguage.code, activeLanguage.flag) : '🌐'}
+        </span>
         <span className="uppercase tracking-tight">{activeLanguage.name}</span>
         <ChevronDown size={16} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
       </motion.button>
@@ -97,6 +99,11 @@ export function LanguageSelector({ className = '', size = 'default' }: LanguageS
               </div>
 
               <div className="max-h-[220px] space-y-1 overflow-y-auto pr-1 custom-scrollbar">
+                {languages.length === 0 && (
+                  <p className="rounded-xl border border-dashed border-white/10 px-3 py-4 text-center text-xs text-dim">
+                    No learning language selected yet.
+                  </p>
+                )}
                 {languages.map((language, index) => {
                   const isActive = language.code === activeLanguage.code;
                   const isBase = isBaseLanguage(language.code);
@@ -149,8 +156,7 @@ export function LanguageSelector({ className = '', size = 'default' }: LanguageS
                         </button>
                         <button
                           onClick={() => removeLanguage(language.code)}
-                          disabled={languages.length <= 1}
-                          className="rounded-lg p-1.5 text-dim transition-colors hover:bg-red-500/15 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-35"
+                          className="rounded-lg p-1.5 text-dim transition-colors hover:bg-red-500/15 hover:text-red-300"
                           title="Remove language"
                         >
                           <X size={13} />
@@ -265,11 +271,10 @@ export function LanguageSelector({ className = '', size = 'default' }: LanguageS
                 <button
                   disabled={selectedToAdd.length === 0}
                   onClick={() => {
-                    selectedToAdd.forEach(code => addLanguage(code));
+                    const added = addLanguages(selectedToAdd);
                     setIsAddMode(false);
-                    // navigate to setup with the first newly added lang? or stay
-                    if (selectedToAdd.length > 0) {
-                      navigate(`/language-setup?lang=${selectedToAdd[0]}`);
+                    if (added.length > 0) {
+                      navigate(`/language-setup?lang=${added[0]}`);
                     }
                   }}
                   className="rounded-xl bg-[#4A64F8] px-5 py-2 text-sm font-bold text-white shadow-lg transition-transform hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-50"

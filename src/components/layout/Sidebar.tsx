@@ -10,21 +10,18 @@ import {
     BookMarked,
     BarChart3,
     Library,
-    BookCopy,
     Settings,
     Star,
     MessageCircle,
-    Dumbbell,
     PanelLeftClose,
     PanelLeftOpen,
 } from 'lucide-react';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguageProgression } from '../../hooks/useLanguageProgression';
-import { DEV_MODE } from '../../config/env';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const secondaryNav = [
-    { to: '/library', icon: Library, label: 'Library' },
-    { to: '/references', icon: BookCopy, label: 'References' },
+    { to: '/library', icon: Library, label: 'Libraries' },
     { to: '/chat', icon: MessageCircle, label: 'Chat' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
@@ -43,21 +40,22 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
             : 0;
     const location = useLocation();
     const { dueCount } = useAppData();
+    const { languages } = useLanguage();
+    const hasLearningLanguage = languages.length > 0;
 
-    const primaryNav = [
+    const primaryNav = hasLearningLanguage ? [
         { to: '/', icon: Home, label: 'Home' },
-        { to: '/learn', icon: GraduationCap, label: 'Learn' },
+        { to: '/learn', icon: GraduationCap, label: 'Learning' },
         { to: '/review', icon: RotateCcw, label: 'Review', badge: dueCount },
-        { to: '/immerse', icon: Play, label: 'Immerse' },
-        { to: '/speak', icon: Mic, label: 'Speak' },
-        { to: '/write', icon: PenLine, label: 'Write' },
+        { to: '/immerse', icon: Play, label: 'Immersion' },
+        { to: '/speak', icon: Mic, label: 'Speaking' },
+        { to: '/write', icon: PenLine, label: 'Writing' },
         { to: '/notebook', icon: BookMarked, label: 'Notebook' },
         { to: '/insights', icon: BarChart3, label: 'Insights' },
-    ];
-
-    if (DEV_MODE) {
-        primaryNav.push({ to: '/exercises', icon: Dumbbell, label: 'Exercises' });
-    }
+    ] : [];
+    const visibleSecondaryNav = hasLearningLanguage
+        ? secondaryNav
+        : secondaryNav.filter((item) => item.to === '/settings');
 
     return (
         <aside
@@ -168,9 +166,11 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                     );
                 })}
 
-                <div className={`my-3 border-t border-white/5 ${collapsed ? 'mx-0' : 'mx-2'}`} />
+                {primaryNav.length > 0 && (
+                    <div className={`my-3 border-t border-white/5 ${collapsed ? 'mx-0' : 'mx-2'}`} />
+                )}
 
-                {secondaryNav.map((item) => {
+                {visibleSecondaryNav.map((item) => {
                     const isActive =
                         location.pathname === item.to ||
                         (item.to !== '/' && location.pathname.startsWith(item.to));
@@ -239,7 +239,7 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                 })}
             </nav>
 
-            <motion.div
+            {hasLearningLanguage && <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3, duration: 0.4 }}
@@ -288,7 +288,7 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                         </span>
                     </div>
                 )}
-            </motion.div>
+            </motion.div>}
         </aside>
     );
 }
