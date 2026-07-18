@@ -24,6 +24,7 @@ import {
   prioritizeReviewQueueBySignals,
 } from '../../services/exercises/adaptiveReviewService';
 import type { ReviewItem } from '../../data/types';
+import { resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
 
 type Result = 'correct' | 'incorrect';
 
@@ -300,6 +301,7 @@ export default function ReviewSession() {
   const complete = i === total;
   const correct = Object.values(ans).filter((x) => x === 'correct').length;
   const activeExercise = cur ? reviewExerciseRegistry[cur.type] : null;
+  const currentCatalog = cur ? resolveExerciseByInternal('review', cur.type) : null;
   const validExercise = cur && activeExercise ? activeExercise.validate(cur) : false;
 
   const persistSignals = async (result: Result, confusionPair?: { a: string; b: string }) => {
@@ -310,7 +312,7 @@ export default function ReviewSession() {
       hintUsed,
       confusedUsed,
       hoverUsed: hoverUsage,
-      exerciseType: cur.type,
+      exerciseType: currentCatalog?.userKey ?? cur.type,
       confusionPair,
       recognitionDelta: isProduction ? (result === 'correct' ? 1 : -2) : result === 'correct' ? 3 : -3,
       productionDelta: isProduction ? (result === 'correct' ? 3 : -3) : result === 'correct' ? 1 : -1,
@@ -429,7 +431,7 @@ export default function ReviewSession() {
 
       {cur ? (
         <ExerciseShell
-          title={labels[cur.type]}
+          title={currentCatalog?.displayName ?? labels[cur.type]}
           subtitle={`Mode: ${mode}`}
           progressLabel={`Card ${i + 1}/${total}`}
           prompt={cur.prompt}

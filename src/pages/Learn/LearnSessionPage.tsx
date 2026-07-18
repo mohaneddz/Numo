@@ -17,6 +17,7 @@ import { ExerciseActionBar } from '../../components/exercises/shared/ExerciseAct
 import { ExerciseFeedbackCard } from '../../components/exercises/shared/ExerciseFeedbackCard';
 import { buildExerciseFeedback, type ExerciseFeedbackModel } from '../../services/exercises/feedbackService';
 import { updateExerciseSignals } from '../../services/exercises/exerciseSignalsService';
+import { resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
 
 const PRODUCTION_LEARN_TASKS = new Set<string>([
   'replace_synonym',
@@ -105,6 +106,7 @@ export default function LearnSessionPage() {
 
   const tasks = runtime?.tasks ?? [];
   const activeTask = tasks[currentIndex];
+  const activeCatalog = activeTask ? resolveExerciseByInternal('learn', activeTask.taskType) : null;
   const done = currentIndex >= tasks.length && tasks.length > 0;
   const averageScore = useMemo(
     () => (completed.length > 0 ? Math.round(completed.reduce((acc, item) => acc + item.score, 0) / completed.length) : 0),
@@ -151,7 +153,7 @@ export default function LearnSessionPage() {
       hintUsed,
       confusedUsed,
       hoverUsed: hoverUsage,
-      exerciseType: activeTask.taskType,
+      exerciseType: activeCatalog?.userKey ?? activeTask.taskType,
       confusionPair,
       recognitionDelta: isProduction ? (result.correct ? 0 : -2) : result.correct ? 3 : -3,
       productionDelta: isProduction ? (result.correct ? 3 : -3) : result.correct ? 1 : -1,
@@ -262,7 +264,7 @@ export default function LearnSessionPage() {
       {!isLoading && runtime && !done && activeTask ? (
         <ExerciseShell
           title={activeTask.instruction}
-          subtitle={`Task type: ${activeTask.taskType.replace(/_/g, ' ')}`}
+          subtitle={`Task type: ${activeCatalog?.displayName ?? activeTask.taskType.replace(/_/g, ' ')}`}
           progressLabel={`${currentIndex + 1}/${tasks.length}`}
           prompt={activeTask.prompt}
           languageCode={activeLanguage.code}

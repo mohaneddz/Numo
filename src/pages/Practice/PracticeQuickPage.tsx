@@ -14,6 +14,7 @@ import { ExerciseActionBar } from '../../components/exercises/shared/ExerciseAct
 import { ExerciseFeedbackCard } from '../../components/exercises/shared/ExerciseFeedbackCard';
 import { buildExerciseFeedback, type ExerciseFeedbackModel } from '../../services/exercises/feedbackService';
 import { updateExerciseSignals } from '../../services/exercises/exerciseSignalsService';
+import { getExerciseByUserKey, resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
 
 function normalize(text: string): string {
   return text
@@ -101,6 +102,11 @@ export default function PracticeQuickPage() {
 
   const currentItem = session.items[session.currentIndex];
   const activeExercise = currentItem ? resolveQuickExercise(currentItem) : null;
+  const currentLabel = currentItem
+    ? (currentItem.userKey
+      ? getExerciseByUserKey(currentItem.userKey)?.displayName
+      : resolveExerciseByInternal('quick', currentItem.type)?.displayName) ?? currentItem.type.replace(/_/g, ' ')
+    : '';
   const done = session.completed || (session.items.length > 0 && session.currentIndex >= session.items.length);
 
   const progress = session.items.length > 0 ? (session.currentIndex / session.items.length) * 100 : 0;
@@ -148,7 +154,7 @@ export default function PracticeQuickPage() {
       hintUsed,
       confusedUsed,
       hoverUsed: hoverUsage,
-      exerciseType: currentItem.type,
+      exerciseType: currentItem.userKey ?? currentItem.type,
       confusionPair,
       recognitionDelta: isProduction ? (result.correct ? 1 : -1) : result.correct ? 3 : -3,
       productionDelta: isProduction ? (result.correct ? 3 : -3) : result.correct ? 1 : -1,
@@ -269,7 +275,7 @@ export default function PracticeQuickPage() {
 
       {!isLoading && !loadError && currentItem && !done ? (
         <ExerciseShell
-          title={currentItem.type.replace(/_/g, ' ')}
+          title={currentLabel}
           subtitle={`Item ${session.currentIndex + 1} of ${session.items.length}`}
           progressLabel={`${session.correctAnswers} correct`}
           prompt={currentItem.prompt}

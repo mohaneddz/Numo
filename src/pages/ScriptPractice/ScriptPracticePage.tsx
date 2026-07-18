@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageContent } from '../../components/layout/PageLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -136,7 +136,7 @@ export default function ScriptPracticePage() {
                   setScriptKey(key);
                   setPayload((previous) => ({ ...previous, strokePaths: [], modelKey: key }));
                 }}
-                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[13px] text-mist"
+                className="select-custom w-full rounded-lg border border-white/10 bg-black/20 pl-3 py-2 text-[13px] text-mist"
               >
                 {models.map((model) => (
                   <option key={model.key} value={model.key}>
@@ -154,7 +154,7 @@ export default function ScriptPracticePage() {
                   setMode(nextMode);
                   setPayload((previous) => ({ ...previous, strokePaths: [], mode: nextMode }));
                 }}
-                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[13px] text-mist"
+                className="select-custom w-full rounded-lg border border-white/10 bg-black/20 pl-3 py-2 text-[13px] text-mist"
               >
                 {MODES.map((value) => (
                   <option key={value} value={value}>

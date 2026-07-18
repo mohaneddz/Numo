@@ -128,7 +128,7 @@ export default function LoginPage() {
                   <select
                     value={selectedProfileId}
                     onChange={(event) => setSelectedProfileId(event.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-300/60"
+                    className="select-custom w-full rounded-xl border border-white/10 bg-black/25 pl-3 py-2.5 text-sm text-white outline-none focus:border-cyan-300/60"
                   >
                     {profiles.map((profile) => (
                       <option key={profile.id} value={profile.id}>

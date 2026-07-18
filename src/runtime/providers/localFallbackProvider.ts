@@ -17,7 +17,99 @@ function extractLastUserMessage(messages: LlmGenerateRequest['messages']): strin
   return found?.content?.trim() ?? '';
 }
 
+interface DraftInputPayload {
+  languageCode?: string;
+  languageName?: string;
+  exerciseType?: string;
+  concept?: string | null;
+  unit?: {
+    id?: string;
+    title?: string;
+  } | null;
+}
+
+function extractJsonBetween(message: string, startLabel: string, endLabel: string): unknown | null {
+  const start = message.indexOf(startLabel);
+  if (start < 0) return null;
+  const afterStart = message.slice(start + startLabel.length);
+  const end = afterStart.indexOf(endLabel);
+  if (end < 0) return null;
+  const snippet = afterStart.slice(0, end).trim();
+  if (!snippet) return null;
+  try {
+    return JSON.parse(snippet);
+  } catch {
+    return null;
+  }
+}
+
+function parseDraftInputPayload(lastUserMessage: string): DraftInputPayload | null {
+  const parsed = extractJsonBetween(
+    lastUserMessage,
+    'Input JSON:',
+    'Template JSON (follow this structure and field types):',
+  );
+  if (!parsed || typeof parsed !== 'object') return null;
+  return parsed as DraftInputPayload;
+}
+
+function normalizeTopicToken(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '_');
+}
+
+function buildExerciseDraftFallbackReply(lastUserMessage: string): string | null {
+  if (!lastUserMessage.includes('{"result": <exercise object>}')) {
+    return null;
+  }
+
+  const input = parseDraftInputPayload(lastUserMessage);
+  const languageLabel = (input?.languageName?.trim() || input?.languageCode?.toUpperCase() || 'target language').trim();
+  const concept = input?.concept?.trim() || '';
+  const unitTitle = input?.unit?.title?.trim() || '';
+  const focusLabel = concept || unitTitle || 'daily basics';
+  const focusToken = normalizeTopicToken(focusLabel) || 'daily_basics';
+  const exerciseType = input?.exerciseType?.trim() || 'practice';
+  const keyword = `[[${focusToken}]]`;
+  const situation = `A beginner conversation about ${focusLabel}.`;
+
+  const result = {
+    id: `${Date.now()}`,
+    type: 'mcq',
+    prompt: {
+      method: 'context_choice',
+      text: `In this situation, which ${languageLabel} phrase fits best? Focus: [[${focusLabel}]].`,
+      variables: {
+        situation,
+        targetPhrase: keyword,
+      },
+    },
+    choices: [keyword, '[[hello]]', '[[thank_you]]', '[[goodbye]]'],
+    correctAnswer: keyword,
+    correctAnswers: [keyword],
+    answer: keyword,
+    pairs: [
+      { left: keyword, right: `[[theme_${focusToken}]]` },
+      { left: '[[hello]]', right: '[[greeting]]' },
+    ],
+    tokens: ['[[I]]', '[[practice]]', keyword],
+    audioText: keyword,
+    context: `Exercise type: ${exerciseType}. Unit focus: [[${focusLabel}]].`,
+    scriptHint: focusToken,
+  };
+
+  return JSON.stringify({ result });
+}
+
 function buildFallbackJsonReply(lastUserMessage: string): string | null {
+  const exerciseDraft = buildExerciseDraftFallbackReply(lastUserMessage);
+  if (exerciseDraft) {
+    return exerciseDraft;
+  }
+
   if (lastUserMessage.includes('"accuracy"') && lastUserMessage.includes('"fluency"')) {
     return JSON.stringify({
       accuracy: 78,
