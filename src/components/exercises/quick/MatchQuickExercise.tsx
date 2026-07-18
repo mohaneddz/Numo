@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractiveText } from '../shared/InteractiveText';
 import type { QuickExerciseProps } from './types';
 
@@ -11,19 +11,27 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-export function MatchQuickExercise({ item, disabled, onAnswer }: QuickExerciseProps) {
+export function MatchQuickExercise({ item, disabled, onAnswer, rapidMode }: QuickExerciseProps) {
   const pairs = item.pairs ?? [];
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [rightItems, setRightItems] = useState<string[]>([]);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     setSelectedLeft(null);
     setMapping({});
     setRightItems(shuffle(pairs.map((pair) => pair.right)));
+    submittedRef.current = false;
   }, [item.id, pairs]);
 
   const ready = useMemo(() => pairs.length > 0 && pairs.every((pair) => Boolean(mapping[pair.left])), [mapping, pairs]);
+
+  useEffect(() => {
+    if (!rapidMode || disabled || !ready || submittedRef.current) return;
+    submittedRef.current = true;
+    onAnswer(JSON.stringify(mapping), { mapping });
+  }, [disabled, mapping, onAnswer, rapidMode, ready]);
 
   return (
     <div className="space-y-4">
@@ -78,14 +86,16 @@ export function MatchQuickExercise({ item, disabled, onAnswer }: QuickExercisePr
           })}
         </div>
       </div>
-      <button
-        type="button"
-        disabled={disabled || !ready}
-        onClick={() => onAnswer(JSON.stringify(mapping), { mapping })}
-        className="page-primary-action justify-center w-full"
-      >
-        Check Matches
-      </button>
+      {!rapidMode ? (
+        <button
+          type="button"
+          disabled={disabled || !ready}
+          onClick={() => onAnswer(JSON.stringify(mapping), { mapping })}
+          className="page-primary-action justify-center w-full"
+        >
+          Check Matches
+        </button>
+      ) : null}
     </div>
   );
 }

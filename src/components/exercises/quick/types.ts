@@ -6,6 +6,7 @@ export interface QuickExerciseProps {
   item: PracticeItem;
   disabled: boolean;
   onAnswer: (answer: string, structuredResponse?: Record<string, unknown>) => void;
+  rapidMode?: boolean;
   selectionFeedback?: {
     selectedOption?: string;
     selectedOptions?: string[];

@@ -5,7 +5,7 @@
   "identifier": "com.numo.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:7777",
+    "devUrl": "http://localhost:58321",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },

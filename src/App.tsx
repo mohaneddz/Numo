@@ -25,6 +25,8 @@ import ProfilePage from './pages/Profile';
 import LoginPage from './pages/Login';
 import LanguageSetupPage from './pages/LanguageSetup';
 import LanguageWelcomePage from './pages/LanguageWelcome';
+import { useLanguage } from './contexts/LanguageContext';
+import { useLanguageJourney } from './contexts/LanguageJourneyContext';
 import { useProfileSession } from './contexts/ProfileSessionContext';
 import PracticeQuickPage from './pages/Practice/PracticeQuickPage';
 import LearnSessionPage from './pages/Learn/LearnSessionPage';
@@ -43,6 +45,8 @@ function clampZoom(value: number): number {
 function GuardedShell() {
   const location = useLocation();
   const { status } = useProfileSession();
+  const { activeLanguage } = useLanguage();
+  const { getSettings } = useLanguageJourney();
 
   if (status === 'loading') {
     return (
@@ -78,6 +82,12 @@ function GuardedShell() {
   if (status !== 'ready') {
     const redirect = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
+  }
+
+  // Ensure active language setup is complete
+  const settings = getSettings(activeLanguage.code);
+  if (!settings.onboardingCompleted && location.pathname !== '/language-setup') {
+    return <Navigate to={`/language-setup?lang=${activeLanguage.code}`} replace />;
   }
 
   return <AppShell />;

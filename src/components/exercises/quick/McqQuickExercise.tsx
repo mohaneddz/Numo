@@ -4,6 +4,13 @@ import { synthesizeSpeech } from '../../../services/aiProvider';
 import { InteractiveText } from '../shared/InteractiveText';
 import type { QuickExerciseProps } from './types';
 
+function parseExpectedAnswers(answer: string): string[] {
+  return answer
+    .split('||')
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 async function playAudio(text: string): Promise<void> {
   if (!text.trim()) return;
   try {
@@ -16,7 +23,7 @@ async function playAudio(text: string): Promise<void> {
   }
 }
 
-export function McqQuickExercise({ item, disabled, onAnswer, selectionFeedback }: QuickExerciseProps) {
+export function McqQuickExercise({ item, disabled, onAnswer, rapidMode, selectionFeedback }: QuickExerciseProps) {
   const options = item.options ?? [];
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
 
@@ -34,6 +41,7 @@ export function McqQuickExercise({ item, disabled, onAnswer, selectionFeedback }
     ? selectionFeedback.correctAnswers
     : [selectionFeedback?.correctAnswer ?? item.answer];
   const correctSet = useMemo(() => new Set(correctAnswers), [correctAnswers]);
+  const expectedSet = useMemo(() => new Set(parseExpectedAnswers(item.answer)), [item.answer]);
 
   function optionClass(option: string): string {
     const base = 'w-full rounded-lg border px-4 py-3 text-left text-mist transition-colors disabled:opacity-65';
@@ -58,6 +66,32 @@ export function McqQuickExercise({ item, disabled, onAnswer, selectionFeedback }
   }
 
   function toggleOption(option: string): void {
+    if (disabled) return;
+    if (rapidMode) {
+      if (selectedOptions.includes(option)) return;
+      const normalized = option.trim().toLowerCase();
+      const next = [...selectedOptions, option];
+      if (!expectedSet.has(normalized)) {
+        onAnswer(next.join(' || '), {
+          selectedOption: option,
+          selectedOptions: next,
+        });
+        return;
+      }
+      setSelectedOptions(next);
+      const selectedNormalized = new Set(next.map((entry) => entry.trim().toLowerCase()));
+      const solved = expectedSet.size > 0
+        && selectedNormalized.size === expectedSet.size
+        && Array.from(expectedSet).every((entry) => selectedNormalized.has(entry));
+      if (solved) {
+        onAnswer(next.join(' || '), {
+          selectedOption: next[0],
+          selectedOptions: next,
+        });
+      }
+      return;
+    }
+
     setSelectedOptions((previous) => (
       previous.includes(option)
         ? previous.filter((entry) => entry !== option)
@@ -106,7 +140,7 @@ export function McqQuickExercise({ item, disabled, onAnswer, selectionFeedback }
         </button>
       ))}
 
-      {typeof isCorrect !== 'boolean' ? (
+      {typeof isCorrect !== 'boolean' && !rapidMode ? (
         <button
           type="button"
           disabled={disabled || selectedOptions.length === 0}

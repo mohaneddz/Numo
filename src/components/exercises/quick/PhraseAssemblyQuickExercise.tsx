@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractiveText } from '../shared/InteractiveText';
 import type { QuickExerciseProps } from './types';
 
@@ -10,12 +10,14 @@ function countMap(items: string[]): Map<string, number> {
   return map;
 }
 
-export function PhraseAssemblyQuickExercise({ item, disabled, onAnswer }: QuickExerciseProps) {
+export function PhraseAssemblyQuickExercise({ item, disabled, onAnswer, rapidMode }: QuickExerciseProps) {
   const [built, setBuilt] = useState<string[]>([]);
   const tokens = item.tokens ?? item.answer.split(/\s+/).filter(Boolean);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     setBuilt([]);
+    submittedRef.current = false;
   }, [item.id]);
 
   const remaining = useMemo(() => {
@@ -25,6 +27,13 @@ export function PhraseAssemblyQuickExercise({ item, disabled, onAnswer }: QuickE
     }
     return tokens.filter((token) => (remainingCounts.get(token) ?? 0) > 0);
   }, [built, tokens]);
+
+  useEffect(() => {
+    const isComplete = tokens.length > 0 && built.length === tokens.length;
+    if (!rapidMode || disabled || !isComplete || submittedRef.current) return;
+    submittedRef.current = true;
+    onAnswer(built.join(' ').trim(), { orderedTokens: built });
+  }, [built, disabled, onAnswer, rapidMode, tokens.length]);
 
   return (
     <div className="grid gap-3">
@@ -59,14 +68,16 @@ export function PhraseAssemblyQuickExercise({ item, disabled, onAnswer }: QuickE
         >
           Undo
         </button>
-        <button
-          type="button"
-          disabled={disabled || built.length === 0}
-          onClick={() => onAnswer(built.join(' ').trim(), { orderedTokens: built })}
-          className="page-primary-action justify-center"
-        >
-          Check phrase
-        </button>
+        {!rapidMode ? (
+          <button
+            type="button"
+            disabled={disabled || built.length === 0}
+            onClick={() => onAnswer(built.join(' ').trim(), { orderedTokens: built })}
+            className="page-primary-action justify-center"
+          >
+            Check phrase
+          </button>
+        ) : null}
       </div>
     </div>
   );
