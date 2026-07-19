@@ -101,6 +101,41 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@keyframes audio-bar-dance {
+  0%, 100% { transform: scaleY(0.42); opacity: 0.55; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes audio-orbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes audio-breathe {
+  0%, 100% { transform: scale(0.96); opacity: 0.45; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+.audio-bar-dance {
+  transform-origin: center;
+  animation: audio-bar-dance 900ms ease-in-out infinite;
+}
+
+.audio-orbit {
+  animation: audio-orbit 18s linear infinite;
+}
+
+.audio-breathe {
+  animation: audio-breathe 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-bar-dance,
+  .audio-orbit,
+  .audio-breathe {
+    animation: none;
+  }
+}
+
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
@@ -112,6 +147,23 @@ h1, h2, h3, h4, h5, h6 {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+button:not(:disabled),
+a[href],
+[role='button']:not([aria-disabled='true']),
+select,
+summary,
+label[for],
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
 .page-content {
