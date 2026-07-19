@@ -260,20 +260,21 @@ export default function LearnPage() {
 
               <div className="min-w-0 flex-1 text-center">
                 <div className="mb-1 flex items-center justify-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-[#8B5CF6]/25 bg-[#8B5CF6]/10 text-[#A78BFA]">
+                    <ThemeIcon size={14} strokeWidth={2.2} />
+                  </span>
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#A78BFA]">
                     Theme {String(themeIndex + 1).padStart(2, '0')} / {defaultThemes.units.length}
                   </span>
                 </div>
                 <div className="relative mx-auto flex w-fit items-center justify-center">
-                  <span className="absolute right-full mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#8B5CF6]/25 bg-[#8B5CF6]/10 text-[#A78BFA]">
-                    <ThemeIcon size={20} strokeWidth={2.2} />
-                  </span>
                   <select
                     aria-label="Select learning theme"
                     value={theme.id}
                     onChange={(event) =>
                       selectTheme(defaultThemes.units.findIndex((unit) => unit.id === event.target.value))
                     }
+                    style={{ textAlignLast: 'center' }}
                     className="max-w-full cursor-pointer appearance-none bg-transparent text-center text-[22px] font-black tracking-tight text-white outline-none md:text-[26px]"
                   >
                     {defaultThemes.units.map((unit) => (

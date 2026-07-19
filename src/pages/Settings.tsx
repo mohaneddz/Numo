@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, Brain
+    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, Brain, Youtube
 } from 'lucide-react';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
@@ -15,11 +15,19 @@ import { useProfileSession } from '../contexts/ProfileSessionContext';
 import { backgroundImageService } from '../services/backgrounds';
 import type { BackgroundMappingPreview, BackgroundValidationResult } from '../services/backgrounds';
 import { aiConfig } from '../config/aiConfig';
+import { validateYouTubeApiKey } from '../services/youtubeService';
+import { clearImmersionContentCaches } from '../services/mediaAssetCache';
+import {
+    chooseBooksFolder,
+    getBooksFolder,
+    getLocalBooks,
+    scanBooksFolder,
+} from '../services/localBookService';
 
 interface SettingItem {
     label: string;
     description: string;
-    type: 'select' | 'toggle' | 'info' | 'groq-apis';
+    type: 'select' | 'toggle' | 'info' | 'secret' | 'media-cache' | 'groq-apis' | 'books-folder';
     value: string | boolean | string[];
     options?: string[];
 }
@@ -69,6 +77,12 @@ const settingsSections: SettingsSection[] = [
         id: 'storage', title: 'Storage', icon: HardDrive, color: '#0ea5e9',
         settings: [
             { label: 'Data Location', description: 'Where your learning data is stored', type: 'info', value: 'C:\\Users\\Alex\\AppData\\Numo' },
+            {
+                label: 'Books Folder',
+                description: 'EPUB and TXT books in this folder are imported into Immersion → Readings.',
+                type: 'books-folder',
+                value: '',
+            },
             { label: 'Used Space', description: 'Total space used by the app', type: 'info', value: '148 MB' },
             { label: 'Cache Size', description: 'Temporary files and media cache', type: 'info', value: '23 MB' },
         ],
@@ -100,6 +114,30 @@ const settingsSections: SettingsSection[] = [
         id: 'ai', title: 'AI Providers', icon: Brain, color: '#22c55e',
         settings: [
             { label: 'GROQ APIs', description: 'Add one or more GROQ API keys and validate LLM/STT/TTS access.', type: 'groq-apis', value: [] },
+        ],
+    },
+    {
+        id: 'integrations', title: 'Media Integrations', icon: Youtube, color: '#ef4444',
+        settings: [
+            {
+                label: 'YouTube API Key',
+                description: 'YouTube Data API v3 key used to load real video thumbnails and metadata in Immersion.',
+                type: 'secret',
+                value: '',
+            },
+            {
+                label: 'YouTube Region',
+                description: 'Region used to improve YouTube resource relevance.',
+                type: 'select',
+                value: 'US',
+                options: ['US', 'GB', 'CA', 'AU', 'ES', 'MX', 'AR'],
+            },
+            {
+                label: 'Immersion Media Cache',
+                description: 'Thumbnails, covers, artwork, book text, and provider metadata are cached and pruned automatically.',
+                type: 'media-cache',
+                value: 'Managed automatically',
+            },
         ],
     },
     {
@@ -181,6 +219,10 @@ export default function SettingsPage() {
     const [bgValidation, setBgValidation] = useState<BackgroundValidationResult | null>(null);
     const [bgCacheFiles, setBgCacheFiles] = useState(0);
     const [groqCheckStatus, setGroqCheckStatus] = useState<Record<number, { tone: 'ok' | 'warn' | 'error' | 'info'; message: string }>>({});
+    const [youtubeCheckStatus, setYoutubeCheckStatus] = useState<{ tone: 'ok' | 'error' | 'info'; message: string } | null>(null);
+    const [booksFolder, setBooksFolder] = useState(getBooksFolder);
+    const [localBookCount, setLocalBookCount] = useState(() => getLocalBooks().length);
+    const [booksFolderBusy, setBooksFolderBusy] = useState(false);
     const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
     const { activeLanguage } = useLanguage();
     const { recommendedCards } = useCurriculum();
@@ -195,10 +237,11 @@ export default function SettingsPage() {
     
     // In a real app we'd manage this state in a context or global store
     const [settingsState, setSettingsState] = useState<Record<string, Record<string, any>>>(() => {
+        let savedState: Record<string, Record<string, any>> = {};
         const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
         if (saved) {
             try {
-                return JSON.parse(saved) as Record<string, Record<string, any>>;
+                savedState = JSON.parse(saved) as Record<string, Record<string, any>>;
             } catch {
                 // ignore corrupted storage and use defaults
             }
@@ -208,9 +251,11 @@ export default function SettingsPage() {
             initialState[section.id] = {};
             section.settings.forEach(setting => {
                 if (section.id === 'desktop' && setting.label === 'Keyboard Shortcuts') {
-                    initialState[section.id][setting.label] = readKeyboardShortcutsEnabled();
+                    initialState[section.id][setting.label] =
+                        savedState[section.id]?.[setting.label] ?? readKeyboardShortcutsEnabled();
                 } else {
-                    initialState[section.id][setting.label] = setting.value;
+                    initialState[section.id][setting.label] =
+                        savedState[section.id]?.[setting.label] ?? setting.value;
                 }
             });
         });
@@ -245,7 +290,7 @@ export default function SettingsPage() {
         const entry = {
             section: sectionId,
             label,
-            value: String(value),
+            value: label.toLowerCase().includes('api key') ? '••••••••' : String(value),
             at: new Date().toISOString(),
         };
         setActionLog((prev) => {
@@ -264,6 +309,24 @@ export default function SettingsPage() {
 
     const writeGroqApis = (next: string[]) => {
         updateSetting('ai', 'GROQ APIs', next);
+    };
+
+    const checkYouTubeApi = async () => {
+        const apiKey = String(settingsState.integrations?.['YouTube API Key'] ?? '').trim();
+        if (!apiKey) {
+            setYoutubeCheckStatus({ tone: 'error', message: 'Add a YouTube Data API v3 key first.' });
+            return;
+        }
+        setYoutubeCheckStatus({ tone: 'info', message: 'Checking YouTube Data API access...' });
+        try {
+            const message = await validateYouTubeApiKey(apiKey);
+            setYoutubeCheckStatus({ tone: 'ok', message });
+        } catch (error) {
+            setYoutubeCheckStatus({
+                tone: 'error',
+                message: error instanceof Error ? error.message : 'YouTube API validation failed.',
+            });
+        }
     };
 
     const setGroqApiAt = (index: number, value: string) => {
@@ -672,6 +735,109 @@ export default function SettingsPage() {
                                                 <span className="text-base text-gray-400 font-mono bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
                                                     {settingsState[activeSection.id][setting.label]}
                                                 </span>
+                                            )}
+                                            {setting.type === 'secret' && (
+                                                <div className="min-w-[380px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="password"
+                                                            value={String(settingsState[activeSection.id][setting.label] ?? '')}
+                                                            onChange={(event) => {
+                                                                updateSetting(activeSection.id, setting.label, event.target.value);
+                                                                setYoutubeCheckStatus(null);
+                                                            }}
+                                                            placeholder="YouTube Data API v3 key"
+                                                            className="h-[42px] flex-1 rounded-xl border border-white/15 bg-[#0a1222]/80 px-3 text-sm text-gray-200 outline-none placeholder:text-gray-500 focus:border-red-400/60"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void checkYouTubeApi()}
+                                                            className="h-[42px] rounded-xl border border-red-500/30 bg-red-500/10 px-4 text-sm font-bold text-red-200 hover:bg-red-500/20"
+                                                        >
+                                                            Check
+                                                        </button>
+                                                    </div>
+                                                    {youtubeCheckStatus && (
+                                                        <p className={`mt-2 rounded-lg border px-2.5 py-2 text-[12px] leading-snug ${
+                                                            youtubeCheckStatus.tone === 'ok'
+                                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                                                : youtubeCheckStatus.tone === 'error'
+                                                                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                                                                    : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
+                                                        }`}>
+                                                            {youtubeCheckStatus.message}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {setting.type === 'media-cache' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        void clearImmersionContentCaches().then(() => {
+                                                            setStatus('Immersion media and metadata caches cleared.');
+                                                        });
+                                                    }}
+                                                    className="h-[42px] rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 text-sm font-bold text-amber-200 hover:bg-amber-500/20"
+                                                >
+                                                    Clear cache
+                                                </button>
+                                            )}
+                                            {setting.type === 'books-folder' && (
+                                                <div className="w-[min(520px,46vw)] min-w-[320px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            title={booksFolder || 'No folder selected'}
+                                                            className="min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-[12px] text-gray-300"
+                                                        >
+                                                            {booksFolder || 'No folder selected'}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={booksFolderBusy}
+                                                            onClick={() => {
+                                                                setBooksFolderBusy(true);
+                                                                void chooseBooksFolder()
+                                                                    .then((folder) => {
+                                                                        if (!folder) return;
+                                                                        setBooksFolder(folder);
+                                                                        const count = getLocalBooks().length;
+                                                                        setLocalBookCount(count);
+                                                                        setStatus(`Imported ${count} EPUB/TXT book${count === 1 ? '' : 's'} from the books folder.`);
+                                                                    })
+                                                                    .catch((error) => {
+                                                                        setStatus(error instanceof Error ? error.message : 'Could not open the books folder.');
+                                                                    })
+                                                                    .finally(() => setBooksFolderBusy(false));
+                                                            }}
+                                                            className="h-[42px] rounded-xl border border-indigo-400/30 bg-indigo-400/10 px-4 text-sm font-bold text-indigo-200 hover:bg-indigo-400/20 disabled:opacity-50"
+                                                        >
+                                                            Choose
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={!booksFolder || booksFolderBusy}
+                                                            onClick={() => {
+                                                                setBooksFolderBusy(true);
+                                                                void scanBooksFolder()
+                                                                    .then((books) => {
+                                                                        setLocalBookCount(books.length);
+                                                                        setStatus(`Books folder refreshed: ${books.length} book${books.length === 1 ? '' : 's'} found.`);
+                                                                    })
+                                                                    .catch((error) => {
+                                                                        setStatus(error instanceof Error ? error.message : 'Could not scan the books folder.');
+                                                                    })
+                                                                    .finally(() => setBooksFolderBusy(false));
+                                                            }}
+                                                            className="h-[42px] rounded-xl border border-white/15 px-4 text-sm font-bold text-gray-200 hover:bg-white/5 disabled:opacity-40"
+                                                        >
+                                                            Refresh
+                                                        </button>
+                                                    </div>
+                                                    <p className="mt-2 text-[11px] text-gray-500">
+                                                        {localBookCount} supported book{localBookCount === 1 ? '' : 's'} indexed
+                                                    </p>
+                                                </div>
                                             )}
                                             {setting.type === 'groq-apis' && (
                                                 <div className="min-w-[380px] space-y-3">
