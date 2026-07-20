@@ -16,7 +16,7 @@ This is the working inventory for the main Numo surfaces. It is intended to keep
 | Notebook Exercises | `/notebook/exercises` | `src/pages/Exercises/ExercisesPage.tsx` | Exercise generation and selection |
 | Insights | `/insights` | `src/pages/Insights.tsx` | Progress and learning evidence |
 | Libraries | `/library` | `src/pages/References.tsx` (`LibrariesPage`) | Reference catalogs for the active language |
-| Chat | `/chat` | `src/pages/Chat.tsx` | Conversational practice |
+| Chat | `/chat` | `src/pages/Chat.tsx` | Target-language conversation with word-level pronunciation and English meaning |
 | Settings | `/settings` | `src/pages/Settings.tsx` | Preferences and configuration |
 
 ## Supporting flows

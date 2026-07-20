@@ -40,7 +40,7 @@ Resolved remote thumbnails, book covers, and audio artwork pass through the shar
 - Automatic 30-day asset expiry and least-recently-used pruning
 - Alternate URL fallback before the designed local card is revealed
 
-Provider metadata uses separate caches: YouTube metadata lasts 24 hours, while Open Library, Gutenberg, and audio artwork metadata last seven days. Settings → Media Integrations provides a single action to clear both media assets and content metadata.
+Provider metadata uses separate caches: YouTube metadata lasts 24 hours, while Open Library, Gutenberg, and audio artwork metadata last seven days. Public caption tracks are cached through the Cache API. Settings → Media Integrations provides a single action to clear media assets, transcripts, and content metadata.
 
 ## Reading experience
 
@@ -52,8 +52,6 @@ The reader supports keyboard navigation: Right/Page Down/Space advances, Left/Pa
 
 Settings → Storage contains the **Books Folder** picker. Selecting or refreshing it indexes supported `.epub` and `.txt` files and adds them to Immersion → Readings under **My Books**. EPUB rendering is loaded only when an EPUB is opened so it does not increase the normal startup bundle.
 
-Transcript and learner-progress metadata remains dummy data in `src/pages/Immerse/immersionCatalog.ts`.
-
 ### YouTube integration
 
 The **Settings → Media Integrations** section contains:
@@ -62,9 +60,9 @@ The **Settings → Media Integrations** section contains:
 - YouTube relevance region
 - A connection-check action
 
-When a key is configured, the Videos tab searches YouTube once per resource category and maps real embeddable video thumbnails, channel names, IDs, and watch URLs onto the dummy catalog. Resolved metadata is cached locally for 24 hours to avoid repeatedly spending API quota. The Immersion tools panel can force a refresh.
+When a key is configured, the Videos and Audio tabs search YouTube once per media category and map real embeddable thumbnails, titles, channel names, IDs, and watch URLs onto the discovery catalog. Cache writes merge video and audio results, and resolved metadata is cached locally for 24 hours to avoid repeatedly spending API quota. The Immersion tools panel can force a refresh.
 
-Without a key, or when a request fails, the designed gradient media cards remain available. The user-provided key is stored in the existing local desktop settings store. A key restricted to the YouTube Data API should be used.
+The key can come from the local desktop settings store or `VITE_YOUTUBE_API_KEY` in an ignored `.env.local` file. Without a key, or when a request fails, the designed gradient media cards remain available. A key restricted to the YouTube Data API should be used.
 
 YouTube category requests are isolated: a failure in one category does not discard successful thumbnails from the others. Failed thumbnail sizes retry through YouTube's standard high-quality thumbnail endpoint before the designed fallback is shown.
 
@@ -72,8 +70,10 @@ YouTube category requests are isolated: a failure in one category does not disca
 
 The `/immerse/:contentId` detail route renders a media workspace for video and audio resources:
 
-- Media player or audio waveform
-- Simulated synchronized transcript
+- Official YouTube IFrame API streaming player
+- Real play/pause, seek, volume, speed, duration, and playback-state synchronization
+- Public Spanish/English caption tracks resolved through the installed `yt-dlp` executable without downloading media
+- Real-time transcript selection based on stream progress
 - Optional translation beneath every transcript line
 - Clickable transcript navigation
 - Current-line source text and translation
@@ -93,7 +93,7 @@ Audio resources additionally provide:
 
 The audio catalog uses real podcast and audiobook titles. Artwork and publisher metadata are resolved from Apple Podcasts/iTunes Search and cached for seven days. Public-domain audiobooks fall back to their Open Library book cover when podcast artwork is unavailable. Each item fails independently and retains a designed fallback.
 
-Playback currently advances through the dummy transcript on a timer. Real media synchronization will replace this behavior when content ingestion is connected.
+If a selected source exposes no public captions, streaming remains available and the transcript panel shows an honest unavailable state instead of fabricated text.
 
 ## Bilingual reader
 
