@@ -1,4 +1,4 @@
-import { aiConfig } from '../../config/aiConfig';
+import { aiConfig, getConfiguredGroqApiKeys } from '../../config/aiConfig';
 import type { ApiQuotaSnapshot } from '../../types/ai';
 import {
   ProviderCallError,
@@ -92,7 +92,7 @@ async function parseErrorResponse(
 }
 
 function ensureApiKey(providerId: string, modality: 'llm' | 'stt' | 'tts'): void {
-  if (!aiConfig.apiKey) {
+  if (getConfiguredGroqApiKeys().length === 0) {
     throw new ProviderCallError({
       providerId,
       modality,
@@ -101,6 +101,31 @@ function ensureApiKey(providerId: string, modality: 'llm' | 'stt' | 'tts'): void
       retryable: false,
     });
   }
+}
+
+async function fetchWithConfiguredKeys(
+  request: (apiKey: string) => Promise<Response>,
+): Promise<Response> {
+  const keys = getConfiguredGroqApiKeys();
+  let lastResponse: Response | null = null;
+  let lastError: unknown;
+  for (const apiKey of keys) {
+    try {
+      const response = await request(apiKey);
+      if (response.ok) return response;
+      lastResponse = response;
+      const shouldTryAnother =
+        response.status === 401 ||
+        response.status === 403 ||
+        response.status === 429 ||
+        response.status >= 500;
+      if (!shouldTryAnother) return response;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastResponse) return lastResponse;
+  throw lastError instanceof Error ? lastError : new Error('Every configured Groq API key failed.');
 }
 
 export function getGroqQuotaSnapshot(): ApiQuotaSnapshot | null {
@@ -148,14 +173,16 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
       payload.response_format = request.responseFormat;
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiConfig.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await fetchWithConfiguredKeys((apiKey) =>
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
     captureQuotaHeaders(response.headers);
 
     if (!response.ok) {
@@ -191,19 +218,20 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
     const endpoint = `${aiConfig.baseUrl}/audio/transcriptions`;
     const model = request.model ?? aiConfig.models.stt;
-    const formData = new FormData();
-    formData.append('model', model);
-    formData.append('file', request.audio, 'recording.webm');
-    if (request.language) {
-      formData.append('language', request.language);
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiConfig.apiKey}`,
-      },
-      body: formData,
+    const response = await fetchWithConfiguredKeys((apiKey) => {
+      const formData = new FormData();
+      formData.append('model', model);
+      formData.append('file', request.audio, 'recording.webm');
+      if (request.language) {
+        formData.append('language', request.language);
+      }
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      });
     });
     captureQuotaHeaders(response.headers);
 
@@ -231,14 +259,16 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
       response_format: request.format ?? 'wav',
     };
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiConfig.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await fetchWithConfiguredKeys((apiKey) =>
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
     captureQuotaHeaders(response.headers);
 
     if (!response.ok) {

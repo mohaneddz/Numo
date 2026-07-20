@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, Brain, Youtube
+    User, Globe, Palette, Volume2, HardDrive, Download, Shield, Accessibility, Monitor, Brain, Youtube,
+    FolderCog, Wifi, WifiOff, CheckCircle2
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
@@ -12,6 +14,7 @@ import { initializePersistence } from '../persistence';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurriculum } from '../contexts/CurriculumContext';
 import { useProfileSession } from '../contexts/ProfileSessionContext';
+import { useAppData } from '../contexts/AppDataContext';
 import { backgroundImageService } from '../services/backgrounds';
 import type { BackgroundMappingPreview, BackgroundValidationResult } from '../services/backgrounds';
 import { aiConfig } from '../config/aiConfig';
@@ -23,13 +26,25 @@ import {
     getLocalBooks,
     scanBooksFolder,
 } from '../services/localBookService';
+import {
+    chooseLocalRuntimePath,
+    readLocalRuntimeSettings,
+    setConnectivityMode,
+    setLocalRuntimePath,
+    isOnlineMode,
+    type LocalRuntimePathKey,
+} from '../services/localRuntimeSettings';
+import { mirrorNotebookEntry } from '../services/noteMirrorService';
 
 interface SettingItem {
     label: string;
     description: string;
-    type: 'select' | 'toggle' | 'info' | 'secret' | 'media-cache' | 'groq-apis' | 'books-folder';
+    type: 'select' | 'toggle' | 'info' | 'secret' | 'media-cache' | 'groq-apis' | 'books-folder' | 'connectivity-mode' | 'local-path';
     value: string | boolean | string[];
     options?: string[];
+    pathKey?: LocalRuntimePathKey;
+    directory?: boolean;
+    extensions?: string[];
 }
 
 interface SettingsSection {
@@ -111,6 +126,89 @@ const settingsSections: SettingsSection[] = [
         ],
     },
     {
+        id: 'models', title: 'Models & Storage', icon: FolderCog, color: '#a78bfa',
+        settings: [
+            {
+                label: 'Connection Mode',
+                description: 'Online uses configured cloud providers and connected media services. Offline blocks remote AI and uses only the local tools below.',
+                type: 'connectivity-mode',
+                value: readLocalRuntimeSettings().connectivityMode,
+            },
+            {
+                label: 'LLM Runner',
+                description: 'The llama.cpp command-line executable used to run the local language model.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.llmExecutable,
+                pathKey: 'llmExecutable',
+                extensions: ['exe'],
+            },
+            {
+                label: 'Local LLM',
+                description: 'A GGUF language model used for Chat, generation, explanations, and evaluation while offline.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.llmModel,
+                pathKey: 'llmModel',
+                extensions: ['gguf'],
+            },
+            {
+                label: 'Whisper Runner',
+                description: 'The whisper.cpp command-line executable used for local speech recognition.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.whisperExecutable,
+                pathKey: 'whisperExecutable',
+                extensions: ['exe'],
+            },
+            {
+                label: 'Whisper Model',
+                description: 'The local whisper.cpp model used to transcribe speaking exercises.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.whisperModel,
+                pathKey: 'whisperModel',
+                extensions: ['bin'],
+            },
+            {
+                label: 'FFmpeg',
+                description: 'FFmpeg converts microphone recordings to the 16 kHz WAV input expected by local Whisper.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.ffmpegExecutable,
+                pathKey: 'ffmpegExecutable',
+                extensions: ['exe'],
+            },
+            {
+                label: 'Piper Runner',
+                description: 'The Piper executable used for fully local text-to-speech.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.piperExecutable,
+                pathKey: 'piperExecutable',
+                extensions: ['exe'],
+            },
+            {
+                label: 'Active Voice Model',
+                description: 'The Piper ONNX voice currently used for local speech generation.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.piperVoiceModel,
+                pathKey: 'piperVoiceModel',
+                extensions: ['onnx'],
+            },
+            {
+                label: 'Voices Folder',
+                description: 'Folder for downloaded Piper voice models and their matching JSON configuration files.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.voicesFolder,
+                pathKey: 'voicesFolder',
+                directory: true,
+            },
+            {
+                label: 'Notes Folder',
+                description: 'Folder where learner notes can be written as Markdown and JSON alongside the app database.',
+                type: 'local-path',
+                value: readLocalRuntimeSettings().paths.notesFolder,
+                pathKey: 'notesFolder',
+                directory: true,
+            },
+        ],
+    },
+    {
         id: 'ai', title: 'AI Providers', icon: Brain, color: '#22c55e',
         settings: [
             { label: 'GROQ APIs', description: 'Add one or more GROQ API keys and validate LLM/STT/TTS access.', type: 'groq-apis', value: [] },
@@ -121,7 +219,7 @@ const settingsSections: SettingsSection[] = [
         settings: [
             {
                 label: 'YouTube API Key',
-                description: 'YouTube Data API v3 key used to load real video thumbnails and metadata in Immersion.',
+                description: 'YouTube Data API v3 key used for real video/audio discovery, thumbnails, metadata, and streaming sources in Immersion.',
                 type: 'secret',
                 value: '',
             },
@@ -223,7 +321,10 @@ export default function SettingsPage() {
     const [booksFolder, setBooksFolder] = useState(getBooksFolder);
     const [localBookCount, setLocalBookCount] = useState(() => getLocalBooks().length);
     const [booksFolderBusy, setBooksFolderBusy] = useState(false);
+    const [pathBusy, setPathBusy] = useState<string | null>(null);
+    const [pathStatus, setPathStatus] = useState<Record<string, { ok: boolean; message: string }>>({});
     const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
+    const { state: appDataState } = useAppData();
     const { activeLanguage } = useLanguage();
     const { recommendedCards } = useCurriculum();
 
@@ -264,7 +365,14 @@ export default function SettingsPage() {
     const [actionLog, setActionLog] = useState<Array<{ section: string; label: string; value: string; at: string }>>(() => {
         try {
             const parsed = JSON.parse(localStorage.getItem(SETTINGS_LOG_KEY) || '[]') as Array<{ section: string; label: string; value: string; at: string }>;
-            return Array.isArray(parsed) ? parsed : [];
+            if (!Array.isArray(parsed)) return [];
+            const sanitized = parsed.map((entry) =>
+                entry.label === 'GROQ APIs' || entry.label.toLowerCase().includes('api key')
+                    ? { ...entry, value: '••••••••' }
+                    : entry,
+            );
+            localStorage.setItem(SETTINGS_LOG_KEY, JSON.stringify(sanitized));
+            return sanitized;
         } catch {
             return [];
         }
@@ -280,6 +388,17 @@ export default function SettingsPage() {
         if (sectionId === 'desktop' && label === 'Keyboard Shortcuts') {
             writeKeyboardShortcutsEnabled(Boolean(value));
         }
+        if (sectionId === 'models' && label === 'Connection Mode') {
+            setConnectivityMode(value === 'offline' ? 'offline' : 'online');
+        }
+        if (sectionId === 'models') {
+            const pathSetting = settingsSections
+                .find((section) => section.id === 'models')
+                ?.settings.find((setting) => setting.label === label);
+            if (pathSetting?.pathKey) {
+                setLocalRuntimePath(pathSetting.pathKey, String(value ?? ''));
+            }
+        }
         setSettingsState(prev => ({
             ...prev,
             [sectionId]: {
@@ -290,7 +409,10 @@ export default function SettingsPage() {
         const entry = {
             section: sectionId,
             label,
-            value: label.toLowerCase().includes('api key') ? '••••••••' : String(value),
+            value:
+                label.toLowerCase().includes('api key') || label === 'GROQ APIs'
+                    ? '••••••••'
+                    : String(value),
             at: new Date().toISOString(),
         };
         setActionLog((prev) => {
@@ -299,6 +421,72 @@ export default function SettingsPage() {
             return next;
         });
         setStatus(`Saved "${label}" in ${sectionId}.`);
+    };
+
+    const chooseConfiguredPath = async (setting: SettingItem) => {
+        if (!setting.pathKey) return;
+        setPathBusy(setting.label);
+        setPathStatus((previous) => {
+            const next = { ...previous };
+            delete next[setting.label];
+            return next;
+        });
+        try {
+            const selected = await chooseLocalRuntimePath(setting.pathKey, {
+                title: `Choose ${setting.label}`,
+                directory: setting.directory,
+                extensions: setting.extensions,
+            });
+            if (!selected) return;
+            updateSetting('models', setting.label, selected);
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: { ok: true, message: 'Path selected and saved.' },
+            }));
+        } catch (error) {
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: {
+                    ok: false,
+                    message: error instanceof Error ? error.message : 'Could not choose this path.',
+                },
+            }));
+        } finally {
+            setPathBusy(null);
+        }
+    };
+
+    const validateConfiguredPath = async (setting: SettingItem) => {
+        const path = String(settingsState.models?.[setting.label] ?? '').trim();
+        if (!path) {
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: { ok: false, message: 'Choose a path first.' },
+            }));
+            return;
+        }
+        setPathBusy(setting.label);
+        try {
+            await invoke<string>('validate_local_path', {
+                path,
+                kind: setting.directory ? 'directory' : 'file',
+                extensions: setting.extensions ?? [],
+            });
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: { ok: true, message: 'Path is valid and accessible.' },
+            }));
+        } catch (error) {
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: {
+                    ok: false,
+                    message: typeof error === 'string' ? error : 'Path validation failed.',
+                },
+            }));
+        } finally {
+            setPathBusy(null);
+        }
     };
 
     const readGroqApis = (): string[] => {
@@ -312,6 +500,10 @@ export default function SettingsPage() {
     };
 
     const checkYouTubeApi = async () => {
+        if (!isOnlineMode()) {
+            setYoutubeCheckStatus({ tone: 'error', message: 'Switch to Online mode before validating YouTube.' });
+            return;
+        }
         const apiKey = String(settingsState.integrations?.['YouTube API Key'] ?? '').trim();
         if (!apiKey) {
             setYoutubeCheckStatus({ tone: 'error', message: 'Add a YouTube Data API v3 key first.' });
@@ -373,6 +565,13 @@ export default function SettingsPage() {
     };
 
     const checkGroqApi = async (index: number) => {
+        if (!isOnlineMode()) {
+            setGroqCheckStatus((prev) => ({
+                ...prev,
+                [index]: { tone: 'error', message: 'Switch to Online mode before validating cloud providers.' },
+            }));
+            return;
+        }
         const configuredApiKey = readGroqApis()[index]?.trim() ?? '';
         const apiKey = configuredApiKey || aiConfig.apiKey.trim();
         if (!apiKey) {
@@ -627,7 +826,7 @@ export default function SettingsPage() {
                                 )}
                             </div>
 
-                            <div className="mb-8 rounded-2xl border border-white/10 bg-[#0a1222]/60 p-5">
+                            <div className={`${activeTabId === 'appearance' ? '' : 'hidden'} mb-8 rounded-2xl border border-white/10 bg-[#0a1222]/60 p-5`}>
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                                     <div>
                                         <h3 className="text-[16px] font-bold text-white">Background Image Pipeline (Internal)</h3>
@@ -731,6 +930,100 @@ export default function SettingsPage() {
                                                     onChange={(val) => updateSetting(activeSection.id, setting.label, val)} 
                                                 />
                                             )}
+                                            {setting.type === 'connectivity-mode' && (() => {
+                                                const online = settingsState.models?.['Connection Mode'] !== 'offline';
+                                                return (
+                                                    <div className="flex min-w-[300px] items-center justify-end gap-3">
+                                                        <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-bold ${
+                                                            online
+                                                                ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+                                                                : 'border-amber-400/25 bg-amber-400/10 text-amber-200'
+                                                        }`}>
+                                                            {online ? <Wifi size={15} /> : <WifiOff size={15} />}
+                                                            {online ? 'Online' : 'Offline'}
+                                                        </div>
+                                                        <ToggleSwitch
+                                                            checked={online}
+                                                            onChange={(enabled) =>
+                                                                updateSetting('models', 'Connection Mode', enabled ? 'online' : 'offline')
+                                                            }
+                                                        />
+                                                    </div>
+                                                );
+                                            })()}
+                                            {setting.type === 'local-path' && (() => {
+                                                const selectedPath = String(settingsState.models?.[setting.label] ?? '');
+                                                const check = pathStatus[setting.label];
+                                                const busy = pathBusy === setting.label;
+                                                return (
+                                                    <div className="w-[min(560px,48vw)] min-w-[340px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <div
+                                                                title={selectedPath || 'Not configured'}
+                                                                className="min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-black/20 px-3 py-3 font-mono text-[11px] text-gray-300"
+                                                            >
+                                                                {selectedPath || 'Not configured'}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                disabled={busy}
+                                                                onClick={() => void chooseConfiguredPath(setting)}
+                                                                className="h-[42px] rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 text-sm font-bold text-violet-200 hover:bg-violet-400/20 disabled:opacity-50"
+                                                            >
+                                                                Choose
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={!selectedPath || busy}
+                                                                onClick={() => void validateConfiguredPath(setting)}
+                                                                className="h-[42px] rounded-xl border border-white/15 px-3 text-sm font-bold text-gray-200 hover:bg-white/5 disabled:opacity-40"
+                                                            >
+                                                                Check
+                                                            </button>
+                                                            {setting.pathKey === 'notesFolder' && (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={!selectedPath || busy}
+                                                                    onClick={() => {
+                                                                        setPathBusy(setting.label);
+                                                                        void Promise.all(appDataState.notebookEntries.map(mirrorNotebookEntry))
+                                                                            .then(() => {
+                                                                                setPathStatus((previous) => ({
+                                                                                    ...previous,
+                                                                                    [setting.label]: {
+                                                                                        ok: true,
+                                                                                        message: `${appDataState.notebookEntries.length} notebook entries mirrored as Markdown and JSON.`,
+                                                                                    },
+                                                                                }));
+                                                                            })
+                                                                            .catch((error) => {
+                                                                                setPathStatus((previous) => ({
+                                                                                    ...previous,
+                                                                                    [setting.label]: {
+                                                                                        ok: false,
+                                                                                        message: error instanceof Error ? error.message : 'Notes sync failed.',
+                                                                                    },
+                                                                                }));
+                                                                            })
+                                                                            .finally(() => setPathBusy(null));
+                                                                    }}
+                                                                    className="h-[42px] rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-40"
+                                                                >
+                                                                    Sync
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        {check && (
+                                                            <p className={`mt-2 flex items-center gap-1.5 text-[11px] ${
+                                                                check.ok ? 'text-emerald-300' : 'text-rose-300'
+                                                            }`}>
+                                                                {check.ok && <CheckCircle2 size={12} />}
+                                                                {check.message}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                             {setting.type === 'info' && (
                                                 <span className="text-base text-gray-400 font-mono bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
                                                     {settingsState[activeSection.id][setting.label]}

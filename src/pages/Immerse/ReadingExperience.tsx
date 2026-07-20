@@ -29,7 +29,7 @@ import type { ImmersionResource, ReadingLine } from './immersionCatalog';
 import { demoReading } from './immersionCatalog';
 import { loadBookText, type ResolvedBook } from '../../services/bookContentService';
 import { readLocalBookBytes } from '../../services/localBookService';
-import { aiConfig } from '../../config/aiConfig';
+import { runtimeKernel } from '../../runtime/runtimeKernel';
 
 const READER_STATE_KEY = 'numo_reader_state_v1';
 
@@ -523,41 +523,17 @@ export default function ReadingExperience({ resource }: { resource: ImmersionRes
 
   const translateSelection = async () => {
     if (!selectedLine || selectedLine.translation || generatedTranslations[selectedLine.id]) return;
-    let configuredKeys: string[] = [];
-    try {
-      const settings = JSON.parse(localStorage.getItem('noema_settings_state_v1') || '{}') as {
-        ai?: { 'GROQ APIs'?: string[] };
-      };
-      configuredKeys = settings.ai?.['GROQ APIs'] ?? [];
-    } catch {
-      configuredKeys = [];
-    }
-    const apiKey = configuredKeys.find((key) => key.trim())?.trim() || aiConfig.apiKey.trim();
-    if (!apiKey) {
-      setGeneratedTranslations((current) => ({
-        ...current,
-        [selectedLine.id]: 'Configure a GROQ API key in Settings → AI Providers to translate this passage.',
-      }));
-      return;
-    }
     setTranslationBusy(true);
     try {
-      const response = await fetch(`${aiConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: aiConfig.models.chat,
-          temperature: 0,
-          max_tokens: 700,
-          messages: [
-            { role: 'system', content: 'Translate the literary passage into natural, faithful English. Return only the translation.' },
-            { role: 'user', content: selectedLine.source },
-          ],
-        }),
+      const response = await runtimeKernel.completeWithForegroundTracking({
+        temperature: 0,
+        maxTokens: 700,
+        messages: [
+          { role: 'system', content: 'Translate the literary passage into natural, faithful English. Return only the translation.' },
+          { role: 'user', content: selectedLine.source },
+        ],
       });
-      if (!response.ok) throw new Error(`Translation returned HTTP ${response.status}`);
-      const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const translation = payload.choices?.[0]?.message?.content?.trim();
+      const translation = response.text.trim();
       if (!translation) throw new Error('Translation provider returned no text.');
       setGeneratedTranslations((current) => ({ ...current, [selectedLine.id]: translation }));
     } catch (translationError) {
