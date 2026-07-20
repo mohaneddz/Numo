@@ -1,5 +1,6 @@
 import type { ImmersionResource } from '../pages/Immerse/immersionCatalog';
 import { resolveBookCover } from './bookContentService';
+import { requireOnline } from './localRuntimeSettings';
 
 const CACHE_KEY = 'numo_audio_artwork_v1';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -84,6 +85,7 @@ async function resolveArtwork(resource: ImmersionResource): Promise<ResolvedAudi
   const cache = readCache();
   const cached = cache.items[resource.id];
   if (cached?.artworkUrl) return cached;
+  requireOnline('Online audio artwork lookup');
 
   let resolved = await resolveFromITunes(resource);
   if (!resolved && resource.category === 'Public-Domain Audiobooks') {

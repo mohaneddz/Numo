@@ -14,6 +14,7 @@ import type {
   CardBackgroundSelection,
   ScoredBackgroundCandidate,
 } from './types';
+import { isOnlineMode } from '../localRuntimeSettings';
 
 const CACHE_DIR = 'background-cache';
 const ASSETS_DIR = `${CACHE_DIR}/assets`;
@@ -76,6 +77,7 @@ function buildFallback(request: BackgroundImageRequest): CardBackgroundSelection
 }
 
 async function fetchBinary(url: string, signal?: AbortSignal): Promise<Uint8Array | null> {
+  if (!isOnlineMode()) return null;
   try {
     const response = await fetch(url, { signal });
     if (!response.ok) return null;
