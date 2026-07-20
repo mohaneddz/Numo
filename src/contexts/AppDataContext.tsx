@@ -12,6 +12,7 @@ import type { EvidenceRecord } from '../persistence';
 import { useProfileSession } from './ProfileSessionContext';
 import { useLanguage } from './LanguageContext';
 import { evaluateLearnTaskSubmission, type LearnGradingMode } from '../services/learningPlanService';
+import { mirrorNotebookEntry } from '../services/noteMirrorService';
 import type { TaskType } from '../types/learningPlan';
 
 export type ReviewMode = 'due-now' | 'weak' | 'mistakes' | 'cram';
@@ -667,6 +668,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setState((previous) => ({ ...previous, notebookEntries: [newEntry, ...previous.notebookEntries] }));
+    void mirrorNotebookEntry(newEntry).catch((error) => {
+      console.error('Failed to mirror notebook entry to the notes folder', error);
+    });
     if (engine) {
       void (async () => {
         try {

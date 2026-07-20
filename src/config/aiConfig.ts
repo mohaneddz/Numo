@@ -23,4 +23,29 @@ export const aiConfig: RuntimeConfig = {
   },
 };
 
-export const hasGroqKey = aiConfig.apiKey.length > 0;
+export function getConfiguredGroqApiKeys(): string[] {
+  let savedKeys: string[] = [];
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const settings = JSON.parse(localStorage.getItem('noema_settings_state_v1') ?? '{}') as {
+        ai?: { 'GROQ APIs'?: unknown };
+      };
+      if (Array.isArray(settings.ai?.['GROQ APIs'])) {
+        savedKeys = settings.ai['GROQ APIs']
+          .map((entry) => String(entry ?? '').trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // Ignore malformed settings and retain the environment fallback.
+    }
+  }
+  return Array.from(new Set([...savedKeys, aiConfig.apiKey].filter(Boolean)));
+}
+
+export function getActiveGroqApiKey(): string {
+  return getConfiguredGroqApiKeys()[0] ?? '';
+}
+
+export function hasGroqKey(): boolean {
+  return getConfiguredGroqApiKeys().length > 0;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -30,19 +30,23 @@ import {
   TimerReset,
   Volume2,
   VolumeX,
+  Youtube,
 } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import {
   demoReading,
-  demoTranscript,
   getImmersionResource,
   immersionResources,
   type ImmersionResource,
   type TranscriptLine,
 } from './immersionCatalog';
-import { getCachedYouTubeMetadata } from '../../services/youtubeService';
+import {
+  getCachedYouTubeMetadata,
+  loadYouTubeMetadata,
+  type YouTubeResourceMetadata,
+} from '../../services/youtubeService';
 import { loadBookText, type ResolvedBook } from '../../services/bookContentService';
-import { aiConfig } from '../../config/aiConfig';
+import { runtimeKernel } from '../../runtime/runtimeKernel';
 import {
   getCachedAudioArtwork,
   loadAudioArtwork,
@@ -51,6 +55,10 @@ import {
 import CachedMediaImage from '../../components/ui/CachedMediaImage';
 import NaturalReadingExperience from './ReadingExperience';
 import { getLocalBook, localBookToResource } from '../../services/localBookService';
+import YouTubePlayer, {
+  type YouTubePlayerHandle,
+} from '../../components/media/YouTubePlayer';
+import { loadYouTubeTranscript } from '../../services/youtubeTranscriptService';
 
 const highlightStyles = {
   violet: 'border-[#8B5CF6]/45 bg-[#8B5CF6]/15',
@@ -70,6 +78,27 @@ const readerFonts = {
   mono: '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
 };
 
+const unavailableCaptionLine: TranscriptLine = {
+  id: 'captions-unavailable',
+  start: 0,
+  time: '0:00',
+  source: 'No public captions are available for this stream.',
+  translation: '',
+  explanation: 'Playback remains available through the original YouTube source.',
+  vocabulary: [],
+};
+
+function formatPlaybackTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
+  const wholeSeconds = Math.floor(seconds);
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const remainder = wholeSeconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+    : `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
 function DetailActions() {
   return (
     <PageActions>
@@ -87,11 +116,13 @@ function TranscriptPanel({
   activeIndex,
   showTranslation,
   onSelect,
+  status,
 }: {
   lines: TranscriptLine[];
   activeIndex: number;
   showTranslation: boolean;
   onSelect: (index: number) => void;
+  status?: string;
 }) {
   return (
     <aside className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#0B1020]/88">
@@ -113,6 +144,13 @@ function TranscriptPanel({
       </div>
 
       <div className="max-h-[470px] flex-1 space-y-1 overflow-y-auto p-2">
+        {lines.length === 0 && (
+          <div className="flex min-h-48 items-center justify-center p-5 text-center">
+            <p className="max-w-56 text-[11px] leading-relaxed text-dim">
+              {status || 'No public caption track is available for this source.'}
+            </p>
+          </div>
+        )}
         {lines.map((line, index) => {
           const active = index === activeIndex;
           return (
@@ -151,10 +189,14 @@ function CurrentLineTools({
   line,
   saved,
   onSave,
+  onReplay,
+  onSlowPlayback,
 }: {
   line: TranscriptLine;
   saved: boolean;
   onSave: () => void;
+  onReplay: () => void;
+  onSlowPlayback: () => void;
 }) {
   return (
     <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -175,10 +217,10 @@ function CurrentLineTools({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white">
+          <button type="button" onClick={onReplay} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white">
             <Repeat2 size={13} /> Replay line
           </button>
-          <button type="button" className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white">
+          <button type="button" onClick={onSlowPlayback} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white">
             <Gauge size={13} /> Slow playback
           </button>
           <button
@@ -220,7 +262,10 @@ function CurrentLineTools({
 
 function MediaExperience({ resource }: { resource: ImmersionResource }) {
   const isVideo = resource.kind === 'video';
-  const youtube = isVideo ? getCachedYouTubeMetadata(resource.id) : null;
+  const [youtube, setYoutube] = useState<YouTubeResourceMetadata | null>(
+    () => getCachedYouTubeMetadata(resource.id),
+  );
+  const playerRef = useRef<YouTubePlayerHandle | null>(null);
   const [audioArtwork, setAudioArtwork] = useState<ResolvedAudioArtwork | null>(
     isVideo ? null : getCachedAudioArtwork(resource.id),
   );
@@ -233,13 +278,18 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
   const [loopLine, setLoopLine] = useState(false);
   const [followTranscript, setFollowTranscript] = useState(true);
   const [sleepTimer, setSleepTimer] = useState('Off');
-  const activeLine = demoTranscript[activeIndex];
+  const [streamCurrentSeconds, setStreamCurrentSeconds] = useState(0);
+  const [streamDurationSeconds, setStreamDurationSeconds] = useState(0);
+  const [transcriptLines, setTranscriptLines] = useState<TranscriptLine[]>([]);
+  const [transcriptStatus, setTranscriptStatus] = useState('Waiting for a streaming source…');
+  const activeLine = transcriptLines[activeIndex] ?? unavailableCaptionLine;
+  const lineCount = Math.max(1, transcriptLines.length);
 
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || youtube) return;
     const timer = window.setInterval(() => {
       setActiveIndex((current) => {
-        if (current >= demoTranscript.length - 1) {
+        if (current >= lineCount - 1) {
           setIsPlaying(false);
           return current;
         }
@@ -247,13 +297,19 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
       });
     }, 3600 / playbackRate);
     return () => window.clearInterval(timer);
-  }, [isPlaying, loopLine, playbackRate]);
+  }, [isPlaying, lineCount, loopLine, playbackRate, youtube]);
 
-  const progress = ((activeIndex + 1) / demoTranscript.length) * 100;
+  const progress = youtube && streamDurationSeconds > 0
+    ? (streamCurrentSeconds / streamDurationSeconds) * 100
+    : ((activeIndex + 1) / lineCount) * 100;
   const waveform = [22, 40, 65, 36, 78, 52, 88, 44, 68, 30, 74, 48, 92, 60, 35, 70, 50, 82, 42, 64, 28, 56, 76, 46, 66, 38, 85, 54, 72, 32];
   const audioQueue = immersionResources
     .filter((item) => item.kind === 'audio' && item.id !== resource.id)
     .slice(0, 3);
+
+  useEffect(() => {
+    setAudioArtwork(isVideo ? null : getCachedAudioArtwork(resource.id));
+  }, [isVideo, resource.id]);
 
   useEffect(() => {
     if (isVideo || audioArtwork) return;
@@ -261,6 +317,102 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
       setAudioArtwork(resolved[resource.id] ?? null);
     });
   }, [audioArtwork, isVideo, resource]);
+
+  useEffect(() => {
+    const cached = getCachedYouTubeMetadata(resource.id);
+    if (cached) {
+      setYoutube(cached);
+      return;
+    }
+    setYoutube(null);
+    setIsPlaying(false);
+    setStreamCurrentSeconds(0);
+    setStreamDurationSeconds(0);
+    void loadYouTubeMetadata([resource])
+      .then((metadata) => setYoutube(metadata[resource.id] ?? null))
+      .catch(() => setYoutube(null));
+  }, [resource]);
+
+  useEffect(() => {
+    if (!youtube) return;
+    let cancelled = false;
+    setTranscriptStatus('Loading public YouTube captions…');
+    setTranscriptLines([]);
+    setActiveIndex(0);
+    void loadYouTubeTranscript(youtube.videoId)
+      .then((lines) => {
+        if (cancelled) return;
+        setTranscriptLines(lines);
+        setTranscriptStatus(
+          lines.length > 0
+            ? `${lines.length} real caption lines loaded.`
+            : 'This source does not expose a public Spanish or English caption track.',
+        );
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setTranscriptStatus(error instanceof Error ? error.message : 'Could not load public captions.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [youtube]);
+
+  useEffect(() => {
+    const minutes = Number.parseInt(sleepTimer, 10);
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    const timer = window.setTimeout(() => {
+      playerRef.current?.pause();
+      setIsPlaying(false);
+      setSleepTimer('Off');
+    }, minutes * 60 * 1000);
+    return () => window.clearTimeout(timer);
+  }, [sleepTimer]);
+
+  const handleStreamProgress = useCallback((currentSeconds: number, durationSeconds: number) => {
+    setStreamCurrentSeconds(currentSeconds);
+    setStreamDurationSeconds(durationSeconds);
+    if (durationSeconds <= 0 || transcriptLines.length === 0) return;
+    const nextLine = transcriptLines[activeIndex + 1];
+    if (loopLine && nextLine && currentSeconds >= nextLine.start) {
+      playerRef.current?.seekTo(transcriptLines[activeIndex].start);
+      return;
+    }
+    if (!followTranscript) return;
+    let nextIndex = 0;
+    for (let index = 0; index < transcriptLines.length; index += 1) {
+      if (transcriptLines[index].start > currentSeconds) break;
+      nextIndex = index;
+    }
+    setActiveIndex(nextIndex);
+  }, [activeIndex, followTranscript, loopLine, transcriptLines]);
+
+  const handlePlayingChange = useCallback((playing: boolean) => {
+    setIsPlaying(playing);
+  }, []);
+
+  const togglePlayback = () => {
+    if (!youtube) {
+      setIsPlaying((current) => !current);
+      return;
+    }
+    if (isPlaying) playerRef.current?.pause();
+    else playerRef.current?.play();
+  };
+
+  const seekToFraction = (fraction: number) => {
+    if (youtube) playerRef.current?.seekToFraction(fraction);
+    setActiveIndex(Math.min(
+      lineCount - 1,
+      Math.floor(fraction * lineCount),
+    ));
+  };
+
+  const selectTranscriptLine = (index: number) => {
+    setActiveIndex(index);
+    if (youtube) playerRef.current?.seekTo(transcriptLines[index]?.start ?? 0);
+  };
 
   return (
     <PageContent width="wide" className="pb-16">
@@ -300,21 +452,23 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
           {isVideo ? (
             <div className={`relative aspect-video overflow-hidden bg-gradient-to-br ${resource.accent}`}>
               {youtube && (
-                <CachedMediaImage
-                  src={youtube.thumbnailUrl}
-                  fallbackUrls={[`https://i.ytimg.com/vi/${youtube.videoId}/hqdefault.jpg`]}
-                  alt=""
-                  eager
-                  className="absolute inset-0 h-full w-full object-cover"
+                <YouTubePlayer
+                  ref={playerRef}
+                  videoId={youtube.videoId}
+                  volume={volume}
+                  playbackRate={playbackRate}
+                  onPlayingChange={handlePlayingChange}
+                  onProgress={handleStreamProgress}
+                  className="absolute inset-0 h-full w-full"
                 />
               )}
-              {youtube && <div className="absolute inset-0 bg-black/30" />}
+              {youtube && <div className="pointer-events-none absolute inset-0 bg-black/15" />}
               <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_30%_30%,rgba(255,255,255,.3),transparent_2px)] [background-size:34px_34px]" />
               <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 to-transparent" />
               <button
                 type="button"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
-                onClick={() => setIsPlaying((current) => !current)}
+                onClick={togglePlayback}
                 className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white shadow-[0_15px_50px_rgba(0,0,0,0.35)] backdrop-blur-md transition-transform hover:scale-105"
               >
                 {isPlaying ? <Pause size={25} fill="currentColor" /> : <Play size={25} fill="currentColor" className="ml-1" />}
@@ -367,7 +521,7 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
                     <button
                       type="button"
                       aria-label={`Seek to ${Math.round((index / waveform.length) * 100)} percent`}
-                      onClick={() => setActiveIndex(Math.min(demoTranscript.length - 1, Math.floor((index / waveform.length) * demoTranscript.length)))}
+                      onClick={() => seekToFraction(index / waveform.length)}
                       key={`${height}-${index}`}
                       className={`w-1.5 rounded-full transition-colors hover:bg-white ${reached ? 'bg-cyan-200 shadow-[0_0_10px_rgba(165,243,252,0.4)]' : 'bg-white/15'} ${isPlaying ? 'audio-bar-dance' : ''}`}
                       style={{ height: `${height}%`, animationDelay: `${index * -55}ms`, animationDuration: `${650 + (index % 5) * 100}ms` }}
@@ -376,6 +530,25 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
                 })}
               </div>
               <p className="relative mt-3 max-w-2xl text-center text-[12px] leading-relaxed text-white/75">{activeLine.source}</p>
+              {youtube && (
+                <div className="relative mt-6 w-full max-w-lg overflow-hidden rounded-2xl border border-white/15 bg-black/35 shadow-[0_20px_55px_rgba(0,0,0,0.38)] backdrop-blur-md">
+                  <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                    <span className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.15em] text-white/65">
+                      <Youtube size={13} className="text-red-400" /> Streaming source
+                    </span>
+                    <span className="max-w-[65%] truncate text-[9px] font-semibold text-white/45">{youtube.channel}</span>
+                  </div>
+                  <YouTubePlayer
+                    ref={playerRef}
+                    videoId={youtube.videoId}
+                    volume={volume}
+                    playbackRate={playbackRate}
+                    onPlayingChange={handlePlayingChange}
+                    onProgress={handleStreamProgress}
+                    className="aspect-video w-full"
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -386,30 +559,50 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
             <div className="mt-4 flex items-center justify-between">
               <span className="w-20 text-[10px] font-bold text-dim">{activeLine.time}</span>
               <div className="flex items-center gap-3">
-                <button type="button" title="Replay previous line" onClick={() => setActiveIndex(Math.max(0, activeIndex - 1))} className="text-dim hover:text-white">
+                <button
+                  type="button"
+                  title="Replay previous line"
+                  onClick={() => {
+                    if (youtube) playerRef.current?.seekBy(-8);
+                    else setActiveIndex(Math.max(0, activeIndex - 1));
+                  }}
+                  className="text-dim hover:text-white"
+                >
                   <SkipBack size={17} />
                 </button>
                 {!isVideo && (
-                  <button type="button" title="Back 15 seconds" onClick={() => setActiveIndex(Math.max(0, activeIndex - 2))} className="rounded-full px-1 text-[9px] font-black text-dim hover:text-white">15</button>
+                  <button type="button" title="Back 15 seconds" onClick={() => youtube ? playerRef.current?.seekBy(-15) : setActiveIndex(Math.max(0, activeIndex - 2))} className="rounded-full px-1 text-[9px] font-black text-dim hover:text-white">15</button>
                 )}
                 <button
                   type="button"
                   aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
-                  onClick={() => setIsPlaying((current) => !current)}
+                  onClick={togglePlayback}
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-[#8B5CF6] text-white shadow-[0_8px_24px_rgba(139,92,246,0.3)]"
                 >
                   {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
                 </button>
                 {!isVideo && (
-                  <button type="button" title="Forward 15 seconds" onClick={() => setActiveIndex(Math.min(demoTranscript.length - 1, activeIndex + 2))} className="rounded-full px-1 text-[9px] font-black text-dim hover:text-white">15</button>
+                  <button type="button" title="Forward 15 seconds" onClick={() => youtube ? playerRef.current?.seekBy(15) : setActiveIndex(Math.min(lineCount - 1, activeIndex + 2))} className="rounded-full px-1 text-[9px] font-black text-dim hover:text-white">15</button>
                 )}
-                <button type="button" title="Next line" onClick={() => setActiveIndex(Math.min(demoTranscript.length - 1, activeIndex + 1))} className="text-dim hover:text-white">
+                <button
+                  type="button"
+                  title="Next line"
+                  onClick={() => {
+                    if (youtube) playerRef.current?.seekBy(8);
+                    else setActiveIndex(Math.min(lineCount - 1, activeIndex + 1));
+                  }}
+                  className="text-dim hover:text-white"
+                >
                   <SkipForward size={17} />
                 </button>
               </div>
               <div className="flex w-20 items-center justify-end gap-2 text-dim">
                 {volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                <span className="text-[10px] font-bold">{resource.duration}</span>
+                <span className="text-[10px] font-bold">
+                  {youtube
+                    ? formatPlaybackTime(streamDurationSeconds || youtube.durationSeconds || 0)
+                    : resource.duration}
+                </span>
               </div>
             </div>
             {!isVideo && (
@@ -437,7 +630,10 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
                   <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Transcript follow</span>
                   <span className={`mt-1 block text-[11px] font-black ${followTranscript ? 'text-cyan-200' : 'text-white'}`}>{followTranscript ? 'Following' : 'Manual'}</span>
                 </button>
-                <button type="button" onClick={() => setActiveIndex(0)} className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2 text-left hover:border-violet-400/35">
+                <button type="button" onClick={() => {
+                  if (youtube) playerRef.current?.seekToFraction(0);
+                  setActiveIndex(0);
+                }} className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2 text-left hover:border-violet-400/35">
                   <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Playback</span>
                   <span className="mt-1 flex items-center gap-1.5 text-[11px] font-black text-white"><Shuffle size={12} /> Restart</span>
                 </button>
@@ -456,17 +652,28 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
         </section>
 
         <TranscriptPanel
-          lines={demoTranscript}
+          lines={transcriptLines}
           activeIndex={activeIndex}
           showTranslation={showTranslation}
-          onSelect={setActiveIndex}
+          onSelect={selectTranscriptLine}
+          status={transcriptStatus}
         />
       </div>
 
-      <div className="mt-5">
+      {transcriptLines.length > 0 && <div className="mt-5">
         <CurrentLineTools
           line={activeLine}
           saved={savedLines.includes(activeLine.id)}
+          onReplay={() => {
+            if (youtube) {
+              playerRef.current?.seekTo(activeLine.start);
+              playerRef.current?.play();
+            }
+          }}
+          onSlowPlayback={() => {
+            setPlaybackRate(0.75);
+            playerRef.current?.setPlaybackRate(0.75);
+          }}
           onSave={() =>
             setSavedLines((current) =>
               current.includes(activeLine.id)
@@ -475,7 +682,7 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
             )
           }
         />
-      </div>
+      </div>}
 
       {!isVideo && (
         <section className="mt-5 rounded-[24px] border border-white/10 bg-[#0B1020]/82 p-5">
@@ -573,50 +780,20 @@ export function ReadingExperience({ resource }: { resource: ImmersionResource })
   const translateSelection = async () => {
     setShowTranslation(true);
     if (selectedLine.translation || generatedTranslations[selectedLine.id]) return;
-    let configuredKeys: string[] = [];
-    try {
-      const settings = JSON.parse(localStorage.getItem('noema_settings_state_v1') || '{}') as {
-        ai?: { 'GROQ APIs'?: string[] };
-      };
-      configuredKeys = settings.ai?.['GROQ APIs'] ?? [];
-    } catch {
-      configuredKeys = [];
-    }
-    const apiKey = configuredKeys.find((key) => key.trim())?.trim() || aiConfig.apiKey.trim();
-    if (!apiKey) {
-      setGeneratedTranslations((current) => ({
-        ...current,
-        [selectedLine.id]: 'Configure a GROQ API key in Settings → AI Providers to translate this passage.',
-      }));
-      return;
-    }
-
     setTranslationBusy(true);
     try {
-      const response = await fetch(`${aiConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: aiConfig.models.chat,
-          temperature: 0,
-          max_tokens: 700,
-          messages: [
-            {
-              role: 'system',
-              content: 'Translate the Spanish literary passage into natural, faithful English. Return only the translation.',
-            },
-            { role: 'user', content: selectedLine.source },
-          ],
-        }),
+      const response = await runtimeKernel.completeWithForegroundTracking({
+        temperature: 0,
+        maxTokens: 700,
+        messages: [
+          {
+            role: 'system',
+            content: 'Translate the literary passage into natural, faithful English. Return only the translation.',
+          },
+          { role: 'user', content: selectedLine.source },
+        ],
       });
-      if (!response.ok) throw new Error(`Translation returned HTTP ${response.status}`);
-      const payload = await response.json() as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const translation = payload.choices?.[0]?.message?.content?.trim();
+      const translation = response.text.trim();
       if (!translation) throw new Error('Translation provider returned no text.');
       setGeneratedTranslations((current) => ({ ...current, [selectedLine.id]: translation }));
     } catch (error) {

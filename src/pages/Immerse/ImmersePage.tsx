@@ -52,6 +52,16 @@ function durationInMinutes(duration: string): number {
     (minutes ? Number.parseFloat(minutes[1]) : 0);
 }
 
+function formatYouTubeDuration(seconds?: number, fallback = ''): string {
+  if (!seconds) return fallback;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+    : `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
 function ResourceCard({
   resource,
   youtube,
@@ -146,9 +156,9 @@ function ResourceCard({
             {youtube?.channel || audio?.creator || resource.author}
           </p>
         )}
-        <p className="mt-1 line-clamp-2 min-h-9 text-[11px] leading-relaxed text-dim">{resource.subtitle}</p>
+        <p className="mt-1 line-clamp-2 min-h-9 text-[11px] leading-relaxed text-dim">{youtube?.description || resource.subtitle}</p>
         <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-3 text-[10px] font-semibold text-dim">
-          <span className="flex items-center gap-1.5"><Clock3 size={11} /> {resource.duration}</span>
+          <span className="flex items-center gap-1.5"><Clock3 size={11} /> {formatYouTubeDuration(youtube?.durationSeconds, resource.duration)}</span>
           <span className="flex items-center gap-1 text-[#C4B5FD] opacity-0 transition-opacity group-hover:opacity-100">
             Open <ChevronRight size={12} />
           </span>
@@ -186,7 +196,10 @@ export default function ImmersePage() {
     };
   }, []);
 
-  const refreshYouTube = async (forceRefresh = false) => {
+  const refreshYouTube = async (
+    forceRefresh = false,
+    kind: 'video' | 'audio' = 'video',
+  ) => {
     const { apiKey } = getYouTubeConfiguration();
     if (!apiKey) {
       setYoutubeStatus('missing');
@@ -197,10 +210,10 @@ export default function ImmersePage() {
     setYoutubeError('');
     try {
       const metadata = await loadYouTubeMetadata(
-        immersionResources.filter((resource) => resource.kind === 'video'),
+        immersionResources.filter((resource) => resource.kind === kind),
         forceRefresh,
       );
-      setYoutubeMetadata(metadata);
+      setYoutubeMetadata((current) => ({ ...current, ...metadata }));
       setYoutubeStatus('connected');
     } catch (error) {
       setYoutubeStatus('error');
@@ -224,6 +237,7 @@ export default function ImmersePage() {
   useEffect(() => {
     if (activeTab !== 'audio' || audioArtworkStatus !== 'idle') return;
     setAudioArtworkStatus('loading');
+    void refreshYouTube(false, 'audio');
     void loadAudioArtwork(immersionResources.filter((resource) => resource.kind === 'audio'))
       .then(setAudioMetadata)
       .catch(() => setAudioMetadata({}))
@@ -236,19 +250,31 @@ export default function ImmersePage() {
       if (resource.kind !== activeTab) return false;
       if (levelFilter !== 'All' && resource.level !== levelFilter) return false;
       if (unstartedOnly && resource.progress > 0) return false;
-      const durationMinutes = durationInMinutes(resource.duration);
+      const durationMinutes = youtubeMetadata[resource.id]?.durationSeconds
+        ? youtubeMetadata[resource.id].durationSeconds! / 60
+        : durationInMinutes(resource.duration);
       if (lengthFilter === 'Short' && durationMinutes > 20) return false;
       if (lengthFilter === 'Medium' && (durationMinutes <= 20 || durationMinutes > 60)) return false;
       if (lengthFilter === 'Long' && durationMinutes <= 60) return false;
       if (!query) return true;
-      return `${resource.title} ${resource.author ?? ''} ${resource.subtitle} ${resource.category}`.toLowerCase().includes(query);
+      const youtube = youtubeMetadata[resource.id];
+      const audio = audioMetadata[resource.id];
+      return `${youtube?.title ?? resource.title} ${youtube?.channel ?? audio?.creator ?? resource.author ?? ''} ${resource.subtitle} ${resource.category}`
+        .toLowerCase()
+        .includes(query);
     });
-    if (sortMode === 'title') resources.sort((a, b) => a.title.localeCompare(b.title));
+    if (sortMode === 'title') {
+      resources.sort((a, b) =>
+        (youtubeMetadata[a.id]?.title ?? a.title).localeCompare(
+          youtubeMetadata[b.id]?.title ?? b.title,
+        ),
+      );
+    }
     if (sortMode === 'shortest') {
       resources.sort((a, b) => durationInMinutes(a.duration) - durationInMinutes(b.duration));
     }
     return resources;
-  }, [activeTab, allResources, lengthFilter, levelFilter, search, sortMode, unstartedOnly]);
+  }, [activeTab, allResources, audioMetadata, lengthFilter, levelFilter, search, sortMode, unstartedOnly, youtubeMetadata]);
 
   const sections = useMemo(() => {
     const categories = [...new Set(visibleResources.map((resource) => resource.category))];
@@ -454,16 +480,26 @@ export default function ImmersePage() {
 
             {activeTab === 'audio' && (
               <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.025] p-3">
-                <div className="flex items-center gap-3">
-                  <Headphones size={15} className="text-pink-300" />
-                  <div>
-                    <h3 className="text-[11px] font-black text-white">Audio artwork</h3>
-                    <p className="mt-0.5 text-[9px] text-dim">
-                      {audioArtworkStatus === 'loading'
-                        ? 'Resolving artwork...'
-                        : `${Object.keys(audioMetadata).length} covers resolved · Apple Podcasts and Open Library`}
-                    </p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Youtube size={15} className="text-red-400" />
+                    <div>
+                      <h3 className="text-[11px] font-black text-white">YouTube audio streams</h3>
+                      <p className="mt-0.5 text-[9px] text-dim">
+                        {youtubeStatus === 'loading'
+                          ? 'Resolving playable sources...'
+                          : `${immersionResources.filter((resource) => resource.kind === 'audio' && youtubeMetadata[resource.id]).length} streams · ${Object.keys(audioMetadata).length} covers`}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    disabled={youtubeStatus === 'loading'}
+                    onClick={() => void refreshYouTube(true, 'audio')}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 text-dim hover:text-white disabled:opacity-40"
+                  >
+                    <RefreshCw size={13} className={youtubeStatus === 'loading' ? 'animate-spin' : ''} />
+                  </button>
                 </div>
               </div>
             )}
