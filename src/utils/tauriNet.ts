@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { requireOnline } from '../services/localRuntimeSettings';
 
 function ensureHttpUrl(url: string): string {
   const parsed = new URL(url);
@@ -9,6 +10,7 @@ function ensureHttpUrl(url: string): string {
 }
 
 export async function fetch_text_with_fallback(url: string): Promise<string> {
+  requireOnline('Remote content');
   const normalized = ensureHttpUrl(url);
 
   if (isTauri()) {
@@ -28,6 +30,7 @@ export async function fetch_json_with_fallback<T>(url: string): Promise<T> {
 }
 
 export async function fetch_data_url_with_fallback(url: string): Promise<string> {
+  requireOnline('Remote media');
   const normalized = ensureHttpUrl(url);
 
   if (isTauri()) {

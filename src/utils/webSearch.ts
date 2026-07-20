@@ -1,4 +1,5 @@
 import { fetch_json_with_fallback, fetch_text_with_fallback } from "./tauriNet";
+import { requireOnline } from '../services/localRuntimeSettings';
 
 export type SearchDomain =
   | "web"
@@ -221,6 +222,7 @@ function sortResults<T extends SearchResult>(results: T[], query: string): T[] {
 }
 
 async function safeJsonFetch<T>(url: string): Promise<T | null> {
+  requireOnline('Web search');
   try {
     return await fetch_json_with_fallback<T>(url);
   } catch {

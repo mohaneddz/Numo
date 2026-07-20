@@ -1,4 +1,5 @@
 import type { ImmersionResource } from '../pages/Immerse/immersionCatalog';
+import { isOnlineMode, requireOnline } from './localRuntimeSettings';
 
 const SETTINGS_STORAGE_KEY = 'noema_settings_state_v1';
 const CACHE_STORAGE_KEY = 'numo_youtube_immersion_cache_v1';
@@ -15,7 +16,9 @@ interface YouTubeSearchItem {
   id?: { videoId?: string };
   snippet?: {
     title?: string;
+    description?: string;
     channelTitle?: string;
+    publishedAt?: string;
     thumbnails?: {
       maxres?: { url?: string };
       high?: { url?: string };
@@ -30,11 +33,22 @@ interface YouTubeSearchResponse {
   error?: { message?: string };
 }
 
+interface YouTubeVideosResponse {
+  items?: Array<{
+    id?: string;
+    contentDetails?: { duration?: string };
+  }>;
+  error?: { message?: string };
+}
+
 export interface YouTubeResourceMetadata {
   resourceId: string;
   videoId: string;
   title: string;
   channel: string;
+  description: string;
+  publishedAt?: string;
+  durationSeconds?: number;
   thumbnailUrl: string;
   watchUrl: string;
 }
@@ -55,8 +69,9 @@ function readSettings(): StoredSettings {
 
 export function getYouTubeConfiguration(): { apiKey: string; region: string } {
   const settings = readSettings();
+  const environmentKey = (import.meta.env.VITE_YOUTUBE_API_KEY ?? '').trim();
   return {
-    apiKey: settings.integrations?.['YouTube API Key']?.trim() ?? '',
+    apiKey: settings.integrations?.['YouTube API Key']?.trim() || environmentKey,
     region: settings.integrations?.['YouTube Region']?.trim() || 'US',
   };
 }
@@ -104,6 +119,7 @@ async function searchCategory(
   apiKey: string,
   region: string,
   category: string,
+  kind: ImmersionResource['kind'],
   count: number,
 ): Promise<YouTubeSearchItem[]> {
   const endpoint = new URL('https://www.googleapis.com/youtube/v3/search');
@@ -114,7 +130,12 @@ async function searchCategory(
   endpoint.searchParams.set('maxResults', String(Math.min(10, count)));
   endpoint.searchParams.set('regionCode', region);
   endpoint.searchParams.set('relevanceLanguage', 'es');
-  endpoint.searchParams.set('q', `Spanish ${category} authentic language`);
+  const query = kind === 'audio'
+    ? category === 'Public-Domain Audiobooks'
+      ? 'audiolibro completo español dominio público'
+      : `podcast español ${category} episodio`
+    : `Spanish ${category} authentic language`;
+  endpoint.searchParams.set('q', query);
   endpoint.searchParams.set('key', apiKey);
 
   const response = await fetch(endpoint.toString());
@@ -125,31 +146,76 @@ async function searchCategory(
   return payload.items ?? [];
 }
 
+function parseIsoDuration(duration?: string): number | undefined {
+  if (!duration) return undefined;
+  const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!match) return undefined;
+  return Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
+}
+
+async function loadVideoDurations(
+  apiKey: string,
+  videoIds: string[],
+): Promise<Record<string, number>> {
+  if (videoIds.length === 0) return {};
+  const endpoint = new URL('https://www.googleapis.com/youtube/v3/videos');
+  endpoint.searchParams.set('part', 'contentDetails');
+  endpoint.searchParams.set('id', videoIds.join(','));
+  endpoint.searchParams.set('key', apiKey);
+  const response = await fetch(endpoint.toString());
+  const payload = await response.json() as YouTubeVideosResponse;
+  if (!response.ok) {
+    throw new Error(payload.error?.message || `YouTube details returned HTTP ${response.status}`);
+  }
+  const durations: Record<string, number> = {};
+  for (const item of payload.items ?? []) {
+    const seconds = parseIsoDuration(item.contentDetails?.duration);
+    if (item.id && seconds !== undefined) durations[item.id] = seconds;
+  }
+  return durations;
+}
+
 export async function loadYouTubeMetadata(
-  videoResources: ImmersionResource[],
+  mediaResources: ImmersionResource[],
   forceRefresh = false,
 ): Promise<Record<string, YouTubeResourceMetadata>> {
   const { apiKey, region } = getYouTubeConfiguration();
   if (!apiKey) return {};
 
-  if (!forceRefresh) {
-    const cached = readCache(apiKey);
-    if (cached) return cached.resources;
-  }
+  const cached = readCache(apiKey);
+  const cachedResources = cached?.resources ?? {};
+  const missingResources = forceRefresh
+    ? mediaResources
+    : mediaResources.filter((resource) => !cachedResources[resource.id]);
+  if (missingResources.length === 0) return cachedResources;
+  if (!isOnlineMode()) return cachedResources;
 
-  const categories = [...new Set(videoResources.map((resource) => resource.category))];
+  const categoryGroups = [
+    ...new Map(
+      missingResources.map((resource) => [
+        `${resource.kind}:${resource.category}`,
+        { kind: resource.kind, category: resource.category },
+      ]),
+    ).values(),
+  ];
   const groupedResults = await Promise.allSettled(
-    categories.map(async (category) => {
-      const resources = videoResources.filter((resource) => resource.category === category);
-      const results = await searchCategory(apiKey, region, category, resources.length);
-      return { resources, results };
+    categoryGroups.map(async ({ kind, category }) => {
+      const resources = missingResources.filter(
+        (resource) => resource.kind === kind && resource.category === category,
+      );
+      const results = await searchCategory(apiKey, region, category, kind, resources.length);
+      const durations = await loadVideoDurations(
+        apiKey,
+        results.flatMap((item) => item.id?.videoId ? [item.id.videoId] : []),
+      ).catch((): Record<string, number> => ({}));
+      return { resources, results, durations };
     }),
   );
 
-  const resolved: Record<string, YouTubeResourceMetadata> = {};
+  const resolved: Record<string, YouTubeResourceMetadata> = { ...cachedResources };
   groupedResults.forEach((groupedResult) => {
     if (groupedResult.status !== 'fulfilled') return;
-    const { resources, results } = groupedResult.value;
+    const { resources, results, durations } = groupedResult.value;
     resources.forEach((resource, index) => {
       const item = results[index];
       const videoId = item?.id?.videoId;
@@ -165,13 +231,16 @@ export async function loadYouTubeMetadata(
         videoId,
         title: decodeYouTubeText(snippet?.title || resource.title),
         channel: decodeYouTubeText(snippet?.channelTitle || 'YouTube'),
+        description: decodeYouTubeText(snippet?.description || resource.subtitle),
+        publishedAt: snippet?.publishedAt,
+        durationSeconds: durations[videoId],
         thumbnailUrl,
         watchUrl: `https://www.youtube.com/watch?v=${videoId}`,
       };
     });
   });
 
-  if (Object.keys(resolved).length === 0) {
+  if (missingResources.every((resource) => !resolved[resource.id])) {
     const firstFailure = groupedResults.find(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
@@ -184,6 +253,7 @@ export async function loadYouTubeMetadata(
 }
 
 export async function validateYouTubeApiKey(apiKey: string): Promise<string> {
+  requireOnline('YouTube API validation');
   const endpoint = new URL('https://www.googleapis.com/youtube/v3/videos');
   endpoint.searchParams.set('part', 'id');
   endpoint.searchParams.set('id', 'dQw4w9WgXcQ');
