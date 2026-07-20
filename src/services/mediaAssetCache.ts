@@ -1,3 +1,5 @@
+import { isOnlineMode } from './localRuntimeSettings';
+
 const CACHE_NAME = 'numo-immersion-media-v1';
 const INDEX_KEY = 'numo_immersion_media_cache_index_v1';
 const MAX_ASSET_COUNT = 180;
@@ -77,6 +79,7 @@ async function resolvePersistentAsset(remoteUrl: string): Promise<string> {
 
   let response = await cache.match(remoteUrl);
   if (!response) {
+    if (!isOnlineMode()) throw new Error('Media asset is not available in the offline cache.');
     const fetched = await fetch(remoteUrl, {
       cache: 'force-cache',
       credentials: 'omit',
@@ -110,7 +113,7 @@ export async function getCachedMediaAssetUrl(remoteUrl: string): Promise<string>
   if (pending) return pending;
 
   const request = resolvePersistentAsset(normalized)
-    .catch(() => normalized)
+    .catch(() => isOnlineMode() ? normalized : '')
     .finally(() => pendingUrls.delete(normalized));
   pendingUrls.set(normalized, request);
   return request;
@@ -141,6 +144,9 @@ export async function clearImmersionMediaCache(): Promise<void> {
 
 export async function clearImmersionContentCaches(): Promise<void> {
   await clearImmersionMediaCache();
+  if (typeof caches !== 'undefined') {
+    await caches.delete('numo-youtube-transcripts-v1');
+  }
   if (typeof localStorage === 'undefined') return;
   localStorage.removeItem('numo_youtube_immersion_cache_v1');
   localStorage.removeItem('numo_public_domain_books_v2');

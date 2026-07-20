@@ -1,4 +1,5 @@
 import type { ImmersionResource, ReadingLine } from '../pages/Immerse/immersionCatalog';
+import { requireOnline } from './localRuntimeSettings';
 
 const CACHE_KEY = 'numo_public_domain_books_v2';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -134,6 +135,7 @@ export async function resolveBookCover(resource: ImmersionResource): Promise<Res
   const cache = readCache();
   const cached = cache.books[resource.id];
   if (cached?.coverUrl) return cached;
+  requireOnline('Online book lookup');
   const cover = await resolveCover(resource);
   const resolved: ResolvedBook = {
     resourceId: resource.id,
@@ -152,6 +154,7 @@ export async function resolveBook(resource: ImmersionResource): Promise<Resolved
   const cache = readCache();
   const cached = cache.books[resource.id];
   if (cached?.coverUrl && cached?.textUrl) return cached;
+  requireOnline('Online book lookup');
 
   const [coverResult, gutenbergResult] = await Promise.allSettled([
     resolveCover(resource),
@@ -180,6 +183,7 @@ export async function loadBookText(resource: ImmersionResource): Promise<Resolve
   const resolved = await resolveBook(resource);
   if (resolved.lines?.length) return resolved;
   if (!resolved.textUrl) return resolved;
+  requireOnline('Online book download');
 
   const response = await fetch(resolved.textUrl);
   if (!response.ok) throw new Error(`Book text returned HTTP ${response.status}`);
