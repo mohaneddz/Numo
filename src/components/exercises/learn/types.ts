@@ -23,6 +23,13 @@ export interface LearnTaskPayload {
   groups?: LearnGroup[];
   statement?: string;
   audioText?: string;
+  /**
+   * Wrong answers for option-based exercises.
+   *
+   * These are NOT hints. They were previously piped straight into `HintSection`,
+   * which showed the learner every wrong answer under a lightbulb. Hints now come
+   * from `teachingNote` / `translation` / the answer's shape instead.
+   */
   distractors?: string[];
   imageUrl?: string;
   imageAlt?: string;
@@ -30,12 +37,20 @@ export interface LearnTaskPayload {
   romanization?: string;
   partOfSpeech?: string;
   example?: string;
+  /** One-line English explanation of the point being taught. */
+  teachingNote?: string;
+  /** Stable seed so shuffles do not move under the learner between renders. */
+  taskSeed?: string;
 }
 
 export interface LearnExerciseProps {
   payload: LearnTaskPayload;
   disabled: boolean;
   onDraftChange: (draft: ExerciseDraft) => void;
+  /** Reports hint levels opened, so grading and scheduling can account for support. */
+  onHintLevelOpened?: (level: number) => void;
+  /** Reports audio replays, as a signal of listening difficulty. */
+  onAudioReplay?: (playCount: number) => void;
 }
 
 export interface LearnExerciseRegistration {
@@ -75,4 +90,20 @@ export function asGroups(value: unknown): LearnGroup[] {
       return { name, items };
     })
     .filter((item): item is LearnGroup => Boolean(item));
+}
+
+/** Shared props for the hint block, assembled from whichever payload fields exist. */
+export function hintPropsFor(payload: LearnTaskPayload) {
+  return {
+    expectedAnswer: payload.expectedText ?? payload.correctOption ?? '',
+    languageCode: payload.languageCode,
+    teachingNote: payload.teachingNote,
+    translation: payload.translation,
+    romanization: payload.romanization,
+  };
+}
+
+/** Stable per-task seed for shuffles. Falls back to the task's own content. */
+export function seedFor(payload: LearnTaskPayload): string {
+  return payload.taskSeed ?? `${payload.promptText ?? ''}|${payload.expectedText ?? payload.correctOption ?? ''}`;
 }

@@ -24,17 +24,27 @@ import { PairMatchExercise } from './base/PairMatchExercise';
 import { TextEntryExercise } from './base/TextEntryExercise';
 import { asGroups, asPairs, asStringArray, type LearnExerciseRegistry, type LearnTaskPayload } from './types';
 
+/** Fields every exercise can use, carried through from the generated content. */
+function commonFields(raw: Record<string, unknown>, fallback: LearnTaskPayload): Partial<LearnTaskPayload> {
+  return {
+    imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : fallback.imageUrl,
+    imageAlt: typeof raw.imageAlt === 'string' ? raw.imageAlt : fallback.imageAlt,
+    audioText: typeof raw.audioText === 'string' ? raw.audioText : fallback.audioText,
+    translation: typeof raw.translation === 'string' ? raw.translation : fallback.translation,
+    romanization: typeof raw.romanization === 'string' ? raw.romanization : fallback.romanization,
+    teachingNote: typeof raw.teachingNote === 'string' ? raw.teachingNote : fallback.teachingNote,
+  };
+}
+
 function normalizeTextPayload(raw: Record<string, unknown>, fallback: LearnTaskPayload): LearnTaskPayload | null {
   const promptText = typeof raw.promptText === 'string' ? raw.promptText.trim() : fallback.promptText;
   const expectedText = typeof raw.expectedText === 'string' ? raw.expectedText.trim() : fallback.expectedText;
   if (!promptText && !expectedText) return null;
   return {
     ...fallback,
+    ...commonFields(raw, fallback),
     promptText,
     expectedText,
-    imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : fallback.imageUrl,
-    imageAlt: typeof raw.imageAlt === 'string' ? raw.imageAlt : fallback.imageAlt,
-    audioText: typeof raw.audioText === 'string' ? raw.audioText : fallback.audioText,
   };
 }
 
@@ -42,24 +52,36 @@ function normalizeOptionPayload(raw: Record<string, unknown>, fallback: LearnTas
   const rawOptions = asStringArray(raw.options);
   const fallbackOptions = fallback.options ?? [];
   const merged = Array.from(new Set([...rawOptions, ...fallbackOptions])).filter(Boolean);
-  if (merged.length < 2) return null;
+  const correctOption = typeof raw.correctOption === 'string' && raw.correctOption.trim()
+    ? raw.correctOption.trim()
+    : fallback.correctOption;
+
+  // A choice needs a real field of candidates. Two options is a coin flip, and an
+  // option set that does not contain the answer is unanswerable.
+  if (merged.length < 3) return null;
+  if (correctOption && !merged.includes(correctOption)) return null;
+
   return {
     ...fallback,
+    ...commonFields(raw, fallback),
     options: merged,
-    imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : fallback.imageUrl,
-    imageAlt: typeof raw.imageAlt === 'string' ? raw.imageAlt : fallback.imageAlt,
-    audioText: typeof raw.audioText === 'string' ? raw.audioText : fallback.audioText,
-    correctOption: typeof raw.correctOption === 'string' && raw.correctOption.trim() ? raw.correctOption.trim() : fallback.correctOption,
+    correctOption,
   };
 }
 
 function normalizePairPayload(raw: Record<string, unknown>, fallback: LearnTaskPayload): LearnTaskPayload | null {
   const mergedPairs = asPairs(raw.pairs);
   const fallbackPairs = fallback.pairs ?? [];
-  const pairs = mergedPairs.length >= 2 ? mergedPairs : fallbackPairs;
-  if (pairs.length < 2) return null;
+  const candidate = mergedPairs.length >= 2 ? mergedPairs : fallbackPairs;
+
+  // A pair whose two sides are the same string answers itself, so drop those and
+  // only keep the task if enough real pairs remain.
+  const pairs = candidate.filter((pair) => pair.left.trim() !== pair.right.trim());
+  if (pairs.length < 3) return null;
+
   return {
     ...fallback,
+    ...commonFields(raw, fallback),
     pairs,
   };
 }
@@ -70,31 +92,28 @@ function normalizeTokenPayload(raw: Record<string, unknown>, fallback: LearnTask
   if (tokens.length === 0 && fallback.expectedText) {
     tokens = fallback.expectedText.split(/\s+/).filter(Boolean);
   }
-  if (tokens.length < 2) return null;
+  if (tokens.length < 3) return null;
   return {
     ...fallback,
+    ...commonFields(raw, fallback),
     tokens,
   };
 }
 
 function normalizeGroupPayload(raw: Record<string, unknown>, fallback: LearnTaskPayload): LearnTaskPayload | null {
   const parsed = asGroups(raw.groups);
-  if (parsed.length > 0) {
-    return {
-      ...fallback,
-      groups: parsed,
-    };
-  }
-  if ((fallback.groups ?? []).length > 0) return fallback;
-  const options = fallback.options ?? [];
-  if (options.length < 4) return null;
-  const midpoint = Math.ceil(options.length / 2);
+  const groups = parsed.length > 0 ? parsed : fallback.groups ?? [];
+
+  // Splitting an arbitrary word list into "Group A" and "Group B" was the old
+  // fallback. There is nothing to reason about in that task, so it is refused
+  // rather than manufactured.
+  if (groups.length < 2) return null;
+  if (groups.some((group) => group.items.length < 2)) return null;
+
   return {
     ...fallback,
-    groups: [
-      { name: 'Group A', items: options.slice(0, midpoint) },
-      { name: 'Group B', items: options.slice(midpoint) },
-    ],
+    ...commonFields(raw, fallback),
+    groups,
   };
 }
 
