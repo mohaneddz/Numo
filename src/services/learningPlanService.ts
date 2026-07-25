@@ -9,6 +9,7 @@ import type {
 import { completeWithEcho } from './aiProvider';
 import { applyLearnPolicy, type ExercisePolicyContext } from './exercises/exercisePolicy';
 import { resolveExerciseImage } from './exercises/exerciseMediaService';
+import { matchAnswer, stripTargetMarkers } from '../utils/textNormalize';
 
 export type LearnGradingMode = 'deterministic' | 'ai' | 'hybrid';
 
@@ -43,14 +44,6 @@ export interface LessonCatalogSnapshot {
   }>;
 }
 
-interface SyntheticLearnTaskSeed {
-  taskType: TaskType;
-  instruction: string;
-  prompt: string;
-  expectedAnswer: string;
-  distractors: string[];
-}
-
 interface GeneratedTaskVariant {
   templateId?: string;
   prompt?: string;
@@ -72,95 +65,6 @@ const OPEN_ENDED_TASKS = new Set<TaskType>([
   'listen_repeat',
   'explain_pronunciation_rule',
 ]);
-
-const GENERIC_COVERAGE_SEEDS: SyntheticLearnTaskSeed[] = [
-  {
-    taskType: 'greeting_response_select',
-    instruction: 'Choose the best greeting response.',
-    prompt: 'A learner says hello. Choose the most natural response.',
-    expectedAnswer: 'Hello! Nice to meet you.',
-    distractors: ['Good night yesterday.', 'I am a notebook.', 'Three buses quickly.'],
-  },
-  {
-    taskType: 'single_slot_fill',
-    instruction: 'Fill one missing slot.',
-    prompt: 'Complete this sentence: I ___ coffee every morning.',
-    expectedAnswer: 'drink',
-    distractors: ['table', 'green', 'window'],
-  },
-  {
-    taskType: 'image_word_recognition',
-    instruction: 'Choose the word that matches the image.',
-    prompt: 'Look at the image and pick the matching word.',
-    expectedAnswer: 'cat',
-    distractors: ['chair', 'river', 'market'],
-  },
-  {
-    taskType: 'sound_word_recognition',
-    instruction: 'Choose the written form that matches the audio.',
-    prompt: 'Listen and choose the matching word.',
-    expectedAnswer: 'thank you',
-    distractors: ['goodbye', 'tomorrow', 'library'],
-  },
-];
-
-const ZH_COVERAGE_SEEDS: SyntheticLearnTaskSeed[] = [
-  {
-    taskType: 'tone_pair_identify',
-    instruction: 'Identify the correct tone pattern.',
-    prompt: 'Choose the option with the correct pinyin tone pair for 你好.',
-    expectedAnswer: 'ni3 hao3',
-    distractors: ['ni2 hao2', 'ni4 hao1', 'ni1 hao4'],
-  },
-  {
-    taskType: 'radical_component_identify',
-    instruction: 'Identify the key component.',
-    prompt: 'Which option is the semantic component in 妈?',
-    expectedAnswer: '女',
-    distractors: ['口', '木', '心'],
-  },
-  {
-    taskType: 'character_reading_match',
-    instruction: 'Match character to reading.',
-    prompt: 'Match each character to the correct pinyin reading.',
-    expectedAnswer: '你 -> ni3',
-    distractors: ['我 -> wo3', '好 -> hao3', '妈 -> ma1'],
-  },
-];
-
-const JA_COVERAGE_SEEDS: SyntheticLearnTaskSeed[] = [
-  {
-    taskType: 'kana_confusion_select',
-    instruction: 'Choose the correct kana.',
-    prompt: 'Select the correct kana for the sound "ka".',
-    expectedAnswer: 'か',
-    distractors: ['き', 'け', 'カ'],
-  },
-  {
-    taskType: 'reading_character_match',
-    instruction: 'Match reading to character.',
-    prompt: 'Match each reading to the correct character.',
-    expectedAnswer: 'mizu -> 水',
-    distractors: ['ki -> 木', 'inu -> 犬', 'neko -> 猫'],
-  },
-  {
-    taskType: 'particle_choice',
-    instruction: 'Choose the correct particle.',
-    prompt: '私は水___飲みます。',
-    expectedAnswer: 'を',
-    distractors: ['は', 'に', 'で'],
-  },
-];
-
-function norm(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 function markTargetText(value: string): string {
   const trimmed = value.trim();
@@ -235,31 +139,33 @@ function mergePayload(base: Record<string, unknown>, generated: Record<string, u
 }
 
 function createFallbackPayload(taskType: TaskType, prompt: string, expectedAnswer: string, distractors: string[]): Record<string, unknown> {
-  const characterMatchTypes = new Set<TaskType>(['character_reading_match', 'reading_character_match']);
   const singleSlotTypes = new Set<TaskType>(['single_slot_fill', 'replace_wrong_character', 'okurigana_fill']);
   const expectedTokens = expectedAnswer.split(/\s+/).filter(Boolean);
+  // Option order is not decided here: the exercise component shuffles with a
+  // task-stable seed. Building the list answer-first used to put the correct
+  // answer on the first button of every multiple-choice question in the app.
   const options = Array.from(new Set([expectedAnswer, ...distractors])).slice(0, 4);
 
+  // Match and group tasks are deliberately not fabricated here.
+  //
+  // The previous fallbacks manufactured pairs as `"<prompt> 1" -> <answer>` and
+  // `"<distractor> 2" -> <distractor>`, so every pair could be matched by its
+  // trailing number without reading the words; the character-matching variant
+  // produced pairs whose left and right sides were identical. Group sorting split
+  // an arbitrary word list into "Category A" and "Category B", which has no
+  // correct answer to reason about.
+  //
+  // Returning an empty payload makes the registry's validation reject the task,
+  // which is the right outcome: a missing exercise is better than one that teaches
+  // the learner to match by index.
   if (
     taskType === 'match_word_meaning'
     || taskType === 'match_sentence_translation'
+    || taskType === 'character_reading_match'
+    || taskType === 'reading_character_match'
+    || taskType === 'group_words_topic'
   ) {
-    const leftTerms = [prompt, ...distractors.slice(0, 2)].map((item, index) => `${item} ${index + 1}`);
-    const rightTerms = [expectedAnswer, ...distractors.slice(0, 2)];
-    const pairs = leftTerms.map((left, index) => ({ left, right: rightTerms[index] ?? expectedAnswer }));
-    return { pairs };
-  }
-
-  if (taskType === 'group_words_topic') {
-    const allItems = Array.from(new Set([expectedAnswer, ...distractors])).slice(0, 6);
-    const midpoint = Math.ceil(allItems.length / 2);
-    return {
-      groups: [
-        { name: 'Category A', items: allItems.slice(0, midpoint) },
-        { name: 'Category B', items: allItems.slice(midpoint) },
-      ],
-      options: allItems,
-    };
+    return {};
   }
 
   if (taskType === 'reorder_sentence' || taskType === 'build_from_chunks') {
@@ -269,8 +175,11 @@ function createFallbackPayload(taskType: TaskType, prompt: string, expectedAnswe
   }
 
   if (taskType === 'choose_response' || taskType === 'choose_verb_form' || taskType === 'identify_context_meaning' || taskType === 'identify_sounds' || taskType === 'listen_choose_written') {
+    // No filler options. A short list is rejected by validation, which is correct;
+    // padding with "Alternative option" produced a question with one real answer
+    // and one obvious throwaway.
     return {
-      options: options.length >= 2 ? options : [expectedAnswer, 'Alternative option'],
+      options,
       correctOption: expectedAnswer,
     };
   }
@@ -287,20 +196,11 @@ function createFallbackPayload(taskType: TaskType, prompt: string, expectedAnswe
     || taskType === 'classifier_choice'
   ) {
     return {
-      options: options.length >= 2 ? options : [expectedAnswer, 'Alternative option'],
+      options,
       correctOption: expectedAnswer,
       promptText: prompt,
       expectedText: expectedAnswer,
       distractors,
-    };
-  }
-
-  if (characterMatchTypes.has(taskType)) {
-    return {
-      pairs: [
-        { left: expectedAnswer, right: expectedAnswer },
-        ...distractors.slice(0, 2).map((item, index) => ({ left: `${item} ${index + 1}`, right: item })),
-      ],
     };
   }
 
@@ -471,54 +371,6 @@ async function enrichTaskMedia(task: LearnTaskRuntime, languageCode: string): Pr
   return task;
 }
 
-function buildSyntheticLearnTask(
-  seed: SyntheticLearnTaskSeed,
-  context: { objectiveId: string; unitId: string; lessonId: string; suffix: number },
-): LearnTaskRuntime {
-  return withTaskMarkers({
-    templateId: `synthetic:${seed.taskType}:${context.suffix}`,
-    objectiveId: context.objectiveId,
-    unitId: context.unitId,
-    lessonId: context.lessonId,
-    taskType: seed.taskType,
-    instruction: seed.instruction,
-    prompt: seed.prompt,
-    expectedAnswer: seed.expectedAnswer,
-    distractors: seed.distractors,
-    gradingMode: defaultGradingMode(seed.taskType),
-    payload: createFallbackPayload(seed.taskType, seed.prompt, seed.expectedAnswer, seed.distractors),
-  });
-}
-
-function ensureLearnCoverage(
-  tasks: LearnTaskRuntime[],
-  languageCode: string,
-  context: { objectiveId: string; unitId: string; lessonId: string },
-): LearnTaskRuntime[] {
-  const existingTypes = new Set(tasks.map((task) => task.taskType));
-  const seeds = [
-    ...GENERIC_COVERAGE_SEEDS,
-    ...(languageCode === 'zh' ? ZH_COVERAGE_SEEDS : []),
-    ...(languageCode === 'ja' ? JA_COVERAGE_SEEDS : []),
-  ];
-
-  const additions: LearnTaskRuntime[] = [];
-  for (const seed of seeds) {
-    if (existingTypes.has(seed.taskType)) continue;
-    additions.push(
-      buildSyntheticLearnTask(seed, {
-        objectiveId: context.objectiveId,
-        unitId: context.unitId,
-        lessonId: context.lessonId,
-        suffix: additions.length + 1,
-      }),
-    );
-    existingTypes.add(seed.taskType);
-  }
-
-  return [...tasks, ...additions];
-}
-
 export async function getLessonCatalog(languageCode: string): Promise<LessonCatalogSnapshot> {
   const persistence = await initializePersistence();
   const language = await persistence.repositories.languages.getLanguageByCode(languageCode);
@@ -567,20 +419,19 @@ export async function createLessonSessionRuntime(input: {
     allTemplates.push(...templates);
   }
 
+  // Coverage padding used to happen here: a fixed list of English tasks ("I ___
+  // coffee every morning" → drink) plus Chinese and Japanese ones was appended to
+  // every session so that every exercise type appeared at least once. That served
+  // English content to learners of every other language. Exercise-type coverage is
+  // the session planner's job, driven by the learner's own skills.
   const runtimeTasks = await generateVariants(input.languageCode, allTemplates);
-  const objectiveId = selected.objectives[0]?.id ?? 'synthetic-objective';
-  const withCoverage = ensureLearnCoverage(runtimeTasks, input.languageCode, {
-    objectiveId,
-    unitId: selected.unit.id,
-    lessonId: selected.lesson.id,
-  });
-  const withCoverageMedia = await Promise.all(withCoverage.map((task) => enrichTaskMedia(task, input.languageCode)));
+  const withMedia = await Promise.all(runtimeTasks.map((task) => enrichTaskMedia(task, input.languageCode)));
   const policyContext: ExercisePolicyContext = input.policyContext ?? {
     languageCode: input.languageCode,
     level: 'beginner',
     difficulty: 'standard',
   };
-  const policyTasks = applyLearnPolicy(withCoverageMedia, policyContext);
+  const policyTasks = applyLearnPolicy(withMedia, policyContext);
   return {
     unit: selected.unit,
     lesson: selected.lesson,
@@ -589,23 +440,28 @@ export async function createLessonSessionRuntime(input: {
   };
 }
 
-export function evaluateLearnTaskAnswer(expectedAnswer: string, learnerAnswer: string): {
+export function evaluateLearnTaskAnswer(
+  expectedAnswer: string,
+  learnerAnswer: string,
+  languageCode?: string,
+): {
   isCorrect: boolean;
   score: number;
   feedback: string;
 } {
-  const expected = norm(expectedAnswer);
-  const actual = norm(learnerAnswer);
-  if (!actual) {
+  const match = matchAnswer(expectedAnswer, learnerAnswer, languageCode);
+
+  if (match.correct) {
+    return { isCorrect: true, score: match.score, feedback: match.note ?? 'Correct.' };
+  }
+  if (match.kind === 'empty') {
     return { isCorrect: false, score: 0, feedback: 'No answer submitted.' };
   }
-  if (expected === actual) {
-    return { isCorrect: true, score: 100, feedback: 'Correct.' };
-  }
-  if (expected.includes(actual) || actual.includes(expected)) {
-    return { isCorrect: true, score: 78, feedback: 'Close enough. Keep the full target form.' };
-  }
-  return { isCorrect: false, score: 25, feedback: `Expected: ${expectedAnswer}` };
+  return {
+    isCorrect: false,
+    score: match.score,
+    feedback: match.note ?? `Expected: ${stripTargetMarkers(expectedAnswer)}`,
+  };
 }
 
 function evaluateDeterministicTask(input: {
