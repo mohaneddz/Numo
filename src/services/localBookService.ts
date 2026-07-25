@@ -1,7 +1,7 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { readDir, readFile } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
-import type { ImmersionResource } from '../pages/Immerse/immersionCatalog';
+import { LOCAL_LANGUAGE_CODE, type ImmersionResource } from '../pages/Immerse/immersionCatalog';
 
 const BOOKS_FOLDER_KEY = 'numo_books_folder_v1';
 const LOCAL_BOOKS_KEY = 'numo_local_books_v1';
@@ -58,7 +58,10 @@ export function localBookToResource(book: LocalBook): ImmersionResource {
     level: 'Personal',
     duration: 'Local',
     accent: 'from-slate-500/45 via-indigo-800/25 to-[#0B1020]',
-    progress: 0,
+    // The app cannot know what language an imported file is in, so local books are
+    // marked with a sentinel and always shown. Hiding the learner's own file behind
+    // a language filter would be worse than showing it under the wrong language.
+    languageCode: LOCAL_LANGUAGE_CODE,
     tags: ['Local', book.format.toUpperCase()],
     author: 'Local library',
     sourceLabel: 'Books folder',

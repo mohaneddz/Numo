@@ -32,7 +32,7 @@ function resource(overrides: Partial<ImmersionResource>): ImmersionResource {
     level: 'B1',
     duration: '20 min',
     accent: 'from-blue-500 to-black',
-    progress: 0,
+    languageCode: 'es',
     tags: [],
     ...overrides,
   };
