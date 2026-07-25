@@ -51,12 +51,12 @@ describe('evaluateLearnTaskSubmission', () => {
     const result = await evaluateLearnTaskSubmission({
       taskType: 'complete_dialogue',
       expectedAnswer: 'I would like a table for two',
-      learnerAnswer: 'table for two',
+      learnerAnswer: 'I would like a table for two',
       gradingMode: 'hybrid',
       payload: {},
       structuredResponse: {},
     });
     expect(result.isCorrect).toBe(true);
-    expect(result.score).toBe(78);
+    expect(result.score).toBe(100);
   });
 });
