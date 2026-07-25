@@ -13,7 +13,7 @@ import { DropdownSelect } from '../components/ui/DropdownSelect';
 import { saveToDummyDataFile } from '../utils/saveDisk';
 import { initializePersistence } from '../persistence';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useCurriculum } from '../contexts/CurriculumContext';
+import { useCurriculumState } from '../hooks/useCurriculumState';
 import { useProfileSession } from '../contexts/ProfileSessionContext';
 import { useAppData } from '../contexts/AppDataContext';
 import { backgroundImageService } from '../services/backgrounds';
@@ -346,7 +346,7 @@ export default function SettingsPage() {
     const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
     const { state: appDataState } = useAppData();
     const { activeLanguage } = useLanguage();
-    const { recommendedCards } = useCurriculum();
+    const { selectedTheme } = useCurriculumState();
 
     useEffect(() => {
         const tabOpt = searchParams.get('tab');
@@ -1142,12 +1142,12 @@ export default function SettingsPage() {
                                                     languageCode: activeLanguage.code,
                                                     languageName: activeLanguage.name,
                                                     continueLearning: activeLanguage.continueLearning,
-                                                    recommended: recommendedCards.map((card) => ({
-                                                        id: card.id,
-                                                        title: card.title,
-                                                        description: card.description,
-                                                        type: card.type,
-                                                    })),
+                                                    recommended: [{
+                                                        id: selectedTheme.id,
+                                                        title: selectedTheme.title,
+                                                        description: selectedTheme.shortDescription,
+                                                        type: 'course',
+                                                    }],
                                                     includeGeneric: true,
                                                 });
                                             })

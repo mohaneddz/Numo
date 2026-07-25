@@ -8,7 +8,6 @@ import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
 
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AppDataProvider } from './contexts/AppDataContext';
-import { CurriculumProvider } from './contexts/CurriculumContext';
 import { RuntimeProvider } from './contexts/RuntimeContext';
 import { ProfileSessionProvider } from './contexts/ProfileSessionContext';
 import { LanguageJourneyProvider } from './contexts/LanguageJourneyContext';
@@ -24,13 +23,11 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       <LanguageProvider>
         <LanguageJourneyProvider>
           <AppDataProvider>
-            <CurriculumProvider>
               <RuntimeProvider>
                 <BrowserRouter>
                   <App />
                 </BrowserRouter>
               </RuntimeProvider>
-            </CurriculumProvider>
           </AppDataProvider>
         </LanguageJourneyProvider>
       </LanguageProvider>
