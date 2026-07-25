@@ -7,3 +7,4 @@ export * from './sessionPlanner';
 export * from './languageProfile';
 export * from './contentValidation';
 export * from './taskContentService';
+export * from './recommendationService';
