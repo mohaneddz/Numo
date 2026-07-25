@@ -6,6 +6,7 @@ import {
     FolderCog, Wifi, WifiOff, CheckCircle2
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { appLocalDataDir } from '@tauri-apps/api/path';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
@@ -17,7 +18,7 @@ import { useProfileSession } from '../contexts/ProfileSessionContext';
 import { useAppData } from '../contexts/AppDataContext';
 import { backgroundImageService } from '../services/backgrounds';
 import type { BackgroundMappingPreview, BackgroundValidationResult } from '../services/backgrounds';
-import { aiConfig } from '../config/aiConfig';
+import { aiConfig, getEffectiveAiConfig } from '../config/aiConfig';
 import { validateYouTubeApiKey } from '../services/youtubeService';
 import { clearImmersionContentCaches } from '../services/mediaAssetCache';
 import {
@@ -32,19 +33,24 @@ import {
     setConnectivityMode,
     setLocalRuntimePath,
     isOnlineMode,
+    scanLocalVoices,
+    type LocalVoiceModel,
     type LocalRuntimePathKey,
 } from '../services/localRuntimeSettings';
 import { mirrorNotebookEntry } from '../services/noteMirrorService';
+import { runtimeKernel } from '../runtime/runtimeKernel';
+import CachedMediaImage from '../components/ui/CachedMediaImage';
 
 interface SettingItem {
     label: string;
     description: string;
-    type: 'select' | 'toggle' | 'info' | 'secret' | 'media-cache' | 'groq-apis' | 'books-folder' | 'connectivity-mode' | 'local-path';
+    type: 'select' | 'text' | 'toggle' | 'info' | 'secret' | 'media-cache' | 'groq-apis' | 'books-folder' | 'connectivity-mode' | 'local-path';
     value: string | boolean | string[];
     options?: string[];
     pathKey?: LocalRuntimePathKey;
     directory?: boolean;
     extensions?: string[];
+    toolCandidates?: string[];
 }
 
 interface SettingsSection {
@@ -91,15 +97,13 @@ const settingsSections: SettingsSection[] = [
     {
         id: 'storage', title: 'Storage', icon: HardDrive, color: '#0ea5e9',
         settings: [
-            { label: 'Data Location', description: 'Where your learning data is stored', type: 'info', value: 'C:\\Users\\Alex\\AppData\\Numo' },
+            { label: 'Data Location', description: 'The operating-system application data directory used by Numo.', type: 'info', value: 'Loading…' },
             {
                 label: 'Books Folder',
                 description: 'EPUB and TXT books in this folder are imported into Immersion → Readings.',
                 type: 'books-folder',
                 value: '',
             },
-            { label: 'Used Space', description: 'Total space used by the app', type: 'info', value: '148 MB' },
-            { label: 'Cache Size', description: 'Temporary files and media cache', type: 'info', value: '23 MB' },
         ],
     },
     {
@@ -140,7 +144,7 @@ const settingsSections: SettingsSection[] = [
                 type: 'local-path',
                 value: readLocalRuntimeSettings().paths.llmExecutable,
                 pathKey: 'llmExecutable',
-                extensions: ['exe'],
+                toolCandidates: ['llama-cli', 'llama'],
             },
             {
                 label: 'Local LLM',
@@ -156,7 +160,7 @@ const settingsSections: SettingsSection[] = [
                 type: 'local-path',
                 value: readLocalRuntimeSettings().paths.whisperExecutable,
                 pathKey: 'whisperExecutable',
-                extensions: ['exe'],
+                toolCandidates: ['whisper-cli', 'whisper', 'main'],
             },
             {
                 label: 'Whisper Model',
@@ -172,7 +176,7 @@ const settingsSections: SettingsSection[] = [
                 type: 'local-path',
                 value: readLocalRuntimeSettings().paths.ffmpegExecutable,
                 pathKey: 'ffmpegExecutable',
-                extensions: ['exe'],
+                toolCandidates: ['ffmpeg'],
             },
             {
                 label: 'Piper Runner',
@@ -180,7 +184,7 @@ const settingsSections: SettingsSection[] = [
                 type: 'local-path',
                 value: readLocalRuntimeSettings().paths.piperExecutable,
                 pathKey: 'piperExecutable',
-                extensions: ['exe'],
+                toolCandidates: ['piper'],
             },
             {
                 label: 'Active Voice Model',
@@ -212,6 +216,17 @@ const settingsSections: SettingsSection[] = [
         id: 'ai', title: 'AI Providers', icon: Brain, color: '#22c55e',
         settings: [
             { label: 'GROQ APIs', description: 'Add one or more GROQ API keys and validate LLM/STT/TTS access.', type: 'groq-apis', value: [] },
+            { label: 'Groq Base URL', description: 'HTTPS OpenAI-compatible endpoint used by the online provider.', type: 'text', value: aiConfig.baseUrl },
+            { label: 'Online Chat Model', description: 'Model used for chat, generation, translation, and evaluation in Online mode.', type: 'text', value: aiConfig.models.chat },
+            { label: 'Online Speech Model', description: 'Model used for online speech recognition.', type: 'text', value: aiConfig.models.stt },
+            { label: 'Online Voice Model', description: 'Model used for online text-to-speech.', type: 'text', value: aiConfig.models.tts },
+            {
+                label: 'Online Voice',
+                description: 'Default voice used by the online text-to-speech model.',
+                type: 'select',
+                value: aiConfig.models.ttsVoice,
+                options: ['autumn', 'diana', 'hannah', 'austin', 'daniel', 'troy'],
+            },
         ],
     },
     {
@@ -323,6 +338,11 @@ export default function SettingsPage() {
     const [booksFolderBusy, setBooksFolderBusy] = useState(false);
     const [pathBusy, setPathBusy] = useState<string | null>(null);
     const [pathStatus, setPathStatus] = useState<Record<string, { ok: boolean; message: string }>>({});
+    const [localVoices, setLocalVoices] = useState<LocalVoiceModel[]>([]);
+    const [runtimeProbe, setRuntimeProbe] = useState<Record<string, {
+        tone: 'idle' | 'busy' | 'ok' | 'error';
+        message: string;
+    }>>({});
     const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
     const { state: appDataState } = useAppData();
     const { activeLanguage } = useLanguage();
@@ -348,12 +368,17 @@ export default function SettingsPage() {
             }
         }
         const initialState: Record<string, Record<string, any>> = {};
+        const runtimeSettings = readLocalRuntimeSettings();
         settingsSections.forEach(section => {
             initialState[section.id] = {};
             section.settings.forEach(setting => {
                 if (section.id === 'desktop' && setting.label === 'Keyboard Shortcuts') {
                     initialState[section.id][setting.label] =
                         savedState[section.id]?.[setting.label] ?? readKeyboardShortcutsEnabled();
+                } else if (section.id === 'models' && setting.label === 'Connection Mode') {
+                    initialState[section.id][setting.label] = runtimeSettings.connectivityMode;
+                } else if (section.id === 'models' && setting.pathKey) {
+                    initialState[section.id][setting.label] = runtimeSettings.paths[setting.pathKey];
                 } else {
                     initialState[section.id][setting.label] =
                         savedState[section.id]?.[setting.label] ?? setting.value;
@@ -384,6 +409,39 @@ export default function SettingsPage() {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settingsState));
     }, [settingsState]);
 
+    useEffect(() => {
+        void appLocalDataDir()
+            .then((path) => {
+                setSettingsState((previous) => ({
+                    ...previous,
+                    storage: {
+                        ...previous.storage,
+                        'Data Location': path,
+                    },
+                }));
+            })
+            .catch(() => {
+                setSettingsState((previous) => ({
+                    ...previous,
+                    storage: {
+                        ...previous.storage,
+                        'Data Location': 'Unavailable outside the desktop runtime',
+                    },
+                }));
+            });
+    }, []);
+
+    useEffect(() => {
+        const folder = String(settingsState.models?.['Voices Folder'] ?? '');
+        if (!folder) {
+            setLocalVoices([]);
+            return;
+        }
+        void scanLocalVoices(folder)
+            .then(setLocalVoices)
+            .catch(() => setLocalVoices([]));
+    }, [settingsState.models?.['Voices Folder']]);
+
     const updateSetting = (sectionId: string, label: string, value: any) => {
         if (sectionId === 'desktop' && label === 'Keyboard Shortcuts') {
             writeKeyboardShortcutsEnabled(Boolean(value));
@@ -399,13 +457,17 @@ export default function SettingsPage() {
                 setLocalRuntimePath(pathSetting.pathKey, String(value ?? ''));
             }
         }
-        setSettingsState(prev => ({
-            ...prev,
-            [sectionId]: {
-                ...prev[sectionId],
-                [label]: value
-            }
-        }));
+        setSettingsState(prev => {
+            const next = {
+                ...prev,
+                [sectionId]: {
+                    ...prev[sectionId],
+                    [label]: value
+                }
+            };
+            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
         const entry = {
             section: sectionId,
             label,
@@ -486,6 +548,137 @@ export default function SettingsPage() {
             }));
         } finally {
             setPathBusy(null);
+        }
+    };
+
+    const detectConfiguredTool = async (setting: SettingItem) => {
+        if (!setting.pathKey || !setting.toolCandidates?.length) return;
+        setPathBusy(setting.label);
+        try {
+            const detected = await invoke<string>('detect_local_tool', {
+                candidates: setting.toolCandidates,
+            });
+            updateSetting('models', setting.label, detected);
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: { ok: true, message: `Detected ${detected}` },
+            }));
+        } catch (error) {
+            setPathStatus((previous) => ({
+                ...previous,
+                [setting.label]: {
+                    ok: false,
+                    message: typeof error === 'string' ? error : 'No compatible tool was detected.',
+                },
+            }));
+        } finally {
+            setPathBusy(null);
+        }
+    };
+
+    const validateAllLocalPaths = async () => {
+        const modelSettings = settingsSections
+            .find((section) => section.id === 'models')
+            ?.settings.filter((setting) => setting.type === 'local-path') ?? [];
+        setPathBusy('__all__');
+        const nextStatus: Record<string, { ok: boolean; message: string }> = {};
+        for (const setting of modelSettings) {
+            const path = String(settingsState.models?.[setting.label] ?? '').trim();
+            if (!path) {
+                nextStatus[setting.label] = { ok: false, message: 'Not configured.' };
+                continue;
+            }
+            try {
+                await invoke<string>('validate_local_path', {
+                    path,
+                    kind: setting.directory ? 'directory' : 'file',
+                    extensions: setting.extensions ?? [],
+                });
+                nextStatus[setting.label] = { ok: true, message: 'Path is valid and accessible.' };
+            } catch (error) {
+                nextStatus[setting.label] = {
+                    ok: false,
+                    message: typeof error === 'string' ? error : 'Path validation failed.',
+                };
+            }
+        }
+        setPathStatus(nextStatus);
+        const validCount = Object.values(nextStatus).filter((entry) => entry.ok).length;
+        setStatus(`Validated ${validCount} of ${modelSettings.length} local paths.`);
+        setPathBusy(null);
+    };
+
+    const runLocalProbe = async (kind: 'llm' | 'tts' | 'speech') => {
+        setRuntimeProbe((previous) => ({
+            ...previous,
+            [kind]: { tone: 'busy', message: 'Running local test…' },
+        }));
+        try {
+            if (kind === 'llm') {
+                const response = await runtimeKernel.completeWithForegroundTracking(
+                    {
+                        messages: [
+                            { role: 'system', content: 'Reply with exactly: LOCAL MODEL READY' },
+                            { role: 'user', content: 'Runtime check.' },
+                        ],
+                        temperature: 0,
+                        maxTokens: 24,
+                    },
+                    { preferredProviderId: 'local-native', allowFallback: false },
+                );
+                if (!response.text.trim()) throw new Error('The local model returned no text.');
+                setRuntimeProbe((previous) => ({
+                    ...previous,
+                    llm: { tone: 'ok', message: `Responded through ${response.providerId}.` },
+                }));
+                return;
+            }
+
+            const speech = await runtimeKernel.synthesizeWithForegroundTracking(
+                {
+                    text: 'This is a local Numo speech test.',
+                    format: 'wav',
+                },
+                { preferredProviderId: 'local-native', allowFallback: false },
+            );
+            if (speech.audio.size < 44) throw new Error('Piper returned an invalid WAV file.');
+            if (kind === 'tts') {
+                const url = URL.createObjectURL(speech.audio);
+                const audio = new Audio(url);
+                audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+                try {
+                    await audio.play();
+                } catch (error) {
+                    URL.revokeObjectURL(url);
+                    throw error;
+                }
+                setRuntimeProbe((previous) => ({
+                    ...previous,
+                    tts: { tone: 'ok', message: `Generated ${Math.round(speech.audio.size / 1024)} KB of local audio.` },
+                }));
+                return;
+            }
+
+            const transcript = await runtimeKernel.transcribeWithForegroundTracking(
+                {
+                    audio: speech.audio,
+                    language: 'en',
+                },
+                { preferredProviderId: 'local-native', allowFallback: false },
+            );
+            if (!transcript.text.trim()) throw new Error('Whisper returned no transcript.');
+            setRuntimeProbe((previous) => ({
+                ...previous,
+                speech: { tone: 'ok', message: `Round trip: “${transcript.text.trim().slice(0, 80)}”` },
+            }));
+        } catch (error) {
+            setRuntimeProbe((previous) => ({
+                ...previous,
+                [kind]: {
+                    tone: 'error',
+                    message: error instanceof Error ? error.message : 'Local runtime test failed.',
+                },
+            }));
         }
     };
 
@@ -581,7 +774,8 @@ export default function SettingsPage() {
 
         setGroqCheckStatus((prev) => ({ ...prev, [index]: { tone: 'info', message: 'Checking LLM/STT/TTS...' } }));
 
-        const base = aiConfig.baseUrl.replace(/\/+$/, '');
+        const effectiveConfig = getEffectiveAiConfig();
+        const base = effectiveConfig.baseUrl.replace(/\/+$/, '');
         const llmUrl = `${base}/chat/completions`;
         const sttUrl = `${base}/audio/transcriptions`;
         const ttsUrl = `${base}/audio/speech`;
@@ -594,7 +788,7 @@ export default function SettingsPage() {
 
         try {
             const llmResponse = await postJsonWithKey(llmUrl, apiKey, {
-                model: aiConfig.models.chat,
+                model: effectiveConfig.models.chat,
                 messages: [{ role: 'user', content: 'ping' }],
                 max_tokens: 4,
                 temperature: 0,
@@ -612,7 +806,7 @@ export default function SettingsPage() {
 
         try {
             const formData = new FormData();
-            formData.append('model', aiConfig.models.stt);
+            formData.append('model', effectiveConfig.models.stt);
             formData.append('language', 'en');
             formData.append('file', createProbeWavFile());
             const sttResponse = await fetch(sttUrl, {
@@ -633,8 +827,8 @@ export default function SettingsPage() {
 
         try {
             const ttsResponse = await postJsonWithKey(ttsUrl, apiKey, {
-                model: aiConfig.models.tts,
-                voice: aiConfig.models.ttsVoice,
+                model: effectiveConfig.models.tts,
+                voice: effectiveConfig.models.ttsVoice,
                 input: 'test',
                 response_format: 'wav',
             });
@@ -676,9 +870,22 @@ export default function SettingsPage() {
     };
 
     const handleExportSettings = () => {
+        const exportedSettings = {
+            ...settingsState,
+            ai: {
+                ...settingsState.ai,
+                'GROQ APIs': readGroqApis().map(() => '[redacted]'),
+            },
+            integrations: {
+                ...settingsState.integrations,
+                'YouTube API Key': settingsState.integrations?.['YouTube API Key']
+                    ? '[redacted]'
+                    : '',
+            },
+        };
         const payload = {
             exportedAt: new Date().toISOString(),
-            settings: settingsState,
+            settings: exportedSettings,
             actionLog,
         };
         saveToDummyDataFile('noema-settings-export.json', JSON.stringify(payload, null, 2));
@@ -826,6 +1033,89 @@ export default function SettingsPage() {
                                 )}
                             </div>
 
+                            {activeTabId === 'models' ? (
+                                <div className="mb-8 rounded-2xl border border-violet-400/15 bg-violet-400/[0.045] p-5">
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-300">
+                                                Local runtime readiness
+                                            </p>
+                                            <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-gray-400">
+                                                Offline mode uses these tools directly. A configured path still needs validation before it is considered usable.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={pathBusy === '__all__'}
+                                            onClick={() => void validateAllLocalPaths()}
+                                            className="h-10 rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 text-[12px] font-bold text-violet-200 hover:bg-violet-400/20 disabled:opacity-50"
+                                        >
+                                            Validate all paths
+                                        </button>
+                                    </div>
+                                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        {[
+                                            {
+                                                label: 'Local LLM',
+                                                paths: ['LLM Runner', 'Local LLM'],
+                                            },
+                                            {
+                                                label: 'Speech recognition',
+                                                paths: ['Whisper Runner', 'Whisper Model', 'FFmpeg'],
+                                            },
+                                            {
+                                                label: 'Text to speech',
+                                                paths: ['Piper Runner', 'Active Voice Model'],
+                                            },
+                                            {
+                                                label: 'Notes mirror',
+                                                paths: ['Notes Folder'],
+                                            },
+                                        ].map((group) => {
+                                            const configured = group.paths.filter((label) =>
+                                                String(settingsState.models?.[label] ?? '').trim(),
+                                            ).length;
+                                            const valid = group.paths.filter((label) => pathStatus[label]?.ok).length;
+                                            const complete = valid === group.paths.length;
+                                            return (
+                                                <div key={group.label} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                                                    <p className="text-[12px] font-bold text-gray-200">{group.label}</p>
+                                                    <p className={`mt-1 text-[11px] ${complete ? 'text-emerald-300' : 'text-gray-500'}`}>
+                                                        {complete
+                                                            ? 'Validated'
+                                                            : `${configured}/${group.paths.length} configured · ${valid} validated`}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                                        {[
+                                            { id: 'llm' as const, label: 'Test local LLM', detail: 'Loads the selected GGUF and generates a short response.' },
+                                            { id: 'tts' as const, label: 'Test local voice', detail: 'Generates and plays a short WAV through Piper.' },
+                                            { id: 'speech' as const, label: 'Test speech round trip', detail: 'Piper → FFmpeg → Whisper, entirely locally.' },
+                                        ].map((probe) => {
+                                            const result = runtimeProbe[probe.id];
+                                            return (
+                                                <div key={probe.id} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                                                    <button
+                                                        type="button"
+                                                        disabled={result?.tone === 'busy'}
+                                                        onClick={() => void runLocalProbe(probe.id)}
+                                                        className="w-full rounded-lg border border-white/12 bg-white/[0.04] px-3 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-white/[0.08] disabled:opacity-50"
+                                                    >
+                                                        {result?.tone === 'busy' ? 'Testing…' : probe.label}
+                                                    </button>
+                                                    <p className="mt-2 text-[10px] leading-relaxed text-gray-500">
+                                                        {result?.message || probe.detail}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ) : null}
+
                             <div className={`${activeTabId === 'appearance' ? '' : 'hidden'} mb-8 rounded-2xl border border-white/10 bg-[#0a1222]/60 p-5`}>
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                                     <div>
@@ -891,7 +1181,7 @@ export default function SettingsPage() {
                                     {bgMappings.map((mapping) => (
                                         <div key={mapping.itemKey} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
                                             <div className="relative h-24 w-full">
-                                                <img src={mapping.source} alt={mapping.itemKey} className="h-full w-full object-cover" />
+                                                <CachedMediaImage src={mapping.source} alt={mapping.itemKey} className="h-full w-full object-cover" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-[#0b1020]/90 to-transparent" />
                                                 <div className="absolute bottom-1 left-2 right-2 truncate text-[10px] text-mist">{mapping.itemType}</div>
                                             </div>
@@ -924,6 +1214,17 @@ export default function SettingsPage() {
                                                     triggerClassName="rounded-xl h-[42px] px-4 text-base text-gray-200"
                                                 />
                                             )}
+                                            {setting.type === 'text' && (
+                                                <input
+                                                    type="text"
+                                                    value={String(settingsState[activeSection.id][setting.label] ?? '')}
+                                                    onChange={(event) =>
+                                                        updateSetting(activeSection.id, setting.label, event.target.value)
+                                                    }
+                                                    spellCheck={false}
+                                                    className="h-[42px] w-[min(520px,46vw)] min-w-[320px] rounded-xl border border-white/15 bg-[#0a1222]/80 px-3 font-mono text-[12px] text-gray-200 outline-none placeholder:text-gray-500 focus:border-cyan-400/60"
+                                                />
+                                            )}
                                             {setting.type === 'toggle' && (
                                                 <ToggleSwitch 
                                                     checked={settingsState[activeSection.id][setting.label] as boolean} 
@@ -954,7 +1255,7 @@ export default function SettingsPage() {
                                             {setting.type === 'local-path' && (() => {
                                                 const selectedPath = String(settingsState.models?.[setting.label] ?? '');
                                                 const check = pathStatus[setting.label];
-                                                const busy = pathBusy === setting.label;
+                                                const busy = pathBusy === setting.label || pathBusy === '__all__';
                                                 return (
                                                     <div className="w-[min(560px,48vw)] min-w-[340px]">
                                                         <div className="flex items-center gap-2">
@@ -972,6 +1273,16 @@ export default function SettingsPage() {
                                                             >
                                                                 Choose
                                                             </button>
+                                                            {setting.toolCandidates?.length ? (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={busy}
+                                                                    onClick={() => void detectConfiguredTool(setting)}
+                                                                    className="h-[42px] rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20 disabled:opacity-40"
+                                                                >
+                                                                    Detect
+                                                                </button>
+                                                            ) : null}
                                                             <button
                                                                 type="button"
                                                                 disabled={!selectedPath || busy}
@@ -1013,6 +1324,29 @@ export default function SettingsPage() {
                                                                 </button>
                                                             )}
                                                         </div>
+                                                        {setting.pathKey === 'piperVoiceModel' && localVoices.length > 0 ? (
+                                                            <div className="mt-2">
+                                                                <DropdownSelect
+                                                                    value={selectedPath}
+                                                                    onChange={(next) => updateSetting('models', 'Active Voice Model', next)}
+                                                                    options={localVoices.map((voice) => ({
+                                                                        value: voice.modelPath,
+                                                                        label: voice.ready ? voice.name : `${voice.name} · missing JSON`,
+                                                                        disabled: !voice.ready,
+                                                                    }))}
+                                                                    placeholder="Choose a voice from Voices Folder"
+                                                                    triggerClassName="h-[38px] w-full rounded-lg border border-white/10 bg-black/20 px-3 text-[12px] text-gray-200"
+                                                                />
+                                                            </div>
+                                                        ) : null}
+                                                        {setting.pathKey === 'voicesFolder' && selectedPath ? (
+                                                            <p className="mt-2 text-[11px] text-gray-500">
+                                                                {localVoices.filter((voice) => voice.ready).length} ready voice{localVoices.filter((voice) => voice.ready).length === 1 ? '' : 's'}
+                                                                {localVoices.some((voice) => !voice.ready)
+                                                                    ? ` · ${localVoices.filter((voice) => !voice.ready).length} missing matching .onnx.json`
+                                                                    : ''}
+                                                            </p>
+                                                        ) : null}
                                                         {check && (
                                                             <p className={`mt-2 flex items-center gap-1.5 text-[11px] ${
                                                                 check.ok ? 'text-emerald-300' : 'text-rose-300'

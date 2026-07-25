@@ -1,4 +1,4 @@
-import { aiConfig, getConfiguredGroqApiKeys } from '../../config/aiConfig';
+import { getConfiguredGroqApiKeys, getEffectiveAiConfig } from '../../config/aiConfig';
 import type { ApiQuotaSnapshot } from '../../types/ai';
 import {
   ProviderCallError,
@@ -138,20 +138,21 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
   isLocal = false;
 
   listCapabilities(): ProviderCapability[] {
+    const config = getEffectiveAiConfig();
     return [
       {
         modality: 'llm',
-        model: aiConfig.models.chat,
+        model: config.models.chat,
         tags: ['chat', 'json', 'remote'],
       },
       {
         modality: 'stt',
-        model: aiConfig.models.stt,
+        model: config.models.stt,
         tags: ['transcription', 'remote'],
       },
       {
         modality: 'tts',
-        model: aiConfig.models.tts,
+        model: config.models.tts,
         tags: ['speech', 'remote'],
       },
     ];
@@ -159,9 +160,10 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
   async complete(request: LlmGenerateRequest): Promise<LlmGenerateResponse> {
     ensureApiKey(this.id, 'llm');
+    const config = getEffectiveAiConfig();
 
-    const endpoint = `${aiConfig.baseUrl}/chat/completions`;
-    const model = request.model ?? aiConfig.models.chat;
+    const endpoint = `${config.baseUrl}/chat/completions`;
+    const model = request.model ?? config.models.chat;
     const payload: Record<string, unknown> = {
       model,
       messages: request.messages,
@@ -215,9 +217,10 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
   async transcribe(request: SttTranscribeRequest): Promise<SttTranscribeResponse> {
     ensureApiKey(this.id, 'stt');
+    const config = getEffectiveAiConfig();
 
-    const endpoint = `${aiConfig.baseUrl}/audio/transcriptions`;
-    const model = request.model ?? aiConfig.models.stt;
+    const endpoint = `${config.baseUrl}/audio/transcriptions`;
+    const model = request.model ?? config.models.stt;
     const response = await fetchWithConfiguredKeys((apiKey) => {
       const formData = new FormData();
       formData.append('model', model);
@@ -249,12 +252,13 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
   async synthesize(request: TtsSynthesizeRequest): Promise<TtsSynthesizeResponse> {
     ensureApiKey(this.id, 'tts');
+    const config = getEffectiveAiConfig();
 
-    const endpoint = `${aiConfig.baseUrl}/audio/speech`;
-    const model = request.model ?? aiConfig.models.tts;
+    const endpoint = `${config.baseUrl}/audio/speech`;
+    const model = request.model ?? config.models.tts;
     const payload = {
       model,
-      voice: request.voice ?? aiConfig.models.ttsVoice,
+      voice: request.voice ?? config.models.ttsVoice,
       input: request.text,
       response_format: request.format ?? 'wav',
     };

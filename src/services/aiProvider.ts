@@ -1,4 +1,4 @@
-import { aiConfig } from '../config/aiConfig';
+import { getEffectiveAiConfig } from '../config/aiConfig';
 import { getGroqQuotaSnapshot, runtimeKernel } from '../runtime';
 import type {
   ApiQuotaSnapshot,
@@ -76,8 +76,9 @@ export async function completeWithEcho(
   options?: { maxTokens?: number; responseFormat?: { type: string } },
 ): Promise<string> {
   const modeConfig = MODE_CONFIG[mode] ?? MODE_CONFIG.advisor;
+  const config = getEffectiveAiConfig();
   const response = await runtimeKernel.completeWithForegroundTracking({
-    model: aiConfig.models.chat,
+    model: config.models.chat,
     temperature: modeConfig.temperature,
     maxTokens: options?.maxTokens ?? modeConfig.maxTokens,
     responseFormat: options?.responseFormat,
@@ -178,6 +179,7 @@ export async function completeLanguageChat(
   },
 ): Promise<LanguageLearningReply> {
   const modeConfig = MODE_CONFIG[mode] ?? MODE_CONFIG.chatty;
+  const config = getEffectiveAiConfig();
   const structurePrompt = learningResponsePrompt(
     language.name,
     language.code,
@@ -200,7 +202,7 @@ export async function completeLanguageChat(
   ];
 
   const response = await runtimeKernel.completeWithForegroundTracking({
-    model: aiConfig.models.chat,
+    model: config.models.chat,
     temperature: modeConfig.temperature,
     maxTokens: Math.max(900, modeConfig.maxTokens),
     responseFormat: { type: 'json_object' },
@@ -213,7 +215,7 @@ export async function completeLanguageChat(
     return parseLanguageLearningReply(raw);
   } catch {
     const repaired = await runtimeKernel.completeWithForegroundTracking({
-      model: aiConfig.models.chat,
+      model: config.models.chat,
       temperature: 0,
       maxTokens: 1000,
       responseFormat: { type: 'json_object' },
@@ -232,10 +234,11 @@ export async function completeLanguageChat(
 }
 
 export async function transcribeSpeech(audioBlob: Blob, languageCode = 'es'): Promise<string> {
+  const config = getEffectiveAiConfig();
   const normalized = languageCode.trim().toLowerCase();
   const sttLanguage = normalized === 'zh' ? 'zh' : normalized === 'fr' ? 'fr' : normalized === 'de' ? 'de' : normalized;
   const response = await runtimeKernel.transcribeWithForegroundTracking({
-    model: aiConfig.models.stt,
+    model: config.models.stt,
     audio: audioBlob,
     language: sttLanguage,
   });
@@ -244,12 +247,13 @@ export async function transcribeSpeech(audioBlob: Blob, languageCode = 'es'): Pr
 
 export async function synthesizeSpeech(
   text: string,
-  voice: VoicePersona = aiConfig.models.ttsVoice,
+  voice?: VoicePersona,
 ): Promise<Blob> {
+  const config = getEffectiveAiConfig();
   const response = await runtimeKernel.synthesizeWithForegroundTracking({
-    model: aiConfig.models.tts,
+    model: config.models.tts,
     text,
-    voice,
+    voice: voice ?? config.models.ttsVoice,
     format: 'wav',
   });
   return response.audio;

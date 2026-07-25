@@ -12,9 +12,11 @@ import { CurriculumProvider } from './contexts/CurriculumContext';
 import { RuntimeProvider } from './contexts/RuntimeContext';
 import { ProfileSessionProvider } from './contexts/ProfileSessionContext';
 import { LanguageJourneyProvider } from './contexts/LanguageJourneyContext';
+import { initializeLocalRuntimeSettings } from './services/localRuntimeSettings';
 
 // Polyfill country flag emojis for Windows, which otherwise renders them as two text letters (like "DE" instead of 🇩🇪)
 polyfillCountryFlagEmojis();
+initializeLocalRuntimeSettings();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
