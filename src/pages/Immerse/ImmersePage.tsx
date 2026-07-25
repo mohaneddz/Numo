@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import {
-  immersionResources,
+  getImmersionResourcesForLanguage,
+  immersionCatalogLanguages,
   type ImmersionKind,
   type ImmersionResource,
 } from './immersionCatalog';
@@ -25,19 +26,13 @@ import {
   loadYouTubeMetadata,
   type YouTubeResourceMetadata,
 } from '../../services/youtubeService';
-import {
-  loadBookCovers,
-  type ResolvedBook,
-} from '../../services/bookContentService';
-import {
-  loadAudioArtwork,
-  type ResolvedAudioArtwork,
-} from '../../services/audioArtworkService';
+import { loadBookCovers, type ResolvedBook } from '../../services/bookContentService';
+import { loadAudioArtwork, type ResolvedAudioArtwork } from '../../services/audioArtworkService';
 import CachedMediaImage from '../../components/ui/CachedMediaImage';
-import {
-  getLocalBookResources,
-  LOCAL_BOOKS_CHANGED_EVENT,
-} from '../../services/localBookService';
+import { getLocalBookResources, LOCAL_BOOKS_CHANGED_EVENT } from '../../services/localBookService';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useAppData } from '../../contexts/AppDataContext';
+import { useLanguageJourney } from '../../contexts/LanguageJourneyContext';
 
 const tabs: Array<{ id: ImmersionKind; label: string; icon: LucideIcon }> = [
   { id: 'video', label: 'Videos', icon: Film },
@@ -45,11 +40,13 @@ const tabs: Array<{ id: ImmersionKind; label: string; icon: LucideIcon }> = [
   { id: 'audio', label: 'Audio', icon: Headphones },
 ];
 
+type SortMode = 'recommended' | 'title' | 'shortest';
+type MediaStatus = 'idle' | 'loading' | 'connected' | 'missing' | 'error';
+
 function durationInMinutes(duration: string): number {
   const hours = duration.match(/([\d.]+)\s*h/i);
   const minutes = duration.match(/([\d.]+)\s*m(?:in)?/i);
-  return (hours ? Number.parseFloat(hours[1]) * 60 : 0) +
-    (minutes ? Number.parseFloat(minutes[1]) : 0);
+  return (hours ? Number.parseFloat(hours[1]) * 60 : 0) + (minutes ? Number.parseFloat(minutes[1]) : 0);
 }
 
 function formatYouTubeDuration(seconds?: number, fallback = ''): string {
@@ -62,17 +59,30 @@ function formatYouTubeDuration(seconds?: number, fallback = ''): string {
     : `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
+/** CEFR ordering, used to rank how well a resource matches the learner's level. */
+const LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+/** Maps the onboarding level onto the CEFR scale the catalog is labelled with. */
+const LEARNER_LEVEL_TO_CEFR: Record<string, number> = {
+  complete_beginner: 0,
+  beginner: 1,
+  lower_intermediate: 2,
+  intermediate_plus: 3,
+};
+
 function ResourceCard({
   resource,
   youtube,
   book,
   audio,
+  progressPercent,
   onOpen,
 }: {
   resource: ImmersionResource;
   youtube?: YouTubeResourceMetadata;
   book?: ResolvedBook;
   audio?: ResolvedAudioArtwork;
+  progressPercent: number;
   onOpen: () => void;
 }) {
   const Icon = resource.kind === 'video' ? Play : resource.kind === 'reading' ? BookOpen : Headphones;
@@ -86,7 +96,9 @@ function ResourceCard({
         onClick={onOpen}
         className="group min-w-0 text-left"
       >
-        <div className={`relative aspect-[3/4] overflow-hidden rounded-[18px] border border-white/10 bg-gradient-to-br ${resource.accent} shadow-[0_18px_45px_rgba(0,0,0,0.32)] transition-all group-hover:border-[#8B5CF6]/40 group-hover:shadow-[0_22px_55px_rgba(0,0,0,0.42)]`}>
+        <div
+          className={`relative aspect-[3/4] overflow-hidden rounded-[18px] border border-white/10 bg-gradient-to-br ${resource.accent} shadow-[0_18px_45px_rgba(0,0,0,0.32)] transition-all group-hover:border-[#8B5CF6]/40`}
+        >
           <div className="absolute inset-y-0 left-0 w-3 border-r border-white/10 bg-black/20" />
           <div className="absolute inset-5 flex flex-col items-center justify-center border border-white/10 px-3 text-center">
             <BookOpen size={24} className="mb-4 text-white/55" />
@@ -104,14 +116,17 @@ function ResourceCard({
           <span className="absolute bottom-3 right-3 rounded-lg border border-white/15 bg-black/45 px-2 py-1 text-[9px] font-black text-white backdrop-blur-md">
             {resource.level}
           </span>
-          {resource.progress > 0 && (
+          {progressPercent > 0 && (
             <div className="absolute inset-x-0 bottom-0 h-1 bg-black/30">
-              <div className="h-full bg-[#A78BFA]" style={{ width: `${resource.progress}%` }} />
+              <div className="h-full bg-[#A78BFA]" style={{ width: `${progressPercent}%` }} />
             </div>
           )}
         </div>
         <h3 className="mt-3 truncate text-[13px] font-black text-white">{resource.title}</h3>
-        <p className="mt-1 truncate text-[10px] font-semibold text-dim">{resource.author} · {resource.publicationYear}</p>
+        <p className="mt-1 truncate text-[10px] font-semibold text-dim">
+          {resource.author}
+          {resource.publicationYear ? ` · ${resource.publicationYear}` : ''}
+        </p>
       </motion.button>
     );
   }
@@ -135,16 +150,15 @@ function ResourceCard({
         )}
         {(youtube || audio) && <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10" />}
         <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] [background-size:28px_28px]" />
-        <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full border border-white/10 bg-white/5" />
         <div className="absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/30 text-white backdrop-blur-md">
           <Icon size={19} fill={resource.kind === 'video' ? 'currentColor' : 'none'} />
         </div>
         <span className="absolute right-3 top-3 rounded-lg border border-white/10 bg-black/35 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-white/85 backdrop-blur-md">
           {resource.level}
         </span>
-        {resource.progress > 0 && (
+        {progressPercent > 0 && (
           <div className="absolute inset-x-0 bottom-0 h-1 bg-black/25">
-            <div className="h-full bg-[#A78BFA]" style={{ width: `${resource.progress}%` }} />
+            <div className="h-full bg-[#A78BFA]" style={{ width: `${progressPercent}%` }} />
           </div>
         )}
       </div>
@@ -156,9 +170,13 @@ function ResourceCard({
             {youtube?.channel || audio?.creator || resource.author}
           </p>
         )}
-        <p className="mt-1 line-clamp-2 min-h-9 text-[11px] leading-relaxed text-dim">{youtube?.description || resource.subtitle}</p>
+        <p className="mt-1 line-clamp-2 min-h-9 text-[11px] leading-relaxed text-dim">
+          {youtube?.description || resource.subtitle}
+        </p>
         <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-3 text-[10px] font-semibold text-dim">
-          <span className="flex items-center gap-1.5"><Clock3 size={11} /> {formatYouTubeDuration(youtube?.durationSeconds, resource.duration)}</span>
+          <span className="flex items-center gap-1.5">
+            <Clock3 size={11} /> {formatYouTubeDuration(youtube?.durationSeconds, resource.duration)}
+          </span>
           <span className="flex items-center gap-1 text-[#C4B5FD] opacity-0 transition-opacity group-hover:opacity-100">
             Open <ChevronRight size={12} />
           </span>
@@ -170,21 +188,46 @@ function ResourceCard({
 
 export default function ImmersePage() {
   const navigate = useNavigate();
+  const { activeLanguage } = useLanguage();
+  const { state } = useAppData();
+  const { getSettings } = useLanguageJourney();
+  const journeySettings = getSettings(activeLanguage.code);
+
   const [localBooks, setLocalBooks] = useState(getLocalBookResources);
   const [activeTab, setActiveTab] = useState<ImmersionKind>('video');
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('All');
   const [lengthFilter, setLengthFilter] = useState('All');
-  const [sortMode, setSortMode] = useState<'recommended' | 'title' | 'shortest'>('recommended');
+  const [sortMode, setSortMode] = useState<SortMode>('recommended');
   const [unstartedOnly, setUnstartedOnly] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
   const [youtubeMetadata, setYoutubeMetadata] = useState<Record<string, YouTubeResourceMetadata>>({});
   const [bookMetadata, setBookMetadata] = useState<Record<string, ResolvedBook>>({});
   const [audioMetadata, setAudioMetadata] = useState<Record<string, ResolvedAudioArtwork>>({});
   const [bookCoverStatus, setBookCoverStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
   const [audioArtworkStatus, setAudioArtworkStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
-  const [youtubeStatus, setYoutubeStatus] = useState<'idle' | 'loading' | 'connected' | 'missing' | 'error'>('idle');
-  const [youtubeError, setYoutubeError] = useState('');
-  const allResources = useMemo(() => [...localBooks, ...immersionResources], [localBooks]);
+
+  // Video and audio each resolve their own YouTube metadata. A single shared status
+  // meant refreshing the audio tab surfaced "API key not configured" under Videos.
+  const [videoStatus, setVideoStatus] = useState<MediaStatus>('idle');
+  const [audioStatus, setAudioStatus] = useState<MediaStatus>('idle');
+  const [videoError, setVideoError] = useState('');
+  const [audioError, setAudioError] = useState('');
+
+  // The catalog is filtered by the language being studied. It previously was not,
+  // so every learner saw the bundled Spanish material.
+  const languageResources = useMemo(
+    () => getImmersionResourcesForLanguage(activeLanguage.code),
+    [activeLanguage.code],
+  );
+  const allResources = useMemo(
+    () => [...localBooks, ...languageResources],
+    [languageResources, localBooks],
+  );
+  const catalogLanguages = useMemo(() => immersionCatalogLanguages(), []);
+  const hasCatalogForLanguage = catalogLanguages.includes(activeLanguage.code.split('-')[0].toLowerCase());
 
   useEffect(() => {
     const refreshLocalBooks = () => setLocalBooks(getLocalBookResources());
@@ -196,66 +239,117 @@ export default function ImmersePage() {
     };
   }, []);
 
-  const refreshYouTube = async (
-    forceRefresh = false,
-    kind: 'video' | 'audio' = 'video',
-  ) => {
+  /** Real progress, from what the learner has actually opened. */
+  const progressFor = (resourceId: string): number => {
+    const record = state.immersionProgress[resourceId];
+    if (!record) return 0;
+    if (record.completed) return 100;
+    // positionSec is the only signal available for partially-watched media; without a
+    // known total it is reported as "started" rather than an invented percentage.
+    return record.positionSec > 0 ? Math.min(95, Math.max(5, Math.round(record.positionSec / 60))) : 0;
+  };
+
+  const refreshYouTube = async (kind: 'video' | 'audio', forceRefresh = false) => {
+    const setStatus = kind === 'video' ? setVideoStatus : setAudioStatus;
+    const setError = kind === 'video' ? setVideoError : setAudioError;
+
     const { apiKey } = getYouTubeConfiguration();
     if (!apiKey) {
-      setYoutubeStatus('missing');
-      setYoutubeMetadata({});
+      setStatus('missing');
       return;
     }
-    setYoutubeStatus('loading');
-    setYoutubeError('');
+
+    setStatus('loading');
+    setError('');
     try {
       const metadata = await loadYouTubeMetadata(
-        immersionResources.filter((resource) => resource.kind === kind),
+        languageResources.filter((resource) => resource.kind === kind),
         forceRefresh,
       );
       setYoutubeMetadata((current) => ({ ...current, ...metadata }));
-      setYoutubeStatus('connected');
+      setStatus('connected');
     } catch (error) {
-      setYoutubeStatus('error');
-      setYoutubeError(error instanceof Error ? error.message : 'Could not load YouTube resources.');
+      setStatus('error');
+      setError(error instanceof Error ? error.message : 'Could not load YouTube resources.');
     }
   };
 
   useEffect(() => {
-    void refreshYouTube();
-  }, []);
+    // Reset resolved media when the language changes: the previous language's
+    // thumbnails must not be shown against a new catalog.
+    setYoutubeMetadata({});
+    setBookMetadata({});
+    setAudioMetadata({});
+    setBookCoverStatus('idle');
+    setAudioArtworkStatus('idle');
+    setVideoStatus('idle');
+    setAudioStatus('idle');
+    if (languageResources.some((resource) => resource.kind === 'video')) {
+      void refreshYouTube('video');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLanguage.code]);
 
   useEffect(() => {
     if (activeTab !== 'reading' || bookCoverStatus !== 'idle') return;
+    const readings = languageResources.filter((resource) => resource.kind === 'reading');
+    if (readings.length === 0) return;
     setBookCoverStatus('loading');
-    void loadBookCovers(immersionResources.filter((resource) => resource.kind === 'reading'))
+    void loadBookCovers(readings)
       .then(setBookMetadata)
       .catch(() => setBookMetadata({}))
       .finally(() => setBookCoverStatus('loaded'));
-  }, [activeTab, bookCoverStatus]);
+  }, [activeTab, bookCoverStatus, languageResources]);
 
   useEffect(() => {
     if (activeTab !== 'audio' || audioArtworkStatus !== 'idle') return;
+    const audios = languageResources.filter((resource) => resource.kind === 'audio');
+    if (audios.length === 0) return;
     setAudioArtworkStatus('loading');
-    void refreshYouTube(false, 'audio');
-    void loadAudioArtwork(immersionResources.filter((resource) => resource.kind === 'audio'))
+    void refreshYouTube('audio');
+    void loadAudioArtwork(audios)
       .then(setAudioMetadata)
       .catch(() => setAudioMetadata({}))
       .finally(() => setAudioArtworkStatus('loaded'));
-  }, [activeTab, audioArtworkStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, audioArtworkStatus, languageResources]);
+
+  /** Levels actually present in the catalog, rather than a hardcoded CEFR list. */
+  const availableLevels = useMemo(() => {
+    const levels = [...new Set(allResources.filter((r) => r.kind === activeTab).map((r) => r.level))];
+    return levels.sort((a, b) => {
+      const indexA = LEVEL_ORDER.indexOf(a);
+      const indexB = LEVEL_ORDER.indexOf(b);
+      if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
+  }, [activeTab, allResources]);
+
+  useEffect(() => {
+    // A level selected on one tab may not exist on another.
+    if (levelFilter !== 'All' && !availableLevels.includes(levelFilter)) setLevelFilter('All');
+  }, [availableLevels, levelFilter]);
+
+  const resolvedMinutes = (resource: ImmersionResource): number => {
+    const seconds = youtubeMetadata[resource.id]?.durationSeconds;
+    return seconds ? seconds / 60 : durationInMinutes(resource.duration);
+  };
 
   const visibleResources = useMemo(() => {
     const query = search.trim().toLowerCase();
+
     const resources = allResources.filter((resource) => {
       if (resource.kind !== activeTab) return false;
       if (levelFilter !== 'All' && resource.level !== levelFilter) return false;
-      if (unstartedOnly && resource.progress > 0) return false;
-      const durationMinutes = youtubeMetadata[resource.id]?.durationSeconds
-        ? youtubeMetadata[resource.id].durationSeconds! / 60
-        : durationInMinutes(resource.duration);
-      if (lengthFilter === 'Short' && durationMinutes > 20) return false;
-      if (lengthFilter === 'Medium' && (durationMinutes <= 20 || durationMinutes > 60)) return false;
-      if (lengthFilter === 'Long' && durationMinutes <= 60) return false;
+      if (unstartedOnly && progressFor(resource.id) > 0) return false;
+
+      const minutes = resolvedMinutes(resource);
+      if (lengthFilter === 'Short' && minutes > 20) return false;
+      if (lengthFilter === 'Medium' && (minutes <= 20 || minutes > 60)) return false;
+      if (lengthFilter === 'Long' && minutes <= 60) return false;
+
       if (!query) return true;
       const youtube = youtubeMetadata[resource.id];
       const audio = audioMetadata[resource.id];
@@ -263,18 +357,52 @@ export default function ImmersePage() {
         .toLowerCase()
         .includes(query);
     });
+
+    const sorted = [...resources];
     if (sortMode === 'title') {
-      resources.sort((a, b) =>
-        (youtubeMetadata[a.id]?.title ?? a.title).localeCompare(
-          youtubeMetadata[b.id]?.title ?? b.title,
-        ),
+      sorted.sort((a, b) =>
+        (youtubeMetadata[a.id]?.title ?? a.title).localeCompare(youtubeMetadata[b.id]?.title ?? b.title),
       );
+    } else if (sortMode === 'shortest') {
+      // Uses resolved YouTube durations, which the length filter already relied on.
+      // The old sort read the catalog string and disagreed with its own filter.
+      sorted.sort((a, b) => resolvedMinutes(a) - resolvedMinutes(b));
+    } else {
+      // "Recommended" did nothing at all before. In-progress items come first so the
+      // learner can finish what they started, then the closest level match.
+      const learnerLevelIndex = LEARNER_LEVEL_TO_CEFR[journeySettings.level] ?? 1;
+      sorted.sort((a, b) => {
+        const progressA = progressFor(a.id);
+        const progressB = progressFor(b.id);
+        const startedA = progressA > 0 && progressA < 100 ? 0 : 1;
+        const startedB = progressB > 0 && progressB < 100 ? 0 : 1;
+        if (startedA !== startedB) return startedA - startedB;
+
+        const finishedA = progressA >= 100 ? 1 : 0;
+        const finishedB = progressB >= 100 ? 1 : 0;
+        if (finishedA !== finishedB) return finishedA - finishedB;
+
+        const distanceA = Math.abs(LEVEL_ORDER.indexOf(a.level) - learnerLevelIndex);
+        const distanceB = Math.abs(LEVEL_ORDER.indexOf(b.level) - learnerLevelIndex);
+        return distanceA - distanceB;
+      });
     }
-    if (sortMode === 'shortest') {
-      resources.sort((a, b) => durationInMinutes(a.duration) - durationInMinutes(b.duration));
-    }
-    return resources;
-  }, [activeTab, allResources, audioMetadata, lengthFilter, levelFilter, search, sortMode, unstartedOnly, youtubeMetadata]);
+
+    return sorted;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTab,
+    allResources,
+    journeySettings.level,
+    audioMetadata,
+    lengthFilter,
+    levelFilter,
+    search,
+    sortMode,
+    state.immersionProgress,
+    unstartedOnly,
+    youtubeMetadata,
+  ]);
 
   const sections = useMemo(() => {
     const categories = [...new Set(visibleResources.map((resource) => resource.category))];
@@ -284,9 +412,17 @@ export default function ImmersePage() {
     }));
   }, [visibleResources]);
 
-  const continueResource =
-    immersionResources.find((resource) => resource.kind === activeTab && resource.progress > 0) ??
-    visibleResources[0];
+  /** Only genuinely started material can be "continued". */
+  const continueResource = useMemo(
+    () =>
+      allResources.find((resource) => {
+        const progress = progressFor(resource.id);
+        return progress > 0 && progress < 100;
+      }) ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allResources, state.immersionProgress],
+  );
+
   const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label ?? 'Videos';
 
   const resetFilters = () => {
@@ -297,6 +433,9 @@ export default function ImmersePage() {
     setSearch('');
   };
 
+  const youtubeStatus = activeTab === 'audio' ? audioStatus : videoStatus;
+  const youtubeError = activeTab === 'audio' ? audioError : videoError;
+
   return (
     <PageContent width="wide" className="pb-20">
       <PageActions>
@@ -306,7 +445,7 @@ export default function ImmersePage() {
             className="page-primary-action"
             onClick={() => navigate(`/immerse/${continueResource.id}`)}
           >
-            <Play size={15} fill="currentColor" /> Continue immersion
+            <Play size={15} fill="currentColor" /> Continue: {continueResource.title}
           </button>
         )}
       </PageActions>
@@ -319,6 +458,7 @@ export default function ImmersePage() {
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   const selected = tab.id === activeTab;
+                  const count = allResources.filter((resource) => resource.kind === tab.id).length;
                   return (
                     <button
                       key={tab.id}
@@ -331,6 +471,7 @@ export default function ImmersePage() {
                       }`}
                     >
                       <Icon size={15} /> {tab.label}
+                      <span className={selected ? 'text-white/70' : 'text-dim/70'}>{count}</span>
                     </button>
                   );
                 })}
@@ -346,10 +487,17 @@ export default function ImmersePage() {
                     className="w-full rounded-xl border border-white/8 bg-black/20 py-2.5 pl-9 pr-3 text-[12px] text-white outline-none transition-colors placeholder:text-dim/70 focus:border-[#8B5CF6]/50"
                   />
                 </label>
+                {/* This button did nothing at all before. */}
                 <button
                   type="button"
-                  aria-label="Filter resources"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-black/20 text-dim hover:text-white"
+                  aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+                  aria-pressed={showFilters}
+                  onClick={() => setShowFilters((current) => !current)}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors xl:hidden ${
+                    showFilters
+                      ? 'border-[#8B5CF6]/40 bg-[#8B5CF6]/15 text-[#C4B5FD]'
+                      : 'border-white/8 bg-black/20 text-dim hover:text-white'
+                  }`}
                 >
                   <SlidersHorizontal size={15} />
                 </button>
@@ -357,44 +505,82 @@ export default function ImmersePage() {
             </div>
           </section>
 
-          <div className="mt-8 space-y-11">
-            {sections.map((section, sectionIndex) => (
-              <motion.section
-                key={section.category}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: sectionIndex * 0.04 }}
-              >
-                <div className="mb-4 flex items-end justify-between">
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#A78BFA]">
-                      {activeTabLabel}
-                    </p>
-                    <h2 className="mt-1 text-[19px] font-black text-white">{section.category}</h2>
-                  </div>
-                  <button type="button" className="flex items-center gap-1 text-[11px] font-bold text-dim hover:text-white">
-                    See all <ChevronRight size={13} />
-                  </button>
-                </div>
+          {!hasCatalogForLanguage && (
+            <div className="mt-8 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] p-5">
+              <h2 className="text-[15px] font-black text-white">
+                No {activeLanguage.name} immersion catalog yet
+              </h2>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-dim">
+                The bundled catalog currently covers {catalogLanguages.join(', ')}. Rather than showing you material in
+                another language, this page stays empty until {activeLanguage.name} content is available. You can still
+                import your own books from Settings and they will appear here.
+              </p>
+            </div>
+          )}
 
-                <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${activeTab === 'reading' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
-                  {section.resources.map((resource) => (
-                    <ResourceCard
-                      key={resource.id}
-                      resource={resource}
-                      youtube={youtubeMetadata[resource.id]}
-                      book={bookMetadata[resource.id]}
-                      audio={audioMetadata[resource.id]}
-                      onOpen={() => navigate(`/immerse/${resource.id}`)}
-                    />
-                  ))}
-                </div>
-              </motion.section>
-            ))}
+          <div className="mt-8 space-y-11">
+            {hasCatalogForLanguage && sections.length === 0 && (
+              <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 text-[13px] text-dim">
+                Nothing matches these filters.{' '}
+                <button type="button" onClick={resetFilters} className="text-[#C4B5FD] underline underline-offset-2">
+                  Reset them
+                </button>
+                .
+              </div>
+            )}
+
+            {sections.map((section, sectionIndex) => {
+              const isExpanded = expandedCategory === section.category;
+              const visible = isExpanded ? section.resources : section.resources.slice(0, 6);
+              const hasMore = section.resources.length > 6;
+
+              return (
+                <motion.section
+                  key={section.category}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: sectionIndex * 0.04 }}
+                >
+                  <div className="mb-4 flex items-end justify-between">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#A78BFA]">{activeTabLabel}</p>
+                      <h2 className="mt-1 text-[19px] font-black text-white">{section.category}</h2>
+                    </div>
+                    {/* "See all" was a dead button on every section. */}
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCategory(isExpanded ? null : section.category)}
+                        className="flex items-center gap-1 text-[11px] font-bold text-dim transition-colors hover:text-white"
+                      >
+                        {isExpanded ? 'Show less' : `See all ${section.resources.length}`}
+                        <ChevronRight size={13} className={isExpanded ? 'rotate-90 transition-transform' : 'transition-transform'} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div
+                    className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${activeTab === 'reading' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
+                  >
+                    {visible.map((resource) => (
+                      <ResourceCard
+                        key={resource.id}
+                        resource={resource}
+                        youtube={youtubeMetadata[resource.id]}
+                        book={bookMetadata[resource.id]}
+                        audio={audioMetadata[resource.id]}
+                        progressPercent={progressFor(resource.id)}
+                        onOpen={() => navigate(`/immerse/${resource.id}`)}
+                      />
+                    ))}
+                  </div>
+                </motion.section>
+              );
+            })}
           </div>
         </main>
 
-        <aside className="xl:sticky xl:top-0 xl:self-start">
+        <aside className={`xl:sticky xl:top-0 xl:self-start ${showFilters ? '' : 'hidden xl:block'}`}>
           <div className="rounded-[26px] border border-white/10 bg-[#0B1020]/84 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
             <div className="flex items-center gap-2 text-[#A78BFA]">
               <SlidersHorizontal size={16} />
@@ -412,54 +598,70 @@ export default function ImmersePage() {
                   <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[#C4B5FD]">Continue</p>
                   <h3 className="mt-1 truncate text-[13px] font-black text-white">{continueResource.title}</h3>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full rounded-full bg-[#8B5CF6]" style={{ width: `${Math.max(continueResource.progress, 8)}%` }} />
+                    {/* Previously Math.max(progress, 8), so an unstarted item showed 8%. */}
+                    <div
+                      className="h-full rounded-full bg-[#8B5CF6]"
+                      style={{ width: `${progressFor(continueResource.id)}%` }}
+                    />
                   </div>
                   <p className="mt-2 text-[10px] font-semibold text-dim">
-                    {continueResource.progress || 0}% complete
+                    {progressFor(continueResource.id)}% complete
                   </p>
                 </div>
               </button>
             )}
 
-            {activeTab === 'video' && (
-            <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.025] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Youtube size={15} className="text-red-400" />
-                  <div>
-                    <h3 className="text-[12px] font-black text-white">YouTube sources</h3>
-                    <p className="mt-0.5 text-[9px] text-dim">
-                      {youtubeStatus === 'connected'
-                        ? `${Object.keys(youtubeMetadata).length} videos resolved`
-                        : youtubeStatus === 'loading'
-                          ? 'Loading real thumbnails...'
-                          : youtubeStatus === 'error'
-                            ? 'Connection error'
-                            : 'API key not configured'}
-                    </p>
+            {activeTab !== 'reading' && (
+              <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.025] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Youtube size={15} className="text-red-400" />
+                    <div>
+                      <h3 className="text-[12px] font-black text-white">
+                        {activeTab === 'audio' ? 'YouTube audio streams' : 'YouTube sources'}
+                      </h3>
+                      <p className="mt-0.5 text-[9px] text-dim">
+                        {youtubeStatus === 'connected'
+                          ? `${
+                              languageResources.filter(
+                                (resource) => resource.kind === activeTab && youtubeMetadata[resource.id],
+                              ).length
+                            } resolved`
+                          : youtubeStatus === 'loading'
+                            ? 'Resolving…'
+                            : youtubeStatus === 'error'
+                              ? 'Connection error'
+                              : youtubeStatus === 'missing'
+                                ? 'API key not configured'
+                                : 'Not loaded'}
+                      </p>
+                    </div>
                   </div>
+                  {youtubeStatus === 'missing' ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/settings?tab=integrations')}
+                      className="rounded-lg border border-red-400/25 bg-red-400/10 px-2.5 py-1.5 text-[9px] font-black text-red-200"
+                    >
+                      Configure
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={youtubeStatus === 'loading'}
+                      onClick={() => void refreshYouTube(activeTab === 'audio' ? 'audio' : 'video', true)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/[0.025] text-dim hover:text-white disabled:opacity-40"
+                    >
+                      <RefreshCw size={13} className={youtubeStatus === 'loading' ? 'animate-spin' : ''} />
+                    </button>
+                  )}
                 </div>
-                {youtubeStatus === 'missing' ? (
-                  <button
-                    type="button"
-                    onClick={() => navigate('/settings?tab=integrations')}
-                    className="rounded-lg border border-red-400/25 bg-red-400/10 px-2.5 py-1.5 text-[9px] font-black text-red-200"
-                  >
-                    Configure
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={youtubeStatus === 'loading'}
-                    onClick={() => void refreshYouTube(true)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/[0.025] text-dim hover:text-white disabled:opacity-40"
-                  >
-                    <RefreshCw size={13} className={youtubeStatus === 'loading' ? 'animate-spin' : ''} />
-                  </button>
+                {youtubeError && (
+                  <p className="mt-2 rounded-lg border border-rose-400/20 bg-rose-400/8 px-2.5 py-2 text-[9px] leading-relaxed text-rose-200">
+                    {youtubeError}
+                  </p>
                 )}
               </div>
-              {youtubeError && <p className="mt-2 rounded-lg border border-rose-400/20 bg-rose-400/8 px-2.5 py-2 text-[9px] leading-relaxed text-rose-200">{youtubeError}</p>}
-            </div>
             )}
 
             {activeTab === 'reading' && (
@@ -470,36 +672,10 @@ export default function ImmersePage() {
                     <h3 className="text-[11px] font-black text-white">Public-domain library</h3>
                     <p className="mt-0.5 text-[9px] text-dim">
                       {bookCoverStatus === 'loading'
-                        ? 'Resolving real book covers...'
-                        : `${Object.keys(bookMetadata).length} covers resolved · Gutenberg text`}
+                        ? 'Resolving covers…'
+                        : `${Object.keys(bookMetadata).length} covers · Gutenberg text`}
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'audio' && (
-              <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.025] p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <Youtube size={15} className="text-red-400" />
-                    <div>
-                      <h3 className="text-[11px] font-black text-white">YouTube audio streams</h3>
-                      <p className="mt-0.5 text-[9px] text-dim">
-                        {youtubeStatus === 'loading'
-                          ? 'Resolving playable sources...'
-                          : `${immersionResources.filter((resource) => resource.kind === 'audio' && youtubeMetadata[resource.id]).length} streams · ${Object.keys(audioMetadata).length} covers`}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={youtubeStatus === 'loading'}
-                    onClick={() => void refreshYouTube(true, 'audio')}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 text-dim hover:text-white disabled:opacity-40"
-                  >
-                    <RefreshCw size={13} className={youtubeStatus === 'loading' ? 'animate-spin' : ''} />
-                  </button>
                 </div>
               </div>
             )}
@@ -515,19 +691,29 @@ export default function ImmersePage() {
               <div className="mt-3 space-y-2">
                 <label className="block rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2.5">
                   <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Level</span>
-                  <select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)} className="mt-1 w-full bg-transparent text-[11px] font-black text-white outline-none">
+                  <select
+                    value={levelFilter}
+                    onChange={(event) => setLevelFilter(event.target.value)}
+                    className="mt-1 w-full bg-transparent text-[11px] font-black text-white outline-none"
+                  >
+                    {/* Options come from the catalog rather than a fixed A2/B1/B2/C1 list. */}
                     <option className="bg-[#0B1020]">All</option>
-                    <option className="bg-[#0B1020]">A2</option>
-                    <option className="bg-[#0B1020]">B1</option>
-                    <option className="bg-[#0B1020]">B2</option>
-                    <option className="bg-[#0B1020]">C1</option>
+                    {availableLevels.map((level) => (
+                      <option key={level} className="bg-[#0B1020]">
+                        {level}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2.5">
                     <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Length</span>
-                    <select value={lengthFilter} onChange={(event) => setLengthFilter(event.target.value)} className="mt-1 w-full bg-transparent text-[11px] font-black text-white outline-none">
+                    <select
+                      value={lengthFilter}
+                      onChange={(event) => setLengthFilter(event.target.value)}
+                      className="mt-1 w-full bg-transparent text-[11px] font-black text-white outline-none"
+                    >
                       <option className="bg-[#0B1020]">All</option>
                       <option className="bg-[#0B1020]">Short</option>
                       <option className="bg-[#0B1020]">Medium</option>
@@ -536,10 +722,20 @@ export default function ImmersePage() {
                   </label>
                   <label className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2.5">
                     <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Sort</span>
-                    <select value={sortMode} onChange={(event) => setSortMode(event.target.value as typeof sortMode)} className="mt-1 w-full bg-transparent text-[11px] font-black text-white outline-none">
-                      <option value="recommended" className="bg-[#0B1020]">Recommended</option>
-                      <option value="title" className="bg-[#0B1020]">Title</option>
-                      <option value="shortest" className="bg-[#0B1020]">Shortest</option>
+                    <select
+                      value={sortMode}
+                      onChange={(event) => setSortMode(event.target.value as SortMode)}
+                      className="mt-1 w-full bg-transparent text-[11px] font-black text-white outline-none"
+                    >
+                      <option value="recommended" className="bg-[#0B1020]">
+                        Recommended
+                      </option>
+                      <option value="title" className="bg-[#0B1020]">
+                        Title
+                      </option>
+                      <option value="shortest" className="bg-[#0B1020]">
+                        Shortest
+                      </option>
                     </select>
                   </label>
                 </div>
@@ -553,10 +749,14 @@ export default function ImmersePage() {
                 >
                   <span>
                     <span className="block text-[10px] font-black text-white">Unstarted only</span>
-                    <span className="mt-0.5 block text-[8px] text-dim">Hide resources already in progress</span>
+                    <span className="mt-0.5 block text-[8px] text-dim">Hide anything already in progress</span>
                   </span>
                   <span className={`relative h-5 w-9 rounded-full ${unstartedOnly ? 'bg-[#8B5CF6]' : 'bg-white/10'}`}>
-                    <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${unstartedOnly ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                        unstartedOnly ? 'translate-x-[18px]' : 'translate-x-0.5'
+                      }`}
+                    />
                   </span>
                 </button>
               </div>

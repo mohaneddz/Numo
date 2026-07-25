@@ -20,12 +20,17 @@ export interface ImmersionResource {
   id: string;
   kind: ImmersionKind;
   category: string;
+  /**
+   * Language this resource is in. The catalog was previously untagged and served
+   * to every learner, so a Japanese learner was shown Don Quijote and Spanish
+   * LibriVox links.
+   */
+  languageCode: string;
   title: string;
   subtitle: string;
   level: string;
   duration: string;
   accent: string;
-  progress: number;
   tags: string[];
   author?: string;
   publicationYear?: number;
@@ -35,22 +40,31 @@ export interface ImmersionResource {
   localFormat?: 'epub' | 'txt';
 }
 
+/**
+ * Every bundled resource below is Spanish. It is declared once here so that adding
+ * another language's catalog is an explicit act rather than an accident.
+ */
+export const CATALOG_LANGUAGE = 'es';
+
+/** Marks a resource whose language the app cannot determine, such as an imported file. */
+export const LOCAL_LANGUAGE_CODE = 'local';
+
 const makeResources = (
   kind: ImmersionKind,
   category: string,
   accent: string,
-  items: Array<[string, string, string, string, number]>,
+  items: Array<[string, string, string, string]>,
 ): ImmersionResource[] =>
-  items.map(([title, subtitle, level, duration, progress], index) => ({
+  items.map(([title, subtitle, level, duration], index) => ({
     id: `${kind}-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${index + 1}`,
     kind,
     category,
+    languageCode: CATALOG_LANGUAGE,
     title,
     subtitle,
     level,
     duration,
     accent,
-    progress,
     tags: category.split(/\s|&/).filter(Boolean),
   }));
 
@@ -80,6 +94,7 @@ const realReadingResources: ImmersionResource[] = realReadingSeeds.map(
   id: `reading-${slug}`,
   kind: 'reading',
   category,
+  languageCode: CATALOG_LANGUAGE,
   title,
   author,
   publicationYear,
@@ -91,7 +106,6 @@ const realReadingResources: ImmersionResource[] = realReadingSeeds.map(
     : index % 3 === 1
       ? 'from-indigo-500/40 via-blue-700/25 to-[#0B1020]'
       : 'from-amber-500/40 via-orange-800/25 to-[#0B1020]',
-  progress: index === 0 ? 12 : 0,
   tags: [category, 'Public domain', 'Spanish literature'],
   sourceLabel: 'Project Gutenberg',
   sourceUrl: `https://www.gutenberg.org/ebooks/search/?query=${encodeURIComponent(`${title} ${author}`)}`,
@@ -124,6 +138,7 @@ const realAudioResources: ImmersionResource[] = realAudioSeeds.map(
     id: `audio-${slug}`,
     kind: 'audio',
     category,
+    languageCode: CATALOG_LANGUAGE,
     title,
     author,
     subtitle,
@@ -134,7 +149,6 @@ const realAudioResources: ImmersionResource[] = realAudioSeeds.map(
       : index % 3 === 1
         ? 'from-pink-500/40 via-purple-700/25 to-[#0B1020]'
         : 'from-orange-400/40 via-rose-700/20 to-[#0B1020]',
-    progress: index === 0 ? 38 : 0,
     tags: [category, 'Spanish audio'],
     sourceLabel: category === 'Public-Domain Audiobooks' ? 'LibriVox' : 'Apple Podcasts',
     sourceUrl: category === 'Public-Domain Audiobooks'
@@ -145,40 +159,60 @@ const realAudioResources: ImmersionResource[] = realAudioSeeds.map(
 
 export const immersionResources: ImmersionResource[] = [
   ...makeResources('video', 'Documentaries', 'from-cyan-500/45 via-blue-600/25 to-[#0B1020]', [
-    ['The City Beneath the City', 'A guided look at forgotten tunnels and the people preserving them.', 'B1', '18 min', 34],
-    ['A River Returns', 'How one community brought life back to its river.', 'A2', '12 min', 0],
-    ['Night Trains of Europe', 'A quiet journey across borders after sunset.', 'B1', '24 min', 0],
-    ['The Last Traditional Bakery', 'Three generations keeping a neighborhood ritual alive.', 'A2', '14 min', 72],
-    ['Inside the Weather Station', 'Scientists explain how local forecasts are made.', 'B2', '21 min', 0],
-    ['Living with the Desert', 'Daily routines in one of the driest regions on Earth.', 'B1', '16 min', 0],
+    ['The City Beneath the City', 'A guided look at forgotten tunnels and the people preserving them.', 'B1', '18 min'],
+    ['A River Returns', 'How one community brought life back to its river.', 'A2', '12 min'],
+    ['Night Trains of Europe', 'A quiet journey across borders after sunset.', 'B1', '24 min'],
+    ['The Last Traditional Bakery', 'Three generations keeping a neighborhood ritual alive.', 'A2', '14 min'],
+    ['Inside the Weather Station', 'Scientists explain how local forecasts are made.', 'B2', '21 min'],
+    ['Living with the Desert', 'Daily routines in one of the driest regions on Earth.', 'B1', '16 min'],
   ]),
   ...makeResources('video', 'Drama Series', 'from-fuchsia-500/45 via-violet-600/25 to-[#0B1020]', [
-    ['The Apartment Upstairs', 'A missing key brings four neighbors together.', 'A2', '22 min', 48],
-    ['Second Platform', 'Two strangers keep meeting at the same train station.', 'B1', '26 min', 0],
-    ['Sunday Lunch', 'A family announcement changes the whole afternoon.', 'B1', '19 min', 0],
-    ['The New Colleague', 'A first day at work full of small misunderstandings.', 'A2', '17 min', 0],
-    ['Letters from April', 'Old letters reveal a friendship nobody knew about.', 'B2', '31 min', 0],
-    ['Room for One More', 'A shared house tries to choose its newest resident.', 'B1', '23 min', 0],
+    ['The Apartment Upstairs', 'A missing key brings four neighbors together.', 'A2', '22 min'],
+    ['Second Platform', 'Two strangers keep meeting at the same train station.', 'B1', '26 min'],
+    ['Sunday Lunch', 'A family announcement changes the whole afternoon.', 'B1', '19 min'],
+    ['The New Colleague', 'A first day at work full of small misunderstandings.', 'A2', '17 min'],
+    ['Letters from April', 'Old letters reveal a friendship nobody knew about.', 'B2', '31 min'],
+    ['Room for One More', 'A shared house tries to choose its newest resident.', 'B1', '23 min'],
   ]),
   ...makeResources('video', 'Travel & Culture', 'from-amber-400/45 via-orange-600/25 to-[#0B1020]', [
-    ['Breakfast Across the Coast', 'Five cities, five mornings, five local traditions.', 'A2', '15 min', 0],
-    ['A Weekend in Seville', 'Markets, neighborhoods, and conversations with locals.', 'A2', '13 min', 10],
-    ['Why This Festival Matters', 'Residents tell the story behind their annual celebration.', 'B1', '20 min', 0],
-    ['The Etiquette of Coffee', 'How ordering and sharing coffee changes by region.', 'B1', '11 min', 0],
-    ['Small Museums, Big Stories', 'Unexpected collections and their passionate curators.', 'B2', '27 min', 0],
-    ['On Foot Through the Old Town', 'A language-rich walking tour through local history.', 'A2', '16 min', 0],
+    ['Breakfast Across the Coast', 'Five cities, five mornings, five local traditions.', 'A2', '15 min'],
+    ['A Weekend in Seville', 'Markets, neighborhoods, and conversations with locals.', 'A2', '13 min'],
+    ['Why This Festival Matters', 'Residents tell the story behind their annual celebration.', 'B1', '20 min'],
+    ['The Etiquette of Coffee', 'How ordering and sharing coffee changes by region.', 'B1', '11 min'],
+    ['Small Museums, Big Stories', 'Unexpected collections and their passionate curators.', 'B2', '27 min'],
+    ['On Foot Through the Old Town', 'A language-rich walking tour through local history.', 'A2', '16 min'],
   ]),
   ...makeResources('video', 'Short Films', 'from-rose-500/45 via-red-700/20 to-[#0B1020]', [
-    ['The Blue Umbrella', 'A tiny decision changes a rainy afternoon.', 'A2', '8 min', 0],
-    ['Five Minutes Late', 'A missed bus creates an unexpected opportunity.', 'B1', '11 min', 0],
-    ['The Quiet Table', 'Two people communicate without saying what they mean.', 'B2', '14 min', 0],
-    ['Borrowed Shoes', 'A comic story about identity and first impressions.', 'B1', '10 min', 0],
-    ['One Last Photograph', 'A photographer returns to an important place.', 'B2', '16 min', 0],
-    ['The Window Seat', 'A child invents stories about passing strangers.', 'A2', '9 min', 0],
+    ['The Blue Umbrella', 'A tiny decision changes a rainy afternoon.', 'A2', '8 min'],
+    ['Five Minutes Late', 'A missed bus creates an unexpected opportunity.', 'B1', '11 min'],
+    ['The Quiet Table', 'Two people communicate without saying what they mean.', 'B2', '14 min'],
+    ['Borrowed Shoes', 'A comic story about identity and first impressions.', 'B1', '10 min'],
+    ['One Last Photograph', 'A photographer returns to an important place.', 'B2', '16 min'],
+    ['The Window Seat', 'A child invents stories about passing strangers.', 'A2', '9 min'],
   ]),
   ...realReadingResources,
   ...realAudioResources,
 ];
+
+/**
+ * Resources available for a language.
+ *
+ * ImmersePage previously rendered `immersionResources` directly and never consulted
+ * the active language, so every learner - Japanese, Russian, Arabic - was shown the
+ * Spanish catalog, down to LibriVox links hardcoded with `recorded_language=es`.
+ * Returning an empty array is the correct answer for a language with no catalog;
+ * the page shows an honest empty state rather than someone else's material.
+ */
+export function getImmersionResourcesForLanguage(languageCode: string): ImmersionResource[] {
+  const normalized = languageCode.split('-')[0].toLowerCase();
+  return immersionResources.filter(
+    (resource) => resource.languageCode === normalized || resource.languageCode === LOCAL_LANGUAGE_CODE,
+  );
+}
+
+export function immersionCatalogLanguages(): string[] {
+  return [...new Set(immersionResources.map((resource) => resource.languageCode))];
+}
 
 export const demoTranscript: TranscriptLine[] = [
   {
