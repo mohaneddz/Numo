@@ -470,8 +470,9 @@ function evaluateDeterministicTask(input: {
   learnerAnswer: string;
   payload: Record<string, unknown>;
   structuredResponse: Record<string, unknown>;
+  languageCode?: string;
 }) {
-  const { taskType, expectedAnswer, learnerAnswer, payload, structuredResponse } = input;
+  const { taskType, expectedAnswer, learnerAnswer, payload, structuredResponse, languageCode } = input;
 
   if (
     taskType === 'match_word_meaning'
@@ -484,7 +485,7 @@ function evaluateDeterministicTask(input: {
       ? structuredResponse.mapping as Record<string, unknown>
       : {};
     const total = pairs.filter((pair) => typeof pair.left === 'string' && typeof pair.right === 'string').length;
-    if (total === 0) return evaluateLearnTaskAnswer(expectedAnswer, learnerAnswer);
+    if (total === 0) return evaluateLearnTaskAnswer(expectedAnswer, learnerAnswer, languageCode);
     const correct = pairs.filter((pair) => typeof pair.left === 'string' && typeof pair.right === 'string' && mapping[pair.left] === pair.right).length;
     const ratio = correct / total;
     return {
@@ -507,7 +508,7 @@ function evaluateDeterministicTask(input: {
         if (typeof item === 'string') expected.set(item, groupName);
       });
     });
-    if (expected.size === 0) return evaluateLearnTaskAnswer(expectedAnswer, learnerAnswer);
+    if (expected.size === 0) return evaluateLearnTaskAnswer(expectedAnswer, learnerAnswer, languageCode);
     let correct = 0;
     expected.forEach((groupName, item) => {
       if (assignment[item] === groupName) correct += 1;
@@ -523,7 +524,7 @@ function evaluateDeterministicTask(input: {
   if (taskType === 'reorder_sentence' || taskType === 'build_from_chunks') {
     const tokens = Array.isArray(structuredResponse.orderedTokens) ? structuredResponse.orderedTokens : [];
     const joined = tokens.map((token) => String(token)).join(' ').trim();
-    return evaluateLearnTaskAnswer(expectedAnswer, joined || learnerAnswer);
+    return evaluateLearnTaskAnswer(expectedAnswer, joined || learnerAnswer, languageCode);
   }
 
   if (
@@ -546,10 +547,10 @@ function evaluateDeterministicTask(input: {
       ? structuredResponse.selectedOption
       : learnerAnswer;
     const expectedOption = typeof payload.correctOption === 'string' ? payload.correctOption : expectedAnswer;
-    return evaluateLearnTaskAnswer(expectedOption, selectedOption);
+    return evaluateLearnTaskAnswer(expectedOption, selectedOption, languageCode);
   }
 
-  return evaluateLearnTaskAnswer(expectedAnswer, learnerAnswer);
+  return evaluateLearnTaskAnswer(expectedAnswer, learnerAnswer, languageCode);
 }
 
 async function evaluateWithAi(input: {
@@ -600,6 +601,8 @@ export async function evaluateLearnTaskSubmission(input: {
   gradingMode: LearnGradingMode;
   payload?: Record<string, unknown>;
   structuredResponse?: Record<string, unknown>;
+  /** Needed so answers are compared using the target language's script rules. */
+  languageCode?: string;
 }): Promise<{ isCorrect: boolean; score: number; feedback: string }> {
   const payload = input.payload ?? {};
   const structuredResponse = input.structuredResponse ?? {};
@@ -609,6 +612,7 @@ export async function evaluateLearnTaskSubmission(input: {
     learnerAnswer: input.learnerAnswer,
     payload,
     structuredResponse,
+    languageCode: input.languageCode,
   });
 
   const shouldUseAi = OPEN_ENDED_TASKS.has(input.taskType) && (input.gradingMode === 'ai' || input.gradingMode === 'hybrid');
