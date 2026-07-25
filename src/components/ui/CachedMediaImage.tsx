@@ -3,6 +3,9 @@ import {
   getCachedMediaAssetUrl,
   invalidateCachedMediaAsset,
 } from '../../services/mediaAssetCache';
+import {
+  LOCAL_RUNTIME_SETTINGS_EVENT,
+} from '../../services/localRuntimeSettings';
 
 interface CachedMediaImageProps {
   src?: string;
@@ -25,6 +28,7 @@ export default function CachedMediaImage({
   const [nearViewport, setNearViewport] = useState(eager);
   const [sourceIndex, setSourceIndex] = useState(0);
   const [resolvedSrc, setResolvedSrc] = useState('');
+  const [connectivityVersion, setConnectivityVersion] = useState(0);
   const sources = [src, ...fallbackUrls].filter(
     (value, index, values): value is string =>
       Boolean(value?.trim()) && values.indexOf(value) === index,
@@ -34,6 +38,15 @@ export default function CachedMediaImage({
     setSourceIndex(0);
     setResolvedSrc('');
   }, [src, fallbackUrls.join('|')]);
+
+  useEffect(() => {
+    const handleConnectivityChange = () => {
+      setResolvedSrc('');
+      setConnectivityVersion((current) => current + 1);
+    };
+    window.addEventListener(LOCAL_RUNTIME_SETTINGS_EVENT, handleConnectivityChange);
+    return () => window.removeEventListener(LOCAL_RUNTIME_SETTINGS_EVENT, handleConnectivityChange);
+  }, []);
 
   useEffect(() => {
     if (eager) {
@@ -73,7 +86,7 @@ export default function CachedMediaImage({
     return () => {
       cancelled = true;
     };
-  }, [nearViewport, sourceIndex, sources.join('|')]);
+  }, [connectivityVersion, nearViewport, sourceIndex, sources.join('|')]);
 
   const handleError = () => {
     const failedSource = sources[sourceIndex];
