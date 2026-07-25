@@ -1,6 +1,6 @@
-import { TextEntryExercise } from './base/TextEntryExercise';
+import { SpeakRepeatExercise } from './base/SpeakRepeatExercise';
 import type { LearnExerciseProps } from './types';
 
 export function ListenRepeatExercise(props: LearnExerciseProps) {
-  return <TextEntryExercise {...props} placeholder='Type what you repeated...' minLength={2} />;
+  return <SpeakRepeatExercise {...props} />;
 }

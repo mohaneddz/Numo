@@ -60,11 +60,56 @@ describe('exercise registries', () => {
     );
     expect(noPairs).toBeNull();
 
-    const withPairs = resolveLearnExercise(
+    // Two pairs is not a matching task: matching one pair solves the other by
+    // elimination, so at least three are required.
+    const twoPairs = resolveLearnExercise(
       'match_word_meaning',
       {},
       { promptText: 'match this', expectedText: 'answer', pairs: [{ left: 'hola', right: 'hello' }, { left: 'adios', right: 'bye' }] },
     );
+    expect(twoPairs).toBeNull();
+
+    const withPairs = resolveLearnExercise(
+      'match_word_meaning',
+      {},
+      {
+        promptText: 'match this',
+        expectedText: 'answer',
+        pairs: [
+          { left: 'hola', right: 'hello' },
+          { left: 'adios', right: 'bye' },
+          { left: 'gracias', right: 'thanks' },
+        ],
+      },
+    );
     expect(withPairs).not.toBeNull();
+  });
+
+  it('rejects a pair whose two sides are the same string', () => {
+    // The old character-matching fallback emitted { left: X, right: X }, which
+    // shows the learner the answer they are being asked to find.
+    const selfMatching = resolveLearnExercise(
+      'character_reading_match',
+      {},
+      {
+        promptText: 'match this',
+        expectedText: '水',
+        pairs: [
+          { left: '水', right: '水' },
+          { left: '火', right: 'fire' },
+          { left: '木', right: 'tree' },
+        ],
+      },
+    );
+    expect(selfMatching).toBeNull();
+  });
+
+  it('rejects an option set that does not contain the correct answer', () => {
+    const missingAnswer = resolveLearnExercise(
+      'choose_response',
+      {},
+      { promptText: 'pick one', options: ['a', 'b', 'c'], correctOption: 'd' },
+    );
+    expect(missingAnswer).toBeNull();
   });
 });
