@@ -100,7 +100,7 @@ describe('resolveExerciseImage', () => {
     expect(result.query).toContain('isolated object');
   });
 
-  it('falls back to photo URL only after search attempts fail', async () => {
+  it('falls back to a built-in offline visual after search attempts fail', async () => {
     completeWithEchoMock.mockResolvedValue('{"query":"no result query"}');
     imageSearchMock.mockResolvedValue([]);
 
@@ -112,7 +112,7 @@ describe('resolveExerciseImage', () => {
     });
 
     expect(imageSearchMock).toHaveBeenCalled();
-    expect(result.imageUrl).toContain('https://picsum.photos/seed/');
-    expect(result.imageUrl).not.toContain('[[');
+    expect(result.imageUrl).toBe('/continue_learning.png');
+    expect(result.attribution).toBe('Built-in offline visual');
   });
 });

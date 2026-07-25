@@ -45,10 +45,9 @@ function itemKey(input: ExerciseMediaRequest): string {
 
 function fallbackMedia(input: ExerciseMediaRequest): ExerciseMediaSelection {
   const label = normalizeConcept(input.fallbackLabel?.trim() || input.concept || 'learning visual');
-  const encoded = encodeURIComponent(label.slice(0, 64).toLowerCase().replace(/\s+/g, '-'));
   return {
-    imageUrl: `https://picsum.photos/seed/${encoded}/960/540`,
-    attribution: 'Photo fallback',
+    imageUrl: '/continue_learning.png',
+    attribution: 'Built-in offline visual',
     query: label,
     fromCache: false,
   };

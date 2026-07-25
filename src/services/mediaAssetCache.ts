@@ -17,6 +17,20 @@ type AssetIndex = Record<string, AssetIndexEntry>;
 const memoryUrls = new Map<string, string>();
 const pendingUrls = new Map<string, Promise<string>>();
 
+function isRemoteNetworkAsset(value: string): boolean {
+  if (!/^https?:\/\//i.test(value)) return false;
+  try {
+    const url = new URL(value);
+    if (url.hostname === 'asset.localhost' || url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+      return false;
+    }
+    if (typeof window !== 'undefined' && url.origin === window.location.origin) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function supportsPersistentCache(): boolean {
   return typeof caches !== 'undefined' && typeof localStorage !== 'undefined';
 }
@@ -65,9 +79,10 @@ async function pruneCache(cache: Cache, index: AssetIndex) {
 }
 
 async function resolvePersistentAsset(remoteUrl: string): Promise<string> {
+  if (!isRemoteNetworkAsset(remoteUrl)) return remoteUrl;
   const cachedInMemory = memoryUrls.get(remoteUrl);
   if (cachedInMemory) return cachedInMemory;
-  if (!supportsPersistentCache()) return remoteUrl;
+  if (!supportsPersistentCache()) return isOnlineMode() ? remoteUrl : '';
 
   const cache = await caches.open(CACHE_NAME);
   const index = readIndex();
@@ -107,6 +122,7 @@ async function resolvePersistentAsset(remoteUrl: string): Promise<string> {
 export async function getCachedMediaAssetUrl(remoteUrl: string): Promise<string> {
   const normalized = remoteUrl.trim();
   if (!normalized) return '';
+  if (!isRemoteNetworkAsset(normalized)) return normalized;
   const memoryUrl = memoryUrls.get(normalized);
   if (memoryUrl) return memoryUrl;
   const pending = pendingUrls.get(normalized);

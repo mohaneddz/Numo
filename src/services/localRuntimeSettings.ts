@@ -1,4 +1,7 @@
+import { invoke, isTauri } from '@tauri-apps/api/core';
+import { join } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
+import { exists, readDir } from '@tauri-apps/plugin-fs';
 
 export type ConnectivityMode = 'online' | 'offline';
 
@@ -20,6 +23,13 @@ export interface LocalRuntimeSettings {
 }
 
 export type LocalRuntimePathKey = keyof LocalRuntimePaths;
+
+export interface LocalVoiceModel {
+  name: string;
+  modelPath: string;
+  configPath: string;
+  ready: boolean;
+}
 
 const STORAGE_KEY = 'numo_local_runtime_settings_v1';
 export const LOCAL_RUNTIME_SETTINGS_EVENT = 'numo:local-runtime-settings-changed';
@@ -55,6 +65,11 @@ export function readLocalRuntimeSettings(): LocalRuntimeSettings {
 export function writeLocalRuntimeSettings(settings: LocalRuntimeSettings): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   window.dispatchEvent(new CustomEvent(LOCAL_RUNTIME_SETTINGS_EVENT, { detail: settings }));
+  if (isTauri()) {
+    void invoke('set_connectivity_mode', {
+      online: settings.connectivityMode === 'online',
+    });
+  }
 }
 
 export function setConnectivityMode(mode: ConnectivityMode): void {
@@ -77,6 +92,34 @@ export function requireOnline(feature: string): void {
   if (!isOnlineMode()) {
     throw new Error(`${feature} is unavailable while Numo is in offline mode.`);
   }
+}
+
+export function initializeLocalRuntimeSettings(): void {
+  if (!isTauri()) return;
+  const settings = readLocalRuntimeSettings();
+  void invoke('set_connectivity_mode', {
+    online: settings.connectivityMode === 'online',
+  });
+}
+
+export async function scanLocalVoices(
+  folder = readLocalRuntimeSettings().paths.voicesFolder,
+): Promise<LocalVoiceModel[]> {
+  if (!folder) return [];
+  const entries = await readDir(folder);
+  const voices: LocalVoiceModel[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile || !entry.name?.toLowerCase().endsWith('.onnx')) continue;
+    const modelPath = await join(folder, entry.name);
+    const configPath = `${modelPath}.json`;
+    voices.push({
+      name: entry.name.replace(/\.onnx$/i, ''),
+      modelPath,
+      configPath,
+      ready: await exists(configPath),
+    });
+  }
+  return voices.sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export async function chooseLocalRuntimePath(
