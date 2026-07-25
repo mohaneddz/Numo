@@ -63,4 +63,4 @@ The panel contains no development labels, prototype notices, language badges, or
 
 The current UI model lives in `src/pages/Learn/LearnPage.tsx`. It intentionally does not query generated lesson records yet. Selecting an available checkpoint currently opens the existing `/learn/session` flow; curriculum generation and persisted checkpoint progress will be connected later.
 
-The next implementation phase should preserve this UI contract while replacing dummy lessons with generated, persisted curriculum data.
+The next implementation phase should preserve this UI contract while replacing dummy lessons with generated, persisted curriculum data. The canonical target model is defined in [Curriculum and progression blueprint](curriculum-progression-plan.md), and exercise behavior is defined in [Exercise system](exercise-system.md).

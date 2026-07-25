@@ -5,6 +5,8 @@ Numo is a desktop-first language-learning application built with Tauri, React, T
 The application is English-first: English is the interface and base language, while the learner chooses one or more separate learning languages. See [Language onboarding](onboarding.md) for the current first-run flow and navigation rules.
 
 The current Learning-page direction is documented in [Learning roadmap UI](learning-roadmap.md).
+The target curriculum, progression, generation, and unlock model is documented in [Curriculum and progression blueprint](curriculum-progression-plan.md).
+The current and planned exercise catalog, including the sound and pronunciation architecture, is documented in [Exercise system](exercise-system.md).
 The conversational response contract is documented in [Chat](chat.md).
 Online/offline routing and local model paths are documented in [Models and storage](models-and-storage.md).
 
