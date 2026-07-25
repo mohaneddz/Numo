@@ -5,6 +5,7 @@ import { SpotlightCard } from '../ui/SpotlightCard';
 import { useNavigate } from 'react-router-dom';
 import { buildActionUrl } from '../../navigation/actionTemplates';
 import { useCardBackground } from '../../hooks/useCardBackground';
+import CachedMediaImage from '../ui/CachedMediaImage';
 
 export function ContinueLearningCard() {
     const { activeLanguage } = useLanguage();
@@ -45,7 +46,7 @@ export function ContinueLearningCard() {
                                 <span className="text-[72px] drop-shadow-lg opacity-80">{activeLanguage.flag}</span>
                             </div>
                         ) : (
-                            <img
+                            <CachedMediaImage
                                 src={background.source}
                                 alt={continueLearning.moduleName}
                                 className="w-full h-full object-cover"

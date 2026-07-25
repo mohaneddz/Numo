@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCardBackground } from '../../hooks/useCardBackground';
+import CachedMediaImage from '../ui/CachedMediaImage';
 
 interface RecommendationCardProps {
     card: RecommendedCard;
@@ -58,7 +59,7 @@ export function RecommendationCard({ card }: RecommendationCardProps) {
                 )
             }
         >
-            {!isFallback && <img src={background.source} alt={card.title} className="absolute inset-0 h-full w-full object-cover opacity-30" />}
+            {!isFallback && <CachedMediaImage src={background.source} alt={card.title} className="absolute inset-0 h-full w-full object-cover opacity-30" />}
             <div className={`absolute inset-0 ${isFallback ? 'bg-gradient-to-br from-[#111122] via-[#0b1020] to-[#0A0D18]' : 'bg-gradient-to-t from-[#0b1020]/95 via-[#0b1020]/78 to-[#0b1020]/45'}`} />
             {/* Inner Wrapper: Isolates layout from the SpotlightCard's internal structural divs */}
             <div className="relative p-5 px-5 pt-5 pb-0 flex  items-start h-full min-h-[170px] w-full gap-4">

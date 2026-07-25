@@ -4,6 +4,7 @@ import { synthesizeSpeech } from '../../../../services/aiProvider';
 import type { LearnExerciseProps } from '../types';
 import { HintSection } from '../../shared/HintSection';
 import { InteractiveText } from '../../shared/InteractiveText';
+import CachedMediaImage from '../../../ui/CachedMediaImage';
 
 async function playAudio(text: string): Promise<void> {
   if (!text.trim()) return;
@@ -39,7 +40,7 @@ export function OptionSelectExercise({ payload, disabled, onDraftChange }: Learn
     <div className="grid gap-2">
       {payload.imageUrl ? (
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
-          <img src={payload.imageUrl} alt={payload.imageAlt ?? 'Exercise visual'} className="h-44 w-full object-cover" loading="lazy" />
+          <CachedMediaImage src={payload.imageUrl} alt={payload.imageAlt ?? 'Exercise visual'} className="h-44 w-full object-cover" />
         </div>
       ) : null}
 

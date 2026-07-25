@@ -3,6 +3,7 @@ import { useCurriculum } from '../../contexts/CurriculumContext';
 import { SpotlightCard } from '../ui/SpotlightCard';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCardBackground } from '../../hooks/useCardBackground';
+import CachedMediaImage from '../ui/CachedMediaImage';
 
 export function PathProgressCard() {
     const { activeLanguage } = useLanguage();
@@ -32,7 +33,7 @@ export function PathProgressCard() {
                 </div>
             )}
             <SpotlightCard className="p-0 relative overflow-hidden">
-                {!isFallback && <img src={background.source} alt={`${activeLanguage.name} path`} className="absolute inset-0 h-full w-full object-cover opacity-30" />}
+                {!isFallback && <CachedMediaImage src={background.source} alt={`${activeLanguage.name} path`} className="absolute inset-0 h-full w-full object-cover opacity-30" />}
                 <div className={`absolute inset-0 ${isFallback ? 'bg-gradient-to-r from-[#171033] via-[#0b1020] to-[#0A0F24]' : 'bg-gradient-to-t from-[#0b1020]/90 via-[#0b1020]/65 to-[#0b1020]/35'}`} />
                 <div className="px-6 pt-5 pb-4">
                     <div className="relative h-6 mb-2">

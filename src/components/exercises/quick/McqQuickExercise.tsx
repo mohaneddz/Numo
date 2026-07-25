@@ -3,6 +3,7 @@ import { Volume2 } from 'lucide-react';
 import { synthesizeSpeech } from '../../../services/aiProvider';
 import { InteractiveText } from '../shared/InteractiveText';
 import type { QuickExerciseProps } from './types';
+import CachedMediaImage from '../../ui/CachedMediaImage';
 
 function parseExpectedAnswers(answer: string): string[] {
   return answer
@@ -111,7 +112,7 @@ export function McqQuickExercise({ item, disabled, onAnswer, rapidMode, selectio
     <div className="grid gap-3">
       {item.imageUrl ? (
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
-          <img src={item.imageUrl} alt={item.imageAlt ?? item.answer} className="h-44 w-full object-cover" loading="lazy" />
+          <CachedMediaImage src={item.imageUrl} alt={item.imageAlt ?? item.answer} className="h-44 w-full object-cover" />
         </div>
       ) : null}
 
