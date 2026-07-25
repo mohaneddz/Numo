@@ -64,6 +64,8 @@ interface AppDataContextValue {
     structuredResponse?: Record<string, unknown>;
     gradingMode?: LearnGradingMode;
     durationMs?: number;
+    /** Target language, so answers are graded with the right script rules. */
+    languageCode?: string;
   }) => Promise<{ correct: boolean; score: number; feedback: string }>;
   updateMastery: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
@@ -731,6 +733,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       gradingMode: input.gradingMode ?? 'hybrid',
       payload: input.payload,
       structuredResponse: input.structuredResponse,
+      languageCode: input.languageCode,
     });
     if (!engine) {
       return {
