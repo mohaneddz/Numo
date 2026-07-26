@@ -12,6 +12,7 @@ import { UnsupportedExerciseCard } from '../../components/exercises/shared/Unsup
 import { ExerciseShell } from '../../components/exercises/shared/ExerciseShell';
 import { ExerciseActionBar } from '../../components/exercises/shared/ExerciseActionBar';
 import { ExerciseStateBanner } from '../../components/exercises/shared/ExerciseStateBanner';
+import { recordSkillOutcomes } from '../../services/curriculum';
 import { ExerciseFeedbackCard } from '../../components/exercises/shared/ExerciseFeedbackCard';
 import { buildExerciseFeedback, type ExerciseFeedbackModel } from '../../services/exercises/feedbackService';
 import {
@@ -85,6 +86,7 @@ function fromItem(it: ReviewItem, type: ReviewCardType): Q {
     term: it.term,
     answer: it.translation,
     sourceId: it.id,
+    skillId: it.skillId,
   } as Q;
 
   if (type === 'flash_recall') {
@@ -332,6 +334,22 @@ export default function ReviewSession() {
       ? { a: cur.options[pick], b: cur.answer }
       : undefined;
     void persistSignals(r, confusionPair);
+
+    // Review and Learn share one learner model. Only items that carry a skill are
+    // credited: an item mined from immersion has no skill behind it, and guessing
+    // one would push invented evidence into the model.
+    if (cur.skillId && activeProfile?.id) {
+      const isProductionCard = cur.type === 'write' || cur.type === 'reading_recall' || cur.type === 'radical_recall';
+      void recordSkillOutcomes(activeProfile.id, activeLanguage.code, [
+        {
+          skillId: cur.skillId,
+          correct: r === 'correct',
+          score: r === 'correct' ? 100 : 0,
+          modality: isProductionCard ? 'production' : 'recognition',
+          hintUsed,
+        },
+      ]);
+    }
 
     setFeedbackCard(
       buildExerciseFeedback({

@@ -296,6 +296,7 @@ export default function LearnSessionPage() {
         gradingMode: activeExercise.grading,
         durationMs,
         languageCode: activeLanguage.code,
+        skillId: activeTask.blueprint.skillId,
       });
 
       // Leaning on hints is allowed, but it should not read as unaided mastery.
