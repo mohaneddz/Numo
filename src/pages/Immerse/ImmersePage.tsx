@@ -41,6 +41,9 @@ const tabs: Array<{ id: ImmersionKind; label: string; icon: LucideIcon }> = [
 ];
 
 type SortMode = 'recommended' | 'title' | 'shortest';
+
+/** Shown when something was opened but the player never reported a total length. */
+const STARTED_UNKNOWN_PERCENT = 5;
 type MediaStatus = 'idle' | 'loading' | 'connected' | 'missing' | 'error';
 
 function durationInMinutes(duration: string): number {
@@ -239,14 +242,25 @@ export default function ImmersePage() {
     };
   }, []);
 
-  /** Real progress, from what the learner has actually opened. */
+  /**
+   * Real progress, from what the learner has actually opened.
+   *
+   * A percentage is only reported when the player recorded a total to divide by.
+   * Otherwise the resource is shown as merely "started", because a made-up number
+   * is exactly what this page used to display.
+   */
   const progressFor = (resourceId: string): number => {
     const record = state.immersionProgress[resourceId];
     if (!record) return 0;
     if (record.completed) return 100;
-    // positionSec is the only signal available for partially-watched media; without a
-    // known total it is reported as "started" rather than an invented percentage.
-    return record.positionSec > 0 ? Math.min(95, Math.max(5, Math.round(record.positionSec / 60))) : 0;
+    if (record.positionSec <= 0) return 0;
+    if (!record.totalUnits || record.totalUnits <= 0) return STARTED_UNKNOWN_PERCENT;
+    return Math.min(99, Math.max(1, Math.round((record.positionSec / record.totalUnits) * 100)));
+  };
+
+  const hasStarted = (resourceId: string): boolean => {
+    const record = state.immersionProgress[resourceId];
+    return Boolean(record && (record.completed || record.positionSec > 0));
   };
 
   const refreshYouTube = async (kind: 'video' | 'audio', forceRefresh = false) => {
@@ -343,7 +357,7 @@ export default function ImmersePage() {
     const resources = allResources.filter((resource) => {
       if (resource.kind !== activeTab) return false;
       if (levelFilter !== 'All' && resource.level !== levelFilter) return false;
-      if (unstartedOnly && progressFor(resource.id) > 0) return false;
+      if (unstartedOnly && hasStarted(resource.id)) return false;
 
       const minutes = resolvedMinutes(resource);
       if (lengthFilter === 'Short' && minutes > 20) return false;
@@ -416,8 +430,8 @@ export default function ImmersePage() {
   const continueResource = useMemo(
     () =>
       allResources.find((resource) => {
-        const progress = progressFor(resource.id);
-        return progress > 0 && progress < 100;
+        const record = state.immersionProgress[resource.id];
+        return Boolean(record) && !record.completed && record.positionSec > 0;
       }) ?? null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allResources, state.immersionProgress],
@@ -605,7 +619,9 @@ export default function ImmersePage() {
                     />
                   </div>
                   <p className="mt-2 text-[10px] font-semibold text-dim">
-                    {progressFor(continueResource.id)}% complete
+                    {state.immersionProgress[continueResource.id]?.totalUnits
+                      ? `${progressFor(continueResource.id)}% complete`
+                      : 'In progress'}
                   </p>
                 </div>
               </button>

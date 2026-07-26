@@ -36,7 +36,7 @@ import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import {
   demoReading,
   getImmersionResource,
-  immersionResources,
+  getImmersionResourcesForLanguage,
   type ImmersionResource,
   type TranscriptLine,
 } from './immersionCatalog';
@@ -55,6 +55,7 @@ import {
 import CachedMediaImage from '../../components/ui/CachedMediaImage';
 import NaturalReadingExperience from './ReadingExperience';
 import { getLocalBook, localBookToResource } from '../../services/localBookService';
+import { useImmersionSession } from '../../hooks/useImmersionSession';
 import YouTubePlayer, {
   type YouTubePlayerHandle,
 } from '../../components/media/YouTubePlayer';
@@ -272,7 +273,7 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [showTranslation, setShowTranslation] = useState(true);
-  const [savedLines, setSavedLines] = useState<string[]>([]);
+  const immersion = useImmersionSession(resource);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(72);
   const [loopLine, setLoopLine] = useState(false);
@@ -303,7 +304,9 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
     ? (streamCurrentSeconds / streamDurationSeconds) * 100
     : ((activeIndex + 1) / lineCount) * 100;
   const waveform = [22, 40, 65, 36, 78, 52, 88, 44, 68, 30, 74, 48, 92, 60, 35, 70, 50, 82, 42, 64, 28, 56, 76, 46, 66, 38, 85, 54, 72, 32];
-  const audioQueue = immersionResources
+  // Scoped to the resource's own language; this previously pulled from the whole
+  // bundled catalog regardless of what the learner was studying.
+  const audioQueue = getImmersionResourcesForLanguage(resource.languageCode)
     .filter((item) => item.kind === 'audio' && item.id !== resource.id)
     .slice(0, 3);
 
@@ -373,6 +376,11 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
   const handleStreamProgress = useCallback((currentSeconds: number, durationSeconds: number) => {
     setStreamCurrentSeconds(currentSeconds);
     setStreamDurationSeconds(durationSeconds);
+    // Nothing recorded playback position before, so the library's progress bars had
+    // no data to read. The hook throttles these writes.
+    if (durationSeconds > 0) {
+      immersion.recordPosition(currentSeconds, currentSeconds >= durationSeconds * 0.92, durationSeconds);
+    }
     if (durationSeconds <= 0 || transcriptLines.length === 0) return;
     const nextLine = transcriptLines[activeIndex + 1];
     if (loopLine && nextLine && currentSeconds >= nextLine.start) {
@@ -386,7 +394,7 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
       nextIndex = index;
     }
     setActiveIndex(nextIndex);
-  }, [activeIndex, followTranscript, loopLine, transcriptLines]);
+  }, [activeIndex, followTranscript, immersion, loopLine, transcriptLines]);
 
   const handlePlayingChange = useCallback((playing: boolean) => {
     setIsPlaying(playing);
@@ -663,7 +671,7 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
       {transcriptLines.length > 0 && <div className="mt-5">
         <CurrentLineTools
           line={activeLine}
-          saved={savedLines.includes(activeLine.id)}
+          saved={immersion.isSaved(activeLine.source)}
           onReplay={() => {
             if (youtube) {
               playerRef.current?.seekTo(activeLine.start);
@@ -674,13 +682,10 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
             setPlaybackRate(0.75);
             playerRef.current?.setPlaybackRate(0.75);
           }}
-          onSave={() =>
-            setSavedLines((current) =>
-              current.includes(activeLine.id)
-                ? current.filter((id) => id !== activeLine.id)
-                : [...current, activeLine.id],
-            )
-          }
+          // Saving used to push a line id into component state and nothing else, so
+          // mined language was lost the moment the learner navigated away. It now
+          // goes to the notebook and the review queue with its translation.
+          onSave={() => immersion.savePhrase(activeLine.source, activeLine.translation)}
         />
       </div>}
 
@@ -725,7 +730,7 @@ export function ReadingExperience({ resource }: { resource: ImmersionResource })
   const [showTranslation, setShowTranslation] = useState(true);
   const [fontSize, setFontSize] = useState(16);
   const [highlightColor, setHighlightColor] = useState<keyof typeof highlightStyles>('violet');
-  const [savedLines, setSavedLines] = useState<string[]>([]);
+  const immersion = useImmersionSession(resource);
   const [readerTheme, setReaderTheme] = useState<keyof typeof readerThemes>('midnight');
   const [readerFont, setReaderFont] = useState<keyof typeof readerFonts>('literary');
   const [lineHeight, setLineHeight] = useState(1.9);
@@ -769,11 +774,19 @@ export function ReadingExperience({ resource }: { resource: ImmersionResource })
     };
   }, [resource]);
 
+  // Highlights previously lived in component state and disappeared on navigation.
+  // Saving now mines the line into the notebook and the review queue.
+  // Reading position is stored as the line index, which is what "how far in" means
+  // for a text. Without this the library showed 0% for a half-read book.
+  useEffect(() => {
+    if (readingLines.length === 0 || selectedIndex < 0) return;
+    immersion.recordPosition(selectedIndex, selectedIndex >= readingLines.length - 1, readingLines.length - 1);
+  }, [immersion, readingLines.length, selectedIndex]);
+
   const toggleSaved = () => {
-    setSavedLines((current) =>
-      current.includes(selectedLine.id)
-        ? current.filter((id) => id !== selectedLine.id)
-        : [...current, selectedLine.id],
+    immersion.savePhrase(
+      selectedLine.source,
+      selectedLine.translation || generatedTranslations[selectedLine.id],
     );
   };
 
@@ -1035,13 +1048,13 @@ export function ReadingExperience({ resource }: { resource: ImmersionResource })
               type="button"
               onClick={toggleSaved}
               className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-bold ${
-                savedLines.includes(selectedLine.id)
+                immersion.isSaved(selectedLine.source)
                   ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
                   : 'border-white/8 bg-white/[0.035] text-mist'
               }`}
             >
-              {savedLines.includes(selectedLine.id) ? <Check size={13} /> : <BookmarkPlus size={13} />}
-              {savedLines.includes(selectedLine.id) ? 'Highlight saved' : 'Save highlight'}
+              {immersion.isSaved(selectedLine.source) ? <Check size={13} /> : <BookmarkPlus size={13} />}
+              {immersion.isSaved(selectedLine.source) ? 'Highlight saved' : 'Save highlight'}
             </button>
             <button type="button" className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white">
               <BookMarked size={13} /> Add to Notebook
