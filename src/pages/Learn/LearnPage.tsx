@@ -339,9 +339,16 @@ export default function LearnPage() {
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.25),transparent_58%)]" />
               <div className="relative">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A78BFA]">Theme progress</p>
-                    <h2 className="mt-1 text-[19px] font-black text-white">{selectedTheme.title}</h2>
+                    {/* The theme detail route existed but nothing linked to it. */}
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/learn/${selectedTheme.id}`)}
+                      className="mt-1 block max-w-full truncate text-left text-[19px] font-black text-white underline-offset-4 hover:underline"
+                    >
+                      {selectedTheme.title}
+                    </button>
                   </div>
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#8B5CF6]/25 bg-[#8B5CF6]/10 text-[#A78BFA]">
                     <ThemeIcon size={21} strokeWidth={2.2} />
