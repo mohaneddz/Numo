@@ -66,6 +66,11 @@ interface AppDataContextValue {
     durationMs?: number;
     /** Target language, so answers are graded with the right script rules. */
     languageCode?: string;
+    /**
+     * Curriculum skill this task drilled. Carried onto any review item the mistake
+     * creates, so the review loop can credit the same skill the lesson did.
+     */
+    skillId?: string;
   }) => Promise<{ correct: boolean; score: number; feedback: string }>;
   updateMastery: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
@@ -163,6 +168,7 @@ function mapEngineReviewRecordToItem(record: {
     intervalDays: record.intervalDays,
     ease: record.easeFactor,
     lastResult: record.lastResult === 'correct' ? 'correct' : record.lastResult === 'incorrect' ? 'incorrect' : undefined,
+    skillId: typeof metadata.skillId === 'string' && metadata.skillId ? metadata.skillId : undefined,
   };
 }
 
@@ -827,6 +833,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             term: input.prompt.slice(0, 80),
             translation: input.expectedAnswer,
             type: input.taskType.includes('grammar') ? 'grammar' : 'phrase',
+            skillId: input.skillId ?? null,
           },
           strength: 'weak',
           lastResult: 'incorrect',

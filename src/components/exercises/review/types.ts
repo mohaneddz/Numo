@@ -30,6 +30,11 @@ export interface ReviewQuestion {
   expectedReason?: string;
   sourceId?: string;
   scriptHint?: string;
+  /**
+   * Curriculum skill behind this card, when the source item recorded one.
+   * Absent for hand-added or mined items, which therefore do not affect mastery.
+   */
+  skillId?: string;
 }
 
 export interface ReviewExerciseProps {

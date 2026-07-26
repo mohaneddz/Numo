@@ -11,6 +11,14 @@ export interface ContinueLearning {
 }
 
 export interface ReviewItem {
+  /**
+   * Curriculum skill this item came from, when it is known.
+   *
+   * Optional on purpose: items mined from immersion or added by hand have no
+   * skill behind them, and guessing one would put invented evidence into the
+   * learner model. Only attributed items affect skill mastery.
+   */
+  skillId?: string;
   id: string;
   sourceNotebookId?: string;
   origin?: 'notebook' | 'legacy';
