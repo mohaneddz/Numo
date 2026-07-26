@@ -121,9 +121,13 @@ Guided sentence, short composition, and free composition catalog entries all map
 
 ### Current generation behavior
 
-`learningPlanService.ts` generates variants from persisted lesson templates and can add synthetic coverage. It has explicit extra seeds only for Chinese and Japanese. Generic fallback seeds contain English exercise content, so they are development fallbacks rather than a complete ten-language curriculum.
+Session composition and content generation are now separate concerns.
 
-`curriculumGenerator.ts` generates dashboard recommendations, focus percentages, and a daily mission. Despite its name, it does not generate the durable curriculum graph or roadmap.
+`src/services/curriculum/sessionPlanner.ts` decides *what* to practise. It is pure, synchronous and deterministic: given the checkpoint step, the skill graph and the learner's mastery map it selects skills by weakness and review schedule, interleaves earlier themes, and picks an exercise type from `exerciseLadder.ts` according to how well the skill is already known. No network call is involved, so a session is composed instantly.
+
+`src/services/curriculum/taskContentService.ts` produces the *wording* of each task. A whole session is requested in one batched call, results are cached per language/skill/exercise-type/difficulty with several variants, and the next step is prefetched in the background. Everything generated passes `contentValidation.ts` before it is cached or shown; content that fails is dropped rather than displayed.
+
+`learningPlanService.ts` remains for the seeded lesson-template path and for grading. Its former "coverage" behaviour — appending a fixed list of English tasks, plus Chinese and Japanese ones, to every session in every language — has been removed; exercise-type coverage is the planner's responsibility.
 
 ### Current prompt and evaluator audit
 

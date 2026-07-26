@@ -5,6 +5,7 @@ Numo is a desktop-first language-learning application built with Tauri, React, T
 The application is English-first: English is the interface and base language, while the learner chooses one or more separate learning languages. See [Language onboarding](onboarding.md) for the current first-run flow and navigation rules.
 
 The current Learning-page direction is documented in [Learning roadmap UI](learning-roadmap.md).
+The implemented curriculum engine — skill graph, mastery model, roadmap, session planner, and content generation — is documented in [Curriculum engine](curriculum-engine.md).
 The target curriculum, progression, generation, and unlock model is documented in [Curriculum and progression blueprint](curriculum-progression-plan.md).
 The current and planned exercise catalog, including the sound and pronunciation architecture, is documented in [Exercise system](exercise-system.md).
 The conversational response contract is documented in [Chat](chat.md).
@@ -87,7 +88,8 @@ The global shell lives in `src/components/layout/AppShell.tsx`, the global navig
 ## Important implementation contexts
 
 - `LanguageContext` owns the active language selection.
-- `LanguageJourneyContext` and `CurriculumContext` support onboarding, progression, and curriculum state.
+- `LanguageJourneyContext` owns onboarding answers and per-language study preferences.
+- `src/services/curriculum/` owns the curriculum itself: the skill graph, per-skill mastery, persisted progression, the roadmap, the session planner, and validated task content. `useCurriculumState` is the single hook UI reads it through.
 - `AppDataContext` exposes learner-owned data such as notebook entries and review-related counts.
 - `RuntimeContext` coordinates foreground surfaces and runtime behavior.
 - Persistence and repositories live under `src/persistence`.
