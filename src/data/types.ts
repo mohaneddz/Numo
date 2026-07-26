@@ -186,7 +186,14 @@ export interface SpeakingSessionRun {
 
 export interface ImmersionProgress {
   contentId: string;
+  /** Seconds for media; line index for text. Paired with `totalUnits`. */
   positionSec: number;
+  /**
+   * Total length in the same unit as `positionSec`, when the player knows it.
+   * Without this a percentage cannot be computed honestly, so the UI reports
+   * "started" instead of inventing one.
+   */
+  totalUnits?: number;
   completed: boolean;
   savedPhrases: string[];
   updatedAt: string;

@@ -47,7 +47,7 @@ interface AppDataContextValue {
   gradeReviewItem: (id: string, result: 'correct' | 'incorrect') => void;
   saveSpeakingResult: (sessionId: string, run: Omit<SpeakingSessionRun, 'id' | 'sessionId' | 'recordedAt'>) => SpeakingSessionRun;
   saveImmersionPhrase: (contentId: string, phrase: string, translation?: string) => void;
-  updateImmersionProgress: (contentId: string, positionSec: number, completed?: boolean) => void;
+  updateImmersionProgress: (contentId: string, positionSec: number, completed?: boolean, totalUnits?: number) => void;
   saveDraft: (draft: Partial<WritingDraft> & { content: string; title: string }) => WritingDraft;
   analyzeDraft: (draftId: string, analysis: WritingCorrection[]) => void;
   createNotebookEntry: (entry: Omit<NotebookEntry, 'id' | 'createdAt' | 'updatedAt'>) => NotebookEntry;
@@ -82,6 +82,10 @@ const EMPTY_STATE: AppDataState = {
   notebookEntries: [],
   lessonHistory: [],
 };
+
+function immersionProgressKey(learnerId: string, languageId: string): string {
+  return `immersion_progress_v1:${learnerId}:${languageId}`;
+}
 
 function todayIso(): string {
   return new Date().toISOString();
@@ -255,8 +259,16 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       300,
     );
 
+    // Immersion progress lived only in React state, so how far the learner had got
+    // through a video or book was lost on every reload.
+    const immersionProgress =
+      (await engineServices.context.persistence.repositories.settings.getJson<Record<string, ImmersionProgress>>(
+        immersionProgressKey(engineServices.context.learnerId, engineServices.context.languageId),
+      )) ?? {};
+
     setState((previous) => ({
       ...previous,
+      immersionProgress,
       reviewItems,
       speakingRuns: mapSpeakingRunsFromEvidence(evidence),
       writingDrafts: mapWritingDraftsFromEvidence(evidence),
@@ -496,7 +508,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [engine, refreshFromPersistence]);
 
-  const updateImmersionProgress = useCallback((contentId: string, positionSec: number, completed = false) => {
+  const updateImmersionProgress = useCallback((contentId: string, positionSec: number, completed = false, totalUnits?: number) => {
     setState((previous) => {
       const current = previous.immersionProgress[contentId] ?? {
         contentId,
@@ -506,20 +518,34 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedAt: todayIso(),
       };
 
-      return {
-        ...previous,
-        immersionProgress: {
-          ...previous.immersionProgress,
-          [contentId]: {
-            ...current,
-            positionSec,
-            completed: completed || current.completed,
-            updatedAt: todayIso(),
-          },
+      const nextProgress = {
+        ...previous.immersionProgress,
+        [contentId]: {
+          ...current,
+          // Position only moves forward, so a rewind does not lose the furthest point reached.
+          positionSec: Math.max(current.positionSec, Math.round(positionSec)),
+          totalUnits: totalUnits && totalUnits > 0 ? Math.round(totalUnits) : current.totalUnits,
+          completed: completed || current.completed,
+          updatedAt: todayIso(),
         },
       };
+
+      // Persisted outside the React tree so progress survives a reload.
+      if (engine) {
+        void engine.context.persistence.repositories.settings
+          .setJson(
+            immersionProgressKey(engine.context.learnerId, engine.context.languageId),
+            nextProgress,
+            'immersion_progress',
+          )
+          .catch(() => {
+            // A dropped write costs the last position, not the session.
+          });
+      }
+
+      return { ...previous, immersionProgress: nextProgress };
     });
-  }, []);
+  }, [engine]);
 
   const saveDraft = useCallback<AppDataContextValue['saveDraft']>((draft) => {
     const now = dateOnly(todayIso());
