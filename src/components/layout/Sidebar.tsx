@@ -34,10 +34,10 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
     const progression = useLanguageProgression();
     const requiredCount = progression.todayPlan.filter((item) => item.required).length;
-    const missionProgress =
-        progression.requiredMinutes > 0 && requiredCount > 0
-            ? (Math.min(progression.firstEvidenceCount, requiredCount) / requiredCount) * 100
-            : 0;
+    // Progress against today's target. This used to divide lifetime evidence count
+    // by a fixed four "required blocks", so it hit 100% after four activities ever
+    // and stayed there permanently.
+    const missionProgress = progression.todayProgressPercent;
     const location = useLocation();
     const { dueCount } = useAppData();
     const { languages } = useLanguage();
@@ -258,9 +258,11 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
                             Guided Daily Track
                         </h4>
                         <p className="mb-3 text-[12px] leading-relaxed text-dim">
-                            {progression.hasFirstEvidence
-                                ? `Required ${progression.requiredMinutes} min, optional ${progression.optionalMinutes} min.`
-                                : 'You are just getting started in this language. Today is a gentle starter path.'}
+                            {!progression.hasFirstEvidence
+                                ? 'You are just getting started in this language. Today is a gentle starter path.'
+                                : progression.minutesToday >= progression.targetMinutes
+                                    ? `Target met — ${progression.minutesToday} min today.`
+                                    : `${progression.minutesToday} of ${progression.targetMinutes} min today.`}
                         </p>
                     </>
                 )}
@@ -276,7 +278,9 @@ export default function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) 
 
                 {!collapsed ? (
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-medium text-dim">{requiredCount} required blocks</span>
+                        <span className="text-[11px] font-medium text-dim">
+                            {progression.completedPlanItems}/{requiredCount} steps done
+                        </span>
                         <span className="flex items-center gap-1 text-[11px] font-bold text-[#F59E0B]">
                             <Star size={11} fill="currentColor" /> {progression.targetMinutes}m target
                         </span>
