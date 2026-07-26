@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -306,15 +306,63 @@ async fn run_local_stt(
     .map_err(|error| error.to_string())?
 }
 
+/// Finds a Piper voice model for `language` alongside `configured`.
+///
+/// Piper voices are named like `es_ES-sharvard-medium.onnx`, so a language is
+/// matched by the file-name prefix. Returns `None` when nothing matches, leaving
+/// the caller on its configured voice.
+fn resolve_voice_for_language(configured: &Path, language: &str) -> Option<PathBuf> {
+    let code = language.split('-').next()?.to_lowercase();
+    if code.is_empty() {
+        return None;
+    }
+
+    let configured_name = configured.file_name()?.to_string_lossy().to_lowercase();
+    if configured_name.starts_with(&format!("{}_", code)) || configured_name.starts_with(&format!("{}-", code)) {
+        return None; // Already the right language.
+    }
+
+    let directory = configured.parent()?;
+    let entries = std::fs::read_dir(directory).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("onnx") {
+            continue;
+        }
+        let name = path.file_name()?.to_string_lossy().to_lowercase();
+        if !(name.starts_with(&format!("{}_", code)) || name.starts_with(&format!("{}-", code))) {
+            continue;
+        }
+        // A voice is only usable with its JSON config beside it.
+        let config = PathBuf::from(format!("{}.json", path.to_string_lossy()));
+        if config.is_file() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Synthesizes speech with a local Piper voice.
+///
+/// `language` is the language of the text, when the caller knows it. Piper voice
+/// models are per-language, so if a sibling model carrying that language tag sits
+/// next to the configured voice it is used instead — otherwise a Japanese prompt
+/// gets read aloud by an English voice. Falls back to the configured voice
+/// whenever no such model is present.
 #[tauri::command]
 async fn run_local_tts(
     executable_path: String,
     voice_model_path: String,
     text: String,
+    language: Option<String>,
 ) -> Result<Vec<u8>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let piper = require_file(&executable_path, "Piper executable", &[])?;
-        let voice = require_file(&voice_model_path, "Piper voice model", &["onnx"])?;
+        let configured_voice = require_file(&voice_model_path, "Piper voice model", &["onnx"])?;
+        let voice = language
+            .as_deref()
+            .and_then(|code| resolve_voice_for_language(&configured_voice, code))
+            .unwrap_or(configured_voice);
         let voice_config = PathBuf::from(format!("{}.json", voice.to_string_lossy()));
         if !voice_config.is_file() {
             return Err(format!(

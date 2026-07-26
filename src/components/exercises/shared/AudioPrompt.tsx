@@ -5,10 +5,7 @@ import { synthesizeSpeech } from '../../../services/aiProvider';
 interface AudioPromptProps {
   /** Text to speak. The component renders nothing without it. */
   text?: string;
-  /**
-   * Retained for callers and future use. `synthesizeSpeech` currently exposes only
-   * a voice persona, not a target language, so this is not yet forwarded to TTS.
-   */
+  /** Forwarded to TTS so language-specific voices can be selected. */
   languageCode?: string;
   label?: string;
   disabled?: boolean;
@@ -26,7 +23,7 @@ interface AudioPromptProps {
  * call with no loading state, no error state and no replay tracking. A listening
  * task with nothing to listen to is a guessing game.
  */
-export function AudioPrompt({ text, label = 'Play audio', disabled, autoPlay, onPlay }: AudioPromptProps) {
+export function AudioPrompt({ text, languageCode, label = 'Play audio', disabled, autoPlay, onPlay }: AudioPromptProps) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
   const [playCount, setPlayCount] = useState(0);
   const objectUrlRef = useRef<string | null>(null);
@@ -59,7 +56,7 @@ export function AudioPrompt({ text, label = 'Play audio', disabled, autoPlay, on
     try {
       // Reuse the synthesized blob across replays rather than re-requesting it.
       if (!objectUrlRef.current) {
-        const blob = await synthesizeSpeech(value);
+        const blob = await synthesizeSpeech(value, { languageCode });
         objectUrlRef.current = URL.createObjectURL(blob);
       }
       const audio = audioRef.current ?? new Audio(objectUrlRef.current);

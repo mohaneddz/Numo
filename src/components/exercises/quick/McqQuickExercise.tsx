@@ -12,10 +12,10 @@ function parseExpectedAnswers(answer: string): string[] {
     .filter(Boolean);
 }
 
-async function playAudio(text: string): Promise<void> {
+async function playAudio(text: string, languageCode?: string): Promise<void> {
   if (!text.trim()) return;
   try {
-    const blob = await synthesizeSpeech(text);
+    const blob = await synthesizeSpeech(text, { languageCode });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     void audio.play();
@@ -121,7 +121,7 @@ export function McqQuickExercise({ item, disabled, onAnswer, rapidMode, selectio
           type="button"
           disabled={disabled}
           onClick={() => {
-            void playAudio(item.audioText ?? '');
+            void playAudio(item.audioText ?? '', item.languageCode);
           }}
           className="inline-flex w-fit items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[12px] text-mist"
         >

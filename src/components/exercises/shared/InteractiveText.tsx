@@ -128,7 +128,7 @@ export function InteractiveText({ text, languageCode, className, onGlossaryUsage
 
   const hearEntry = async (entry: GlossaryEntry) => {
     try {
-      const blob = await synthesizeSpeech(entry.token);
+      const blob = await synthesizeSpeech(entry.token, { languageCode });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       void audio.play();
