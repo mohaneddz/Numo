@@ -179,7 +179,7 @@ export default function SpeakSession() {
 
   const handleListenNative = async () => {
     try {
-      const blob = await synthesizeSpeech(selectedPrompt.target);
+      const blob = await synthesizeSpeech(selectedPrompt.target, { languageCode: activeLanguage.code });
       const url = URL.createObjectURL(blob);
       if (audioRef.current) {
         audioRef.current.src = url;

@@ -85,6 +85,9 @@ export class LocalNativeProvider implements LlmProvider, SttProvider, TtsProvide
       executablePath: paths.piperExecutable,
       voiceModelPath: paths.piperVoiceModel,
       text: request.text,
+      // Piper voice models are language-specific; the hint lets the backend pick a
+      // matching voice when several are configured.
+      language: request.language ?? null,
     });
     return {
       audio: new Blob([Uint8Array.from(bytes)], { type: 'audio/wav' }),

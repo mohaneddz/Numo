@@ -245,15 +245,33 @@ export async function transcribeSpeech(audioBlob: Blob, languageCode = 'es'): Pr
   return response.text?.trim() ?? '';
 }
 
+export interface SynthesizeSpeechOptions {
+  voice?: VoicePersona;
+  /**
+   * Language of the text being spoken.
+   *
+   * `TtsSynthesizeRequest` has always had this field and nothing ever set it, so
+   * every prompt in every language was synthesized with the default voice. Hosted
+   * endpoints pick the language from the voice, so this is advisory there; local
+   * Piper voices are per-language and use it to choose the right model.
+   */
+  languageCode?: string;
+}
+
 export async function synthesizeSpeech(
   text: string,
-  voice?: VoicePersona,
+  options?: VoicePersona | SynthesizeSpeechOptions,
 ): Promise<Blob> {
   const config = getEffectiveAiConfig();
+  // Callers previously passed a bare voice persona; keep that working.
+  const resolved: SynthesizeSpeechOptions =
+    typeof options === 'string' ? { voice: options } : options ?? {};
+
   const response = await runtimeKernel.synthesizeWithForegroundTracking({
     model: config.models.tts,
     text,
-    voice: voice ?? config.models.ttsVoice,
+    voice: resolved.voice ?? config.models.ttsVoice,
+    language: resolved.languageCode,
     format: 'wav',
   });
   return response.audio;

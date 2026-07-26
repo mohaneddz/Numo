@@ -256,6 +256,9 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
     const endpoint = `${config.baseUrl}/audio/speech`;
     const model = request.model ?? config.models.tts;
+    // request.language is deliberately not sent: this endpoint derives the spoken
+    // language from the voice and rejects unknown fields. The hint is still carried
+    // on the request for providers that can act on it, such as local Piper.
     const payload = {
       model,
       voice: request.voice ?? config.models.ttsVoice,
