@@ -131,3 +131,37 @@ export function isWrongScript(text: string, languageCode: string): boolean {
   if (!/\p{L}/u.test(text)) return false;
   return !matchesLanguageScript(text, languageCode);
 }
+
+const SCRIPT_LABELS: Record<ScriptId, string> = {
+  latin: 'the Latin alphabet',
+  cyrillic: 'the Cyrillic alphabet',
+  greek: 'the Greek alphabet',
+  arabic: 'the Arabic script',
+  hebrew: 'the Hebrew script',
+  devanagari: 'Devanagari script',
+  bengali: 'Bengali script',
+  tamil: 'Tamil script',
+  thai: 'Thai script',
+  lao: 'Lao script',
+  khmer: 'Khmer script',
+  hangul: 'Hangul',
+  kana: 'kana',
+  han: 'Chinese characters (Hanzi/Kanji)',
+  ethiopic: 'Ethiopic script',
+  georgian: 'the Georgian script',
+  armenian: 'the Armenian script',
+};
+
+/**
+ * Human-readable name of a language's script(s), for prompting a model — e.g.
+ * "kana and Chinese characters (Hanzi/Kanji)" for Japanese. Generation content
+ * repeatedly came back with expectedAnswer written as a romanization (Pinyin,
+ * Romaji) rather than the actual script, even when the prompt separately asked
+ * for a "romanization" field — naming the script explicitly, rather than only
+ * naming the language, is what a model reliably tells apart from "the romanized
+ * form of it".
+ */
+export function scriptLabel(languageCode: string): string {
+  const scripts = getLanguageProfile(languageCode).scripts;
+  return scripts.map((script) => SCRIPT_LABELS[script]).join(' and ');
+}
