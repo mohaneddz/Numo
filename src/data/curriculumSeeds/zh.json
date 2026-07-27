@@ -1,0 +1,309 @@
+{
+  "languageCode": "zh",
+  "version": 1,
+  "generatedAt": "2026-07-27T08:50:41.748Z",
+  "entries": {
+    "task_content_v2:zh:politeness:finish_sentence_starter:d1": [
+      {
+        "instruction": "Complete the sentence with a polite phrase.",
+        "prompt": "When someone helps you, you say",
+        "expectedAnswer": "谢谢",
+        "distractors": [
+          "谢谢你",
+          "非常感谢"
+        ],
+        "payload": {
+          "promptText": "When someone helps you, you say ",
+          "expectedText": "谢谢"
+        },
+        "translation": "thank you",
+        "romanization": "xièxiè",
+        "teachingNote": "Use polite language to show appreciation."
+      }
+    ],
+    "task_content_v2:zh:politeness:identify_context_meaning:d1": [
+      {
+        "instruction": "Choose the correct meaning of the sentence in context.",
+        "prompt": "What does the sentence mean in this situation?",
+        "expectedAnswer": "thank you",
+        "distractors": [
+          "hello",
+          "goodbye",
+          "excuse me"
+        ],
+        "payload": {
+          "options": [
+            "hello",
+            "thank you",
+            "goodbye",
+            "excuse me"
+          ],
+          "correctOption": "thank you"
+        },
+        "translation": "",
+        "teachingNote": "Identify the correct meaning in context."
+      }
+    ],
+    "task_content_v2:zh:politeness:read_answer_questions:d1": [
+      {
+        "instruction": "Read the question and answer with a polite phrase.",
+        "prompt": "How do you respond when someone gives you something?",
+        "expectedAnswer": "谢谢",
+        "distractors": [
+          "好的",
+          "不用谢"
+        ],
+        "payload": {
+          "promptText": "How do you respond when someone gives you something?",
+          "expectedText": "谢谢"
+        },
+        "translation": "thank you",
+        "romanization": "xièxiè",
+        "teachingNote": "Respond with gratitude when receiving something."
+      }
+    ],
+    "task_content_v2:zh:pronunciation_basics:identify_sounds:d1": [
+      {
+        "instruction": "Choose the word that sounds like the audio.",
+        "prompt": "Listen to the audio and choose the correct word.",
+        "expectedAnswer": "妈",
+        "distractors": [
+          "马",
+          "麻",
+          "码"
+        ],
+        "payload": {
+          "options": [
+            "妈",
+            "麻",
+            "马",
+            "码"
+          ],
+          "correctOption": "妈",
+          "audioText": "妈"
+        },
+        "translation": "mother",
+        "romanization": "mā",
+        "teachingNote": "Identify the correct pronunciation of similar-sounding words."
+      }
+    ],
+    "task_content_v2:zh:pronunciation_basics:listen_choose_written:d1": [
+      {
+        "instruction": "Listen to the audio and choose the correct written form.",
+        "prompt": "Listen to the sentence and choose the correct written form.",
+        "expectedAnswer": "你好",
+        "distractors": [
+          "您好",
+          "尼豪",
+          "你耗"
+        ],
+        "payload": {
+          "options": [
+            "你好",
+            "您好",
+            "你耗",
+            "尼豪"
+          ],
+          "correctOption": "你好",
+          "audioText": "你好"
+        },
+        "translation": "hello",
+        "romanization": "nǐ hǎo",
+        "teachingNote": "Choose the correct written form based on the audio."
+      }
+    ],
+    "task_content_v2:zh:pronunciation_basics:listen_repeat:d1": [
+      {
+        "instruction": "Listen to the audio and repeat the sentence.",
+        "prompt": "Repeat the sentence after listening to the audio.",
+        "expectedAnswer": "你好，谢谢",
+        "distractors": [
+          "你好",
+          "谢谢"
+        ],
+        "payload": {
+          "audioText": "你好，谢谢"
+        },
+        "translation": "hello, thank you",
+        "romanization": "nǐ hǎo, xièxiè",
+        "teachingNote": "Repeat the sentence to practice pronunciation."
+      }
+    ],
+    "task_content_v2:zh:pronunciation_basics:sound_word_recognition:d1": [
+      {
+        "instruction": "Listen to the audio and choose the correct word.",
+        "prompt": "Listen to the word and choose the correct written form.",
+        "expectedAnswer": "水",
+        "distractors": [
+          "火",
+          "土",
+          "木"
+        ],
+        "payload": {
+          "options": [
+            "土",
+            "水",
+            "火",
+            "木"
+          ],
+          "correctOption": "水",
+          "audioText": "水"
+        },
+        "translation": "water",
+        "romanization": "shuǐ",
+        "teachingNote": "Recognize the correct word based on the audio."
+      }
+    ],
+    "task_content_v2:zh:simple_recognition:identify_context_meaning:d1": [
+      {
+        "instruction": "Choose the correct meaning of the word in context.",
+        "prompt": "means ____ in the sentence: ____",
+        "expectedAnswer": "hello",
+        "distractors": [
+          "goodbye",
+          "thank you",
+          "yes"
+        ],
+        "payload": {
+          "options": [
+            "yes",
+            "hello",
+            "thank you",
+            "goodbye"
+          ],
+          "correctOption": "hello"
+        },
+        "translation": "hello",
+        "teachingNote": "Understand word meaning in context."
+      }
+    ],
+    "task_content_v2:zh:yes_no:choose_response:d1": [
+      {
+        "instruction": "Choose the correct response to '谢谢' (thank you).",
+        "prompt": "Someone thanks you, how do you respond?",
+        "expectedAnswer": "不客气",
+        "distractors": [
+          "谢谢",
+          "对不起"
+        ],
+        "payload": {
+          "options": [
+            "谢谢",
+            "对不起",
+            "不客气",
+            "没关系"
+          ],
+          "correctOption": "不客气"
+        },
+        "translation": "You're welcome",
+        "romanization": "bù kè qì",
+        "teachingNote": "Responding to thanks with a polite phrase."
+      }
+    ],
+    "task_content_v2:zh:yes_no:complete_dialogue:d1": [
+      {
+        "instruction": "Complete the dialogue with a yes or no answer",
+        "prompt": "你是中国人吗？",
+        "expectedAnswer": "是",
+        "distractors": [
+          "否"
+        ],
+        "payload": {
+          "promptText": "你是中国人吗？",
+          "expectedText": "是"
+        },
+        "translation": "Are you Chinese?",
+        "romanization": "shì",
+        "teachingNote": "Use simple yes or no answers in basic conversations"
+      }
+    ],
+    "task_content_v2:zh:yes_no:finish_sentence_starter:d1": [
+      {
+        "instruction": "Finish the sentence with a yes or no answer",
+        "prompt": "我是中国人，",
+        "expectedAnswer": "是",
+        "distractors": [
+          "否"
+        ],
+        "payload": {
+          "promptText": "我是中国人，",
+          "expectedText": "是"
+        },
+        "translation": "I am Chinese,",
+        "romanization": "shì",
+        "teachingNote": "Use simple affirmations to complete sentences"
+      }
+    ],
+    "task_content_v2:zh:yes_no:identify_context_meaning:d1": [
+      {
+        "instruction": "Choose the correct meaning based on context.",
+        "prompt": "Someone says 'hǎo' in response to 'nǐ hǎo'.",
+        "expectedAnswer": "I'm fine",
+        "distractors": [
+          "yes",
+          "goodbye",
+          "thank you"
+        ],
+        "payload": {
+          "options": [
+            "I'm fine",
+            "thank you",
+            "yes",
+            "goodbye"
+          ],
+          "correctOption": "I'm fine"
+        },
+        "translation": "I'm fine",
+        "romanization": "hǎo",
+        "teachingNote": "Understanding the meaning of 'hǎo' in context."
+      }
+    ],
+    "task_content_v2:zh:yes_no:match_sentence_translation:d1": [
+      {
+        "instruction": "Match the Chinese sentence with its English translation.",
+        "prompt": "Match the sentence with its translation.",
+        "expectedAnswer": "是",
+        "distractors": [
+          "否",
+          "谢谢"
+        ],
+        "payload": {
+          "pairs": [
+            {
+              "left": "是",
+              "right": "yes"
+            },
+            {
+              "left": "否",
+              "right": "no"
+            },
+            {
+              "left": "谢谢",
+              "right": "thank you"
+            }
+          ]
+        },
+        "translation": "yes",
+        "romanization": "shì",
+        "teachingNote": "Basic yes/no responses in Chinese."
+      }
+    ],
+    "task_content_v2:zh:yes_no:read_answer_questions:d1": [
+      {
+        "instruction": "Read the question and answer with a yes or no",
+        "prompt": "你喜欢中国菜吗？",
+        "expectedAnswer": "是",
+        "distractors": [
+          "否"
+        ],
+        "payload": {
+          "promptText": "你喜欢中国菜吗？",
+          "expectedText": "是"
+        },
+        "translation": "Do you like Chinese food?",
+        "romanization": "shì",
+        "teachingNote": "Answer questions with simple yes or no responses"
+      }
+    ]
+  }
+}
