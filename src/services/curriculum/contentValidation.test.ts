@@ -101,6 +101,42 @@ describe('validateTaskContent', () => {
     expect(issueRules(result)).toContain('correct_option_missing');
   });
 
+  it('accepts an English answer for identify_context_meaning', () => {
+    // This task type shows a target-language prompt and asks for its English
+    // meaning, so its answer and options are meant to be English, not Chinese —
+    // the script check must not fire here or every correct instance is rejected.
+    const result = validateTaskContent(
+      content({
+        prompt: '你好',
+        expectedAnswer: 'hello',
+        payload: {
+          options: ['hello', 'goodbye', 'thank you', 'excuse me'],
+          correctOption: 'hello',
+        },
+      }),
+      { taskType: 'identify_context_meaning', languageCode: 'zh' },
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it('still rejects options that mix scripts for identify_context_meaning', () => {
+    // The per-option mixed-script check is independent of the answer exemption:
+    // consistently-English options are fine, a mix of English and target-language
+    // options is still a giveaway.
+    const result = validateTaskContent(
+      content({
+        prompt: '你好',
+        expectedAnswer: 'hello',
+        payload: {
+          options: ['hello', '再见', 'thank you', 'excuse me'],
+          correctOption: 'hello',
+        },
+      }),
+      { taskType: 'identify_context_meaning', languageCode: 'zh' },
+    );
+    expect(issueRules(result)).toContain('mixed_script_options');
+  });
+
   it('rejects options that mix scripts', () => {
     const result = validateTaskContent(
       content({

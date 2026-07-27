@@ -56,6 +56,16 @@ const ANSWER_MAY_APPEAR_IN_PROMPT = new Set<TaskType>([
   'read_answer_questions',
 ]);
 
+/**
+ * Exercise types whose answer is deliberately in English, not the target language.
+ *
+ * `identify_context_meaning` shows a target-language prompt and asks the learner
+ * to choose its English meaning from a set of English options — that is the whole
+ * point of the exercise. The script check does not apply to its answer, or it
+ * would reject every correctly generated instance of this task type.
+ */
+const ANSWER_IS_ENGLISH_MEANING = new Set<TaskType>(['identify_context_meaning']);
+
 /** Exercise types rendered as a list of options. */
 const OPTION_TASK_TYPES = new Set<TaskType>([
   'choose_response',
@@ -123,8 +133,9 @@ export function validateTaskContent(
   }
 
   // The answer must be in the language being studied. This is the check that stops
-  // English filler content being served to a learner of another language.
-  if (answer && isWrongScript(answer, languageCode)) {
+  // English filler content being served to a learner of another language — except
+  // for the handful of task types whose answer is meant to be an English meaning.
+  if (answer && isWrongScript(answer, languageCode) && !ANSWER_IS_ENGLISH_MEANING.has(taskType)) {
     issues.push({
       rule: 'answer_wrong_script',
       detail: `Expected answer "${answer}" is not written in the script of ${languageCode}.`,
