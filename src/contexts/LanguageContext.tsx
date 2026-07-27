@@ -2,6 +2,13 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { initializePersistence } from '../persistence';
 import { useProfileSession } from './ProfileSessionContext';
 import { resolveLanguageFlag } from '../utils/flags';
+import { languageCatalog, languageCatalogMap, type LanguageCatalogEntry } from '../data/languageCatalog';
+
+// Re-exported so existing imports from this module keep working; the catalog
+// itself lives in src/data/languageCatalog.ts, which has no React dependency, so
+// non-UI tooling (e.g. scripts/generateCurriculumSeed.ts) can read it without
+// pulling in a context module.
+export { languageCatalog, type LanguageCatalogEntry };
 
 export interface Progress {
   dailyGoalMinutes: number;
@@ -28,15 +35,6 @@ export interface Language {
   continueLearning?: ContinueLearning;
 }
 
-export interface LanguageCatalogEntry {
-  code: string;
-  name: string;
-  flag: string;
-  starterModule: string;
-  starterLesson: string;
-  starterDescription: string;
-}
-
 interface LanguageContextType {
   activeLanguage: Language;
   languages: Language[];
@@ -55,20 +53,7 @@ interface LanguageContextType {
   updateContinueLearning: (data: Partial<ContinueLearning>) => void;
 }
 
-export const languageCatalog: LanguageCatalogEntry[] = [
-  { code: 'zh', name: 'Chinese', flag: '🇨🇳', starterModule: 'Chinese Core Path', starterLesson: 'Core tones and greetings', starterDescription: 'Start with practical Mandarin sounds and expressions.' },
-  { code: 'de', name: 'German', flag: '🇩🇪', starterModule: 'German Core Path', starterLesson: 'Common phrases', starterDescription: 'Build practical everyday German.' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸', starterModule: 'Spanish Core Path', starterLesson: 'Core phrases', starterDescription: 'Build practical daily Spanish.' },
-  { code: 'it', name: 'Italian', flag: '🇮🇹', starterModule: 'Italian Core Path', starterLesson: 'Greetings and essentials', starterDescription: 'Build useful Italian for everyday situations.' },
-  { code: 'ru', name: 'Russian', flag: '🇷🇺', starterModule: 'Russian Core Path', starterLesson: 'Sounds and essential phrases', starterDescription: 'Start Russian with practical speech and Cyrillic recognition.' },
-  { code: 'fr', name: 'French', flag: '🇫🇷', starterModule: 'French Core Path', starterLesson: 'Greetings and introductions', starterDescription: 'Learn how to greet people and introduce yourself.' },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵', starterModule: 'Japanese Core Path', starterLesson: 'Sounds and writing basics', starterDescription: 'Build practical Japanese alongside gradual script recognition.' },
-  { code: 'ko', name: 'Korean', flag: '🇰🇷', starterModule: 'Korean Core Path', starterLesson: 'Hangul and greetings', starterDescription: 'Start with useful Korean and gradual Hangul recognition.' },
-  { code: 'pt', name: 'Portuguese', flag: '🇵🇹', starterModule: 'Portuguese Core Path', starterLesson: 'Core phrases', starterDescription: 'Build practical Portuguese for everyday communication.' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦', starterModule: 'Arabic Core Path', starterLesson: 'Sounds and essential phrases', starterDescription: 'Start with practical Modern Standard Arabic and gradual script recognition.' },
-];
-
-const catalogMap = new Map(languageCatalog.map((entry) => [entry.code, entry]));
+const catalogMap = languageCatalogMap;
 
 const defaultProgress: Progress = {
   dailyGoalMinutes: 30,
