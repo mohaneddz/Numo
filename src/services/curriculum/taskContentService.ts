@@ -10,7 +10,10 @@
  *  - a whole session's tasks are requested in one batched call rather than per task;
  *  - everything generated is validated, and anything that fails is dropped rather
  *    than shown;
- *  - upcoming steps are warmed in the background so the next session is already cached.
+ *  - upcoming steps are warmed in the background so the next session is already cached;
+ *  - a lookup that misses the device's own cache falls back to a bundled seed pack
+ *    (see `seedPack.ts`) before ever calling the network, for languages one was
+ *    generated for offline via `scripts/generateCurriculumSeed.ts`.
  */
 
 import { initializePersistence } from '../../persistence';
@@ -20,9 +23,10 @@ import type { TaskType } from '../../types/learningPlan';
 import { seededShuffle } from '../../utils/seededRandom';
 import { validateTaskContent, type TaskContent, type ValidationIssue } from './contentValidation';
 import { requiresAudio, requiresImage } from './exerciseLadder';
-import { getLanguageProfile } from './languageProfile';
+import { getLanguageProfile, scriptLabel } from './languageProfile';
+import { seedVariantsFor } from './seedPack';
 import type { TaskBlueprint } from './sessionPlanner';
-import { getSkill } from './skillGraph';
+import { getSkill, getTheme } from './skillGraph';
 
 const CACHE_VERSION = 2;
 /** Variants kept per cache key, so repeated drills are not word-for-word identical. */
@@ -32,7 +36,7 @@ export interface ResolvedTask {
   blueprint: TaskBlueprint;
   content: TaskContent;
   /** Where the content came from, for diagnostics. */
-  source: 'cache' | 'generated';
+  source: 'cache' | 'seed' | 'generated';
 }
 
 interface CacheEntry {
@@ -40,27 +44,54 @@ interface CacheEntry {
   updatedAt: string;
 }
 
-function cacheKey(languageCode: string, blueprint: TaskBlueprint): string {
+/**
+ * Exported so `scripts/generateCurriculumSeed.ts` and `seedPack.ts` derive the
+ * exact same key the live cache uses — a seed entry and a later live-generated
+ * variant for the same (language, skill, exercise type, difficulty) combination
+ * must land on one cache entry, not two.
+ */
+export function buildCacheKey(languageCode: string, blueprint: TaskBlueprint): string {
   return `task_content_v${CACHE_VERSION}:${languageCode}:${blueprint.skillId}:${blueprint.taskType}:d${blueprint.difficulty}`;
 }
 
 const memoryCache = new Map<string, CacheEntry>();
 
-async function readCache(key: string): Promise<CacheEntry | null> {
+/**
+ * Reads one cache entry, checking in order: in-memory, this device's own
+ * persisted history, then the bundled seed pack.
+ *
+ * The device's own history is checked before the seed pack deliberately —
+ * content this learner has already generated and validated locally is preferred
+ * over the generic bundled version for the same key.
+ */
+async function readCache(key: string, languageCode: string): Promise<CacheEntry | null> {
   const cached = memoryCache.get(key);
   if (cached) return cached;
+
   try {
     const persistence = await initializePersistence();
     const stored = await persistence.repositories.settings.getJson<CacheEntry>(key);
-    if (stored) memoryCache.set(key, stored);
-    return stored;
+    if (stored) {
+      memoryCache.set(key, stored);
+      return stored;
+    }
   } catch {
-    return null;
+    // No persistence available (e.g. outside the Tauri runtime). Fall through to
+    // the seed pack rather than failing the lookup.
   }
+
+  const seeded = await seedVariantsFor(languageCode, key);
+  if (seeded) {
+    const entry: CacheEntry = { variants: seeded, updatedAt: 'bundled' };
+    memoryCache.set(key, entry);
+    return entry;
+  }
+
+  return null;
 }
 
-async function writeCache(key: string, content: TaskContent): Promise<void> {
-  const existing = memoryCache.get(key) ?? (await readCache(key)) ?? { variants: [], updatedAt: '' };
+async function writeCache(key: string, languageCode: string, content: TaskContent): Promise<void> {
+  const existing = memoryCache.get(key) ?? (await readCache(key, languageCode)) ?? { variants: [], updatedAt: '' };
   // Keep the newest variants, capped, so the cache cannot grow without bound.
   const variants = [content, ...existing.variants].slice(0, VARIANTS_PER_KEY);
   const entry: CacheEntry = { variants, updatedAt: new Date().toISOString() };
@@ -119,16 +150,30 @@ const DIFFICULTY_GUIDANCE: Record<number, string> = {
 
 function buildBatchPrompt(languageName: string, languageCode: string, blueprints: TaskBlueprint[]): string {
   const profile = getLanguageProfile(languageCode);
+  // Naming the language alone was not enough: generation repeatedly came back with
+  // expectedAnswer written as the romanization (Pinyin, Romaji) instead of the
+  // actual script, even though a separate "romanization" field was requested for
+  // exactly that. Naming the script explicitly, and showing one worked example of
+  // the split, is what a model reliably keeps straight.
   const romanizationRule = profile.needsRomanization
-    ? `- Include "romanization" (${profile.romanizationName ?? 'a romanized reading'}) for every target-language string in the answer.`
+    ? `- Include "romanization" (${profile.romanizationName ?? 'a romanized reading'}) for every target-language string in the answer. Romanization goes ONLY in the "romanization" field.
+- "expectedAnswer" (and every target-language string in "payload") MUST be written in ${scriptLabel(languageCode)} — the actual script, never ${profile.romanizationName ?? 'the romanized form'}. Example for Chinese: expectedAnswer: "谢谢", romanization: "xièxiè" — never expectedAnswer: "xièxiè".`
     : '';
 
   const items = blueprints.map((blueprint) => {
     const skill = getSkill(blueprint.skillId);
+    // "Politeness" or "Yes/No" alone gives the model nothing to hang a concrete
+    // phrase on, and it tends to answer in English or produce something unusably
+    // generic. The theme that introduces the skill (Starter Survival, Shopping &
+    // Money, ...) gives it a situation to write toward.
+    const introducingTheme = skill?.themeIds[0] ? getTheme(skill.themeIds[0]) : null;
     return {
       id: blueprint.id,
       skill: skill?.title ?? blueprint.skillId,
       skillDescription: skill ? `${skill.kind} skill in ${skill.category}` : '',
+      situationalContext: introducingTheme
+        ? `Set it in the context of: ${introducingTheme.title} — ${introducingTheme.shortDescription}`
+        : undefined,
       exerciseType: blueprint.taskType,
       difficulty: blueprint.difficulty,
       difficultyGuidance: DIFFICULTY_GUIDANCE[blueprint.difficulty] ?? DIFFICULTY_GUIDANCE[3],
@@ -138,11 +183,17 @@ function buildBatchPrompt(languageName: string, languageCode: string, blueprints
 
   return `You are writing exercise content for a learner of ${languageName} (code: ${languageCode}). The interface language is English.
 
+THE SINGLE MOST IMPORTANT FIELD IS "expectedAnswer". Never leave it, or any field
+mirroring it inside "payload" (expectedText, correctOption), as an empty string.
+If you are unsure of the exact correct answer, still write your single best answer
+in ${scriptLabel(languageCode)} — an imperfect answer is useful, a blank one is not.
+
 Return JSON only, no markdown:
-{"tasks":[{"id":"<matching id>","instruction":"<English, one short sentence>","prompt":"<the question>","expectedAnswer":"<the correct answer>","distractors":["<wrong but plausible>"],"payload":{...},"translation":"<English meaning of the target text>","teachingNote":"<one short English sentence explaining the point>"}]}
+{"tasks":[{"id":"<matching id>","instruction":"<English, one short sentence>","prompt":"<the question>","expectedAnswer":"<the correct answer, never empty>","distractors":["<wrong but plausible>"],"payload":{...},"translation":"<English meaning of the target text>","teachingNote":"<one short English sentence explaining the point>"}]}
 
 Hard rules:
 - "expectedAnswer" MUST be written in ${languageName}, never in English, unless the exercise asks for an English meaning.
+- "expectedAnswer" MUST NOT be an empty string, under any circumstances.
 - "instruction" and "teachingNote" MUST be in English.
 - The answer MUST NOT appear anywhere in "prompt".
 - Distractors must be plausible and wrong for a real reason (a near-synonym, a wrong form, a common learner error), never random words, and must be in the same language and script as the answer.
@@ -239,6 +290,14 @@ export interface ResolveTasksInput {
   /** Seed for variant selection, so a repeated session is not identical. */
   variantSeed?: string;
   onIssue?: (blueprintId: string, issues: ValidationIssue[]) => void;
+  /**
+   * Logs the raw model response behind a rejected or failed batch.
+   *
+   * An explicit flag rather than an environment read: this module ships to the
+   * browser/Tauri bundle as well as CLI tooling, and `process.env` does not exist
+   * in that runtime.
+   */
+  debug?: boolean;
 }
 
 /**
@@ -254,7 +313,7 @@ export async function resolveTasks(input: ResolveTasksInput): Promise<ResolvedTa
   const seedBase = input.variantSeed ?? String(Date.now());
 
   for (const blueprint of input.blueprints) {
-    const entry = await readCache(cacheKey(input.languageCode, blueprint));
+    const entry = await readCache(buildCacheKey(input.languageCode, blueprint), input.languageCode);
     const variants = entry?.variants ?? [];
     if (variants.length === 0) {
       needsGeneration.push(blueprint);
@@ -265,7 +324,7 @@ export async function resolveTasks(input: ResolveTasksInput): Promise<ResolvedTa
     resolved.set(blueprint.id, {
       blueprint,
       content: shuffleOptions(variants[index], `${seedBase}:${blueprint.id}`),
-      source: 'cache',
+      source: entry?.updatedAt === 'bundled' ? 'seed' : 'cache',
     });
   }
 
@@ -310,8 +369,9 @@ async function generateBatch(
   const output = new Map<string, TaskContent>();
 
   let parsed: Record<string, unknown>;
+  let rawResponse = '';
   try {
-    const response = await completeWithEcho(
+    rawResponse = await completeWithEcho(
       [
         {
           id: `task-content-${Date.now()}`,
@@ -323,22 +383,39 @@ async function generateBatch(
       'analyst',
       { maxTokens: 3200, responseFormat: { type: 'json_object' } },
     );
-    parsed = parseJsonObject(response);
+    parsed = parseJsonObject(rawResponse);
   } catch (error) {
     console.error('taskContentService: generation failed', error);
+    // DEBUG_CONTENT_GEN=1 prints the raw model text behind an unparseable/failed
+    // batch, since "unparseable" alone does not say whether the JSON was
+    // truncated, malformed, or just missing fields for a few items.
+    if (input.debug && rawResponse) {
+      console.error('  raw response (first 1500 chars):', rawResponse.slice(0, 1500));
+    }
     return output;
   }
 
   const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+  if (input.debug) {
+    console.error(`  [debug] batch of ${blueprints.length} -> parsed ${tasks.length} task objects`);
+  }
   for (const raw of tasks) {
     const record = raw as Record<string, unknown>;
     const id = typeof record.id === 'string' ? record.id : '';
     const blueprint = blueprints.find((candidate) => candidate.id === id);
-    if (!blueprint) continue;
+    if (!blueprint) {
+      if (input.debug) {
+        console.error(`  [debug] response item id "${id}" does not match any requested blueprint`);
+      }
+      continue;
+    }
 
     const content = toTaskContent(record);
     if (!content) {
       input.onIssue?.(id, [{ rule: 'unparseable', detail: 'Generated task was missing required fields.' }]);
+      if (input.debug) {
+        console.error(`  [debug] ${id} raw item:`, JSON.stringify(record).slice(0, 400));
+      }
       continue;
     }
 
@@ -358,7 +435,7 @@ async function generateBatch(
     }
 
     output.set(id, content);
-    void writeCache(cacheKey(input.languageCode, blueprint), content);
+    void writeCache(buildCacheKey(input.languageCode, blueprint), input.languageCode, content);
   }
 
   return output;
@@ -373,7 +450,7 @@ async function generateBatch(
 export async function prefetchTasks(input: Omit<ResolveTasksInput, 'cacheOnly'>): Promise<void> {
   const uncached: TaskBlueprint[] = [];
   for (const blueprint of input.blueprints) {
-    const entry = await readCache(cacheKey(input.languageCode, blueprint));
+    const entry = await readCache(buildCacheKey(input.languageCode, blueprint), input.languageCode);
     if ((entry?.variants.length ?? 0) === 0) uncached.push(blueprint);
   }
   if (uncached.length === 0) return;
@@ -383,7 +460,7 @@ export async function prefetchTasks(input: Omit<ResolveTasksInput, 'cacheOnly'>)
 /** True when every blueprint can be served without a network call. */
 export async function isSessionCached(languageCode: string, blueprints: TaskBlueprint[]): Promise<boolean> {
   for (const blueprint of blueprints) {
-    const entry = await readCache(cacheKey(languageCode, blueprint));
+    const entry = await readCache(buildCacheKey(languageCode, blueprint), languageCode);
     if ((entry?.variants.length ?? 0) === 0) return false;
   }
   return true;
