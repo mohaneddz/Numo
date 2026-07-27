@@ -133,6 +133,33 @@ function ladderFor(kind: SkillKind, languageCode: string): LadderEntry[] {
   return LADDERS[kind];
 }
 
+/**
+ * Every (rung, exercise type) pair the ladder can produce for a skill kind.
+ *
+ * `chooseExercise` picks exactly one type for one learner at one moment. This
+ * instead lists everything the ladder is *capable* of choosing, unfiltered by any
+ * particular mastery level — what a bulk content-seeding pass needs, since it has
+ * to warm every type the cache key space actually contains rather than whichever
+ * one a single simulated mastery value would select.
+ */
+export function listLadderExerciseTypes(
+  skillKind: SkillKind,
+  languageCode: string,
+): Array<{ rung: LadderRung; taskType: TaskType; modality: PracticeModality }> {
+  const ladder = ladderFor(skillKind, languageCode);
+  const seen = new Set<TaskType>();
+  const output: Array<{ rung: LadderRung; taskType: TaskType; modality: PracticeModality }> = [];
+
+  for (const entry of ladder) {
+    for (const taskType of entry.taskTypes) {
+      if (seen.has(taskType)) continue; // A type only needs one representative slot.
+      seen.add(taskType);
+      output.push({ rung: entry.rung, taskType, modality: entry.modality });
+    }
+  }
+  return output;
+}
+
 export interface ChooseExerciseInput {
   skillKind: SkillKind;
   languageCode: string;
