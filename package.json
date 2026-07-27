@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "audit:buttons": "node scripts/audit-buttons.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:curriculum": "vite-node scripts/generateCurriculumSeed.ts",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -32,12 +34,14 @@
   "devDependencies": {
     "@tailwindcss/vite": "latest",
     "@tauri-apps/cli": "^2",
+    "@types/node": "^26.1.1",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "latest",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
+    "vite-node": "^6.0.0",
     "vitest": "^2.1.9"
   }
 }

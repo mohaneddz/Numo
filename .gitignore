@@ -33,3 +33,6 @@ docs/**
 
 # Vite writes these while the dev server is running
 vite.config.ts.timestamp-*
+
+# TypeScript incremental build cache
+*.tsbuildinfo
