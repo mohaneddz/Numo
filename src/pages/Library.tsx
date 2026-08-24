@@ -30,6 +30,7 @@ import { SpotlightCard } from '../components/ui/SpotlightCard';
 import { buildActionUrl, buildTemplateUrl } from '../navigation/actionTemplates';
 import { useLanguage } from '../contexts/LanguageContext';
 import { integrationService, type ApprovalQueueItem, type LibraryApprovedItem } from '../services/integrationService';
+import NotebookSectionNav from '../components/notebook/NotebookSectionNav';
 import type { ContentRevisionRecord } from '../persistence/types';
 
 type ItemType = 'words' | 'phrases' | 'sentences' | 'audio';
@@ -103,7 +104,7 @@ function contentToActivity(item: LibraryApprovedItem): ActivityType {
 
 const fadeUp = { initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.4 } };
 
-export default function LibraryPage() {
+export default function NotebookLibraryPage() {
   const navigate = useNavigate();
   const { activeLanguage } = useLanguage();
   const [search, setSearch] = useState('');
@@ -306,7 +307,9 @@ export default function LibraryPage() {
 
   return (
     <PageContent className="pb-12" width="wide">
-      <PageActions />
+      <PageActions>
+        <NotebookSectionNav />
+      </PageActions>
       <PageMainSidebarLayout>
         <PageMainColumn className="gap-10">
           <motion.div
@@ -576,7 +579,7 @@ export default function LibraryPage() {
                           buildTemplateUrl({
                             templateId: 'library-play-recent',
                             entityId: item.id,
-                            params: { from: '/library', lang: activeLanguage.code },
+                            params: { from: '/notebook/library', lang: activeLanguage.code },
                           }),
                         )
                       }
@@ -649,7 +652,7 @@ export default function LibraryPage() {
                             buildTemplateUrl({
                               templateId: 'library-play-item',
                               entityId: item.id,
-                              params: { from: '/library', lang: activeLanguage.code },
+                              params: { from: '/notebook/library', lang: activeLanguage.code },
                             }),
                           )
                         }
@@ -663,7 +666,7 @@ export default function LibraryPage() {
                             buildTemplateUrl({
                               templateId: 'library-speak-item',
                               entityId: item.id,
-                              params: { from: '/library', lang: activeLanguage.code },
+                              params: { from: '/notebook/library', lang: activeLanguage.code },
                             }),
                           )
                         }
@@ -677,7 +680,7 @@ export default function LibraryPage() {
                             buildTemplateUrl({
                               templateId: 'library-edit-item',
                               entityId: item.id,
-                              params: { from: '/library', lang: activeLanguage.code },
+                              params: { from: '/notebook/library', lang: activeLanguage.code },
                             }),
                           )
                         }
@@ -691,7 +694,7 @@ export default function LibraryPage() {
                             buildTemplateUrl({
                               templateId: 'library-star-item',
                               entityId: item.id,
-                              params: { from: '/library', lang: activeLanguage.code },
+                              params: { from: '/notebook/library', lang: activeLanguage.code },
                             }),
                           )
                         }
@@ -756,7 +759,7 @@ export default function LibraryPage() {
                   onClick={() =>
                     navigate(
                       buildActionUrl('library_start_practice', {
-                        params: { from: '/library', lang: activeLanguage.code },
+                        params: { from: '/notebook/library', lang: activeLanguage.code },
                       }),
                     )
                   }
@@ -800,7 +803,7 @@ export default function LibraryPage() {
                       buildTemplateUrl({
                         templateId: 'library-collection',
                         entityId: col.id,
-                        params: { from: '/library', lang: activeLanguage.code },
+                        params: { from: '/notebook/library', lang: activeLanguage.code },
                       }),
                     )
                   }

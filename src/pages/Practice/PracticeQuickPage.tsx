@@ -1,21 +1,85 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+﻿import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
-import { PracticeCard } from '../../components/practice/PracticeCard';
-import { ProgressBar } from '../../components/practice/ProgressBar';
-import { SpotlightCard } from '../../components/ui/SpotlightCard';
-import { generateSession, SessionState } from '../../lib/sessionEngine';
-import { ArrowLeft, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { generateSession, regenerateExercise, type PracticeItem, type SessionState } from '../../lib/sessionEngine';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguageJourney } from '../../contexts/LanguageJourneyContext';
+import { useProfileSession } from '../../contexts/ProfileSessionContext';
+import { resolveQuickExercise } from '../../components/exercises/quick/registry';
+import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
+import { ExerciseShell } from '../../components/exercises/shared/ExerciseShell';
+import { ExerciseStateBanner } from '../../components/exercises/shared/ExerciseStateBanner';
+import { ExerciseActionBar } from '../../components/exercises/shared/ExerciseActionBar';
+import { ExerciseFeedbackCard } from '../../components/exercises/shared/ExerciseFeedbackCard';
+import { buildExerciseFeedback, type ExerciseFeedbackModel } from '../../services/exercises/feedbackService';
+import { updateExerciseSignals } from '../../services/exercises/exerciseSignalsService';
+import { getExerciseByUserKey, resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
+
+function normalize(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseExpectedAnswers(answer: string): string[] {
+  return answer
+    .split('||')
+    .map((part) => normalize(part))
+    .filter(Boolean);
+}
+
+function evaluateItem(item: PracticeItem, answer: string, structuredResponse?: Record<string, unknown>) {
+  if (item.type === 'match' && item.pairs && structuredResponse?.mapping && typeof structuredResponse.mapping === 'object') {
+    const mapping = structuredResponse.mapping as Record<string, unknown>;
+    const correctCount = item.pairs.filter((pair) => mapping[pair.left] === pair.right).length;
+    const score = Math.round((correctCount / item.pairs.length) * 100);
+    return { correct: score === 100, score };
+  }
+
+  if (item.type === 'phrase_assembly' && Array.isArray(structuredResponse?.orderedTokens)) {
+    const ordered = (structuredResponse.orderedTokens as unknown[]).map((token) => String(token)).join(' ');
+    const correct = normalize(ordered) === normalize(item.answer);
+    return { correct, score: correct ? 100 : 35 };
+  }
+
+  if (Array.isArray(structuredResponse?.selectedOptions)) {
+    const selected = (structuredResponse.selectedOptions as unknown[])
+      .map((entry) => normalize(String(entry)))
+      .filter(Boolean);
+    const expected = parseExpectedAnswers(item.answer);
+    const selectedSet = new Set(selected);
+    const expectedSet = new Set(expected);
+    const exact = selectedSet.size === expectedSet.size && Array.from(expectedSet).every((entry) => selectedSet.has(entry));
+    if (exact) return { correct: true, score: 100 };
+    const overlap = expected.filter((entry) => selectedSet.has(entry)).length;
+    const partialScore = expected.length > 0 ? Math.round((overlap / expected.length) * 100) : 20;
+    return { correct: false, score: Math.max(20, Math.min(72, partialScore)) };
+  }
+
+  const correct = normalize(answer) === normalize(item.answer);
+  if (correct) return { correct: true, score: 100 };
+  const partial = normalize(answer).length > 0 && (normalize(item.answer).includes(normalize(answer)) || normalize(answer).includes(normalize(item.answer)));
+  return { correct: partial, score: partial ? 72 : 20 };
+}
 
 export default function PracticeQuickPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { activeLanguage } = useLanguage();
+  const { getSettings } = useLanguageJourney();
+  const { activeProfile } = useProfileSession();
+
   const mode = searchParams.get('mode') || undefined;
   const source = searchParams.get('source') || undefined;
   const lang = searchParams.get('lang') || activeLanguage.code;
   const languageCode = lang.trim().toLowerCase();
+  const journeySettings = getSettings(languageCode);
   const languageName = languageCode === activeLanguage.code ? activeLanguage.name : languageCode.toUpperCase();
 
   const [session, setSession] = useState<SessionState>({
@@ -26,148 +90,151 @@ export default function PracticeQuickPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [inputValue, setInputValue] = useState('');
-  const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ExerciseFeedbackModel | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [startedAtMs, setStartedAtMs] = useState(Date.now());
+  const [hintUsed, setHintUsed] = useState(false);
+  const [confusedUsed, setConfusedUsed] = useState(false);
+  const [showHintText, setShowHintText] = useState(false);
+  const [hoverUsage, setHoverUsage] = useState(0);
 
   const currentItem = session.items[session.currentIndex];
-  const progress = session.items.length > 0 ? ((session.currentIndex) / session.items.length) * 100 : 0;
+  const activeExercise = currentItem ? resolveQuickExercise(currentItem) : null;
+  const currentLabel = currentItem
+    ? (currentItem.userKey
+      ? getExerciseByUserKey(currentItem.userKey)?.displayName
+      : resolveExerciseByInternal('quick', currentItem.type)?.displayName) ?? currentItem.type.replace(/_/g, ' ')
+    : '';
+  const done = session.completed || (session.items.length > 0 && session.currentIndex >= session.items.length);
 
-  useEffect(() => {
-    let cancelled = false;
+  const progress = session.items.length > 0 ? (session.currentIndex / session.items.length) * 100 : 0;
+
+  const loadSession = async () => {
     setIsLoading(true);
     setLoadError(null);
-    setInputValue('');
+    setRefreshError(null);
     setFeedback(null);
+    setSelectedOptions([]);
 
-    void (async () => {
-      try {
-        const generated = await generateSession({
-          mode,
-          source,
-          languageCode,
-          languageName,
-        });
-        if (!cancelled) {
-          setSession(generated);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : 'Failed to load session');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [languageCode, languageName, mode, source]);
+    try {
+      const generated = await generateSession({
+        mode,
+        source,
+        languageCode,
+        languageName,
+        journeyLevel: journeySettings.level,
+        difficultyPreference: journeySettings.difficulty,
+      });
+      setSession(generated);
+      setStartedAtMs(Date.now());
+      setHintUsed(false);
+      setConfusedUsed(false);
+      setShowHintText(false);
+      setHoverUsage(0);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to load session');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (feedback !== null) {
-      const timer = setTimeout(() => {
-        setFeedback(null);
-        setInputValue('');
-        if (session.currentIndex + 1 >= session.items.length) {
-          setSession(s => ({ ...s, completed: true }));
-        } else {
-          setSession(s => ({ ...s, currentIndex: s.currentIndex + 1 }));
-        }
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [feedback, session.currentIndex, session.items.length]);
+    void loadSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [languageCode, languageName, mode, source, journeySettings.level, journeySettings.difficulty]);
 
-  const handleAnswer = (answer: string) => {
-    if (feedback !== null || !currentItem) return;
-    const isCorrect = answer.toLowerCase().trim() === currentItem.answer.toLowerCase().trim();
-    if (isCorrect) {
-      setSession(s => ({ ...s, correctAnswers: s.correctAnswers + 1 }));
-      setFeedback('correct');
-    } else {
-      setFeedback('incorrect');
+  const persistSignals = async (result: { correct: boolean; score: number }, confusionPair?: { a: string; b: string }) => {
+    if (!activeProfile?.id || !currentItem) return;
+    const isProduction = currentItem.type === 'translate' || currentItem.type === 'speak' || currentItem.type === 'single_cloze';
+    await updateExerciseSignals(activeProfile.id, languageCode, {
+      wasCorrect: result.correct,
+      latencyMs: Math.max(1000, Date.now() - startedAtMs),
+      hintUsed,
+      confusedUsed,
+      hoverUsed: hoverUsage,
+      exerciseType: currentItem.userKey ?? currentItem.type,
+      confusionPair,
+      recognitionDelta: isProduction ? (result.correct ? 1 : -1) : result.correct ? 3 : -3,
+      productionDelta: isProduction ? (result.correct ? 3 : -3) : result.correct ? 1 : -1,
+    });
+  };
+
+  const handleAnswer = (answer: string, structuredResponse?: Record<string, unknown>) => {
+    if (!currentItem || feedback !== null) return;
+    const picked = Array.isArray(structuredResponse?.selectedOptions)
+      ? (structuredResponse.selectedOptions as unknown[]).map((entry) => String(entry).trim()).filter(Boolean)
+      : [typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : answer].filter(Boolean);
+    setSelectedOptions(picked);
+    const result = evaluateItem(currentItem, answer, structuredResponse);
+
+    if (result.correct) {
+      setSession((previous) => ({ ...previous, correctAnswers: previous.correctAnswers + 1 }));
+    }
+
+    const expected = currentItem.answer;
+    const selectedOption = typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : undefined;
+    const confusionPair = !result.correct && selectedOption ? { a: selectedOption, b: expected } : undefined;
+    void persistSignals(result, confusionPair);
+
+    setFeedback(
+      buildExerciseFeedback({
+        correct: result.correct,
+        score: result.score,
+        learnerAnswer: answer,
+        expectedAnswer: expected,
+      }),
+    );
+  };
+
+  const handleNext = () => {
+    setFeedback(null);
+    setSelectedOptions([]);
+    setStartedAtMs(Date.now());
+    setHintUsed(false);
+    setConfusedUsed(false);
+    setShowHintText(false);
+    setHoverUsage(0);
+
+    if (session.currentIndex + 1 >= session.items.length) {
+      setSession((previous) => ({ ...previous, completed: true, currentIndex: previous.items.length }));
+      return;
+    }
+
+    setSession((previous) => ({ ...previous, currentIndex: previous.currentIndex + 1 }));
+  };
+
+  const handleRefreshExercise = async () => {
+    if (!currentItem || isRefreshing || feedback !== null) return;
+    setIsRefreshing(true);
+    setRefreshError(null);
+    try {
+      const regenerated = await regenerateExercise({
+        mode,
+        source,
+        languageCode,
+        languageName,
+        journeyLevel: journeySettings.level,
+        difficultyPreference: journeySettings.difficulty,
+        currentItem,
+      });
+      setSession((previous) => {
+        const nextItems = [...previous.items];
+        nextItems[previous.currentIndex] = regenerated;
+        return { ...previous, items: nextItems };
+      });
+      setFeedback(null);
+      setSelectedOptions([]);
+      setStartedAtMs(Date.now());
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : 'Failed to refresh exercise');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
-  const handleInputSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputValue.trim()) {
-      handleAnswer(inputValue);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <PageContent width="narrow" className="pb-12">
-        <PageActions>
-          <button className="page-primary-action" onClick={() => navigate(-1)}>
-            <ArrowLeft size={16} /> Exit Session
-          </button>
-        </PageActions>
-        <SpotlightCard className="p-6 flex items-center gap-3 text-mist">
-          <Loader2 size={18} className="animate-spin" />
-          <span>Generating practice for {languageName}...</span>
-        </SpotlightCard>
-      </PageContent>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <PageContent width="narrow" className="pb-12">
-        <PageActions>
-          <button className="page-primary-action" onClick={() => navigate(-1)}>
-            <ArrowLeft size={16} /> Exit Session
-          </button>
-        </PageActions>
-        <SpotlightCard className="p-6 text-rose-300 text-[14px]">
-          {loadError}
-        </SpotlightCard>
-      </PageContent>
-    );
-  }
-
-  if (!currentItem) {
-    return (
-      <PageContent width="narrow" className="pb-12">
-        <PageActions>
-          <button className="page-primary-action" onClick={() => navigate(-1)}>
-            <ArrowLeft size={16} /> Exit Session
-          </button>
-        </PageActions>
-        <SpotlightCard className="p-6 text-dim text-[14px]">
-          No practice items generated for this session.
-        </SpotlightCard>
-      </PageContent>
-    );
-  }
-
-  if (session.completed) {
-    return (
-      <PageContent width="narrow" className="pb-12">
-        <PageActions>
-          <button className="page-primary-action" onClick={() => navigate(-1)}>
-            <ArrowLeft size={16} /> Back
-          </button>
-        </PageActions>
-        <SpotlightCard className="p-8 text-center bg-emerald-500/5">
-          <div className="mx-auto bg-emerald-500/20 text-emerald-400 w-16 h-16 flex items-center justify-center rounded-full mb-4">
-            <CheckCircle2 size={32} />
-          </div>
-          <h1 className="text-[28px] font-bold text-white mb-2">Session Complete!</h1>
-          <p className="text-[15px] text-mist mb-8">
-            You scored {session.correctAnswers} out of {session.items.length}.
-          </p>
-          <button className="page-primary-action w-full justify-center" onClick={() => navigate('/')}>
-            Return Home
-          </button>
-        </SpotlightCard>
-      </PageContent>
-    );
-  }
+  const hintDetail = currentItem?.options?.slice(0, 2).join(' | ') ?? currentItem?.context ?? 'Look at key meaning cues first.';
 
   return (
     <PageContent width="narrow" className="pb-12">
@@ -176,74 +243,109 @@ export default function PracticeQuickPage() {
           <ArrowLeft size={16} /> Exit Session
         </button>
       </PageActions>
-      
-      <div className="mb-8">
-        <h1 className="text-[24px] font-bold text-white mb-4">Quick Practice</h1>
-        <ProgressBar progress={progress} />
+
+      <div className="mb-3">
+        <h1 className="text-[24px] font-bold text-white">Quick Practice</h1>
+        <p className="text-[13px] text-dim">Progress: {Math.round(progress)}%</p>
       </div>
 
-      <PracticeCard>
-        <div className="text-[14px] text-dim uppercase tracking-wider font-bold mb-4">
-          {currentItem.type === 'mcq' && 'Vocabulary Recall'}
-          {currentItem.type === 'translate' && 'Translation'}
-          {currentItem.type === 'speak' && 'Speaking Practice'}
-        </div>
-        
-        <p className="text-[18px] text-white font-medium mb-6">
-          {currentItem.prompt}
-        </p>
+      {isLoading ? (
+        <ExerciseStateBanner tone="loading" message="Generating practice session" detail={`Language: ${languageName}`} />
+      ) : null}
 
-        {currentItem.type === 'mcq' && currentItem.options && (
-          <div className="grid gap-3">
-            {currentItem.options.map((opt) => (
+      {loadError ? <ExerciseStateBanner tone="error" message="Session failed to load" detail={loadError} /> : null}
+
+      {!isLoading && !loadError && !currentItem && !done ? (
+        <ExerciseStateBanner tone="empty" message="No practice items generated." detail="Try refreshing this session." />
+      ) : null}
+
+      {!isLoading && !loadError && done ? (
+        <ExerciseShell
+          title="Quick session complete"
+          subtitle="Nice work on today’s focused drills."
+          progressLabel={`${session.correctAnswers}/${session.items.length}`}
+          prompt={`Accuracy: ${session.items.length > 0 ? Math.round((session.correctAnswers / session.items.length) * 100) : 0}%`}
+        >
+          <ExerciseStateBanner tone="success" message="Session finished" detail="Continue with review for spaced reinforcement." />
+          <button className="page-primary-action w-full justify-center" onClick={() => navigate('/review')}>
+            Start Review
+          </button>
+        </ExerciseShell>
+      ) : null}
+
+      {!isLoading && !loadError && currentItem && !done ? (
+        <ExerciseShell
+          title={currentLabel}
+          subtitle={`Item ${session.currentIndex + 1} of ${session.items.length}`}
+          progressLabel={`${session.correctAnswers} correct`}
+          prompt={currentItem.prompt}
+          languageCode={languageCode}
+          onGlossaryUsage={(count) => setHoverUsage((value) => value + count)}
+          actions={(
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <ExerciseActionBar
+                onHint={() => {
+                  setHintUsed(true);
+                  setShowHintText(true);
+                }}
+                onSkip={() => {
+                  setFeedback(
+                    buildExerciseFeedback({
+                      correct: false,
+                      score: 0,
+                      expectedAnswer: currentItem.answer,
+                      why: 'Skipped. Review the target and continue.',
+                    }),
+                  );
+                  void persistSignals({ correct: false, score: 0 });
+                }}
+                onConfused={() => setConfusedUsed(true)}
+              />
               <button
-                key={opt}
-                disabled={feedback !== null}
-                onClick={() => handleAnswer(opt)}
-                className="w-full text-left px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-mist"
+                type="button"
+                onClick={() => {
+                  void handleRefreshExercise();
+                }}
+                disabled={isRefreshing || feedback !== null}
+                className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[12px] text-mist"
               >
-                {opt}
+                {isRefreshing ? 'Refreshing...' : 'Regenerate'}
               </button>
-            ))}
-          </div>
-        )}
-
-        {(currentItem.type === 'translate' || currentItem.type === 'speak') && (
-          <form onSubmit={handleInputSubmit} className="flex flex-col gap-4">
-            <textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              disabled={feedback !== null}
-              placeholder={currentItem.type === 'speak' ? 'Type what you said... (microphone mock)' : 'Type your answer...'}
-              className="w-full bg-black/20 rounded-lg border border-white/10 p-4 text-mist placeholder:text-dim outline-none resize-none min-h-[100px]"
-            />
-            <button
-              type="submit"
-              disabled={!inputValue.trim() || feedback !== null}
-              className="page-primary-action justify-center"
-            >
-              Check Answer
+            </div>
+          )}
+          footer={feedback ? (
+            <button className="page-primary-action w-full justify-center py-3" onClick={handleNext}>
+              Next Item <ArrowRight size={16} />
             </button>
-          </form>
-        )}
+          ) : null}
+        >
+          {refreshError ? <ExerciseStateBanner tone="error" message="Could not regenerate" detail={refreshError} /> : null}
+          {showHintText ? <ExerciseStateBanner tone="info" message="Hint" detail={hintDetail} /> : null}
+          {confusedUsed && !feedback ? (
+            <ExerciseStateBanner tone="info" message="Confusion flagged" detail="Try meaning first, then exact form." />
+          ) : null}
 
-        {feedback === 'correct' && (
-          <div className="mt-6 flex items-center gap-2 text-emerald-400 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
-            <CheckCircle2 size={18} /> Correct! Excellent job.
-          </div>
-        )}
-        
-        {feedback === 'incorrect' && (
-          <div className="mt-6 flex flex-col gap-2 text-rose-400 bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">
-            <div className="flex items-center gap-2">
-              <XCircle size={18} /> Not quite right.
-            </div>
-            <div className="text-[14px]">
-              The correct answer is: <span className="font-bold text-white">{currentItem.answer}</span>
-            </div>
-          </div>
-        )}
-      </PracticeCard>
+          {activeExercise ? (
+            <activeExercise.component
+              item={currentItem}
+              disabled={feedback !== null}
+              onAnswer={handleAnswer}
+              selectionFeedback={feedback ? {
+                selectedOption: selectedOptions[0],
+                selectedOptions,
+                isCorrect: feedback.correct,
+                correctAnswer: currentItem.answer,
+                correctAnswers: parseExpectedAnswers(currentItem.answer),
+              } : undefined}
+            />
+          ) : (
+            <UnsupportedExerciseCard reason={`Unsupported quick exercise payload for "${currentItem.type}".`} />
+          )}
+
+          {feedback ? <ExerciseFeedbackCard feedback={feedback} languageCode={languageCode} /> : null}
+        </ExerciseShell>
+      ) : null}
     </PageContent>
   );
 }
+

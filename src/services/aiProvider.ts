@@ -1,11 +1,13 @@
-import { aiConfig } from '../config/aiConfig';
+import { getEffectiveAiConfig } from '../config/aiConfig';
 import { getGroqQuotaSnapshot, runtimeKernel } from '../runtime';
 import type {
   ApiQuotaSnapshot,
   ChatMessage,
   EchoMode,
+  LanguageLearningReply,
   VoicePersona,
 } from '../types/ai';
+import type { ChatResponseLength } from './chatPreferences';
 
 const BASE_SYSTEM_PROMPT = [
   'You are Echo, a supportive and intelligent educational companion.',
@@ -74,8 +76,9 @@ export async function completeWithEcho(
   options?: { maxTokens?: number; responseFormat?: { type: string } },
 ): Promise<string> {
   const modeConfig = MODE_CONFIG[mode] ?? MODE_CONFIG.advisor;
+  const config = getEffectiveAiConfig();
   const response = await runtimeKernel.completeWithForegroundTracking({
-    model: aiConfig.models.chat,
+    model: config.models.chat,
     temperature: modeConfig.temperature,
     maxTokens: options?.maxTokens ?? modeConfig.maxTokens,
     responseFormat: options?.responseFormat,
@@ -93,24 +96,183 @@ export async function completeWithEcho(
   return text;
 }
 
-export async function transcribeSpeech(audioBlob: Blob): Promise<string> {
+function extractJsonObject(raw: string): string {
+  const withoutFence = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '');
+  const start = withoutFence.indexOf('{');
+  const end = withoutFence.lastIndexOf('}');
+  return start >= 0 && end > start
+    ? withoutFence.slice(start, end + 1)
+    : withoutFence;
+}
+
+export function parseLanguageLearningReply(raw: string): LanguageLearningReply {
+  const parsed = JSON.parse(extractJsonObject(raw)) as Partial<LanguageLearningReply>;
+  const targetText = typeof parsed.targetText === 'string' ? parsed.targetText.trim() : '';
+  const englishMeaning = typeof parsed.englishMeaning === 'string'
+    ? parsed.englishMeaning.trim()
+    : '';
+  const words = Array.isArray(parsed.words)
+    ? parsed.words
+        .map((word) => ({
+          text: typeof word?.text === 'string' ? word.text.trim() : '',
+          pronunciation: typeof word?.pronunciation === 'string'
+            ? word.pronunciation.trim()
+            : '',
+        }))
+        .filter((word) => word.text)
+    : [];
+  const hasMissingPronunciation = words.some(
+    (word) => /[\p{L}\p{N}]/u.test(word.text) && !word.pronunciation,
+  );
+
+  if (!targetText || !englishMeaning || words.length === 0 || hasMissingPronunciation) {
+    throw new Error('Echo returned an incomplete language-learning response.');
+  }
+  return { targetText, words, englishMeaning };
+}
+
+function learningResponsePrompt(
+  languageName: string,
+  languageCode: string,
+  responseLength: ChatResponseLength = 'balanced',
+): string {
+  const pronunciationGuide =
+    languageCode === 'zh'
+      ? 'Use Hanyu Pinyin with tone marks.'
+      : languageCode === 'ja'
+        ? 'Use clear Hepburn romaji.'
+        : languageCode === 'ko'
+          ? 'Use Revised Romanization.'
+          : languageCode === 'ru'
+            ? 'Use readable Latin transliteration with stress made clear.'
+            : languageCode === 'ar'
+              ? 'Use readable Latin transliteration with long vowels made clear.'
+              : 'Use simple English-readable phonetic respelling, not a translation.';
+
+  return [
+    `The learner is studying ${languageName} (${languageCode}).`,
+    responseLength === 'brief'
+      ? `Reply naturally in ${languageName} using one concise sentence.`
+      : responseLength === 'detailed'
+        ? `Reply naturally in ${languageName} using 3-5 useful conversational sentences.`
+        : `Reply naturally in ${languageName}, using 1-3 concise sentences appropriate for conversation practice.`,
+    'Return only one JSON object with this exact structure:',
+    '{"targetText":"full target-language reply","words":[{"text":"exact displayed word","pronunciation":"how it is pronounced"}],"englishMeaning":"natural English meaning of the complete reply"}',
+    'The words array must preserve every word from targetText in exact reading order.',
+    'Keep punctuation attached to the appropriate word. Punctuation-only tokens may have an empty pronunciation.',
+    pronunciationGuide,
+    'englishMeaning must translate the complete targetText, not explain individual words.',
+    'Do not use Markdown and do not add keys outside this structure.',
+  ].join(' ');
+}
+
+export async function completeLanguageChat(
+  messages: ChatMessage[],
+  language: { code: string; name: string },
+  mode: EchoMode = 'chatty',
+  options?: {
+    responseLength?: ChatResponseLength;
+    progressionContext?: string;
+  },
+): Promise<LanguageLearningReply> {
+  const modeConfig = MODE_CONFIG[mode] ?? MODE_CONFIG.chatty;
+  const config = getEffectiveAiConfig();
+  const structurePrompt = learningResponsePrompt(
+    language.name,
+    language.code,
+    options?.responseLength,
+  );
+  const progressionPrompt = options?.progressionContext?.trim()
+    ? `Use this retrieved learner memory only to adapt difficulty, examples, and corrections. Do not mention the memory unless asked: ${options.progressionContext.trim()}`
+    : 'No learner progression memory is available. Do not infer private learning history.';
+  const requestMessages = [
+    {
+      role: 'system' as const,
+      content: `${BASE_SYSTEM_PROMPT} ${modeConfig.prompt} ${progressionPrompt} ${structurePrompt}`,
+    },
+    ...messages.map((message) => ({
+      role: message.role,
+      content: message.learningReply
+        ? `${message.learningReply.targetText}\nEnglish meaning: ${message.learningReply.englishMeaning}`
+        : message.content,
+    })),
+  ];
+
+  const response = await runtimeKernel.completeWithForegroundTracking({
+    model: config.models.chat,
+    temperature: modeConfig.temperature,
+    maxTokens: Math.max(900, modeConfig.maxTokens),
+    responseFormat: { type: 'json_object' },
+    messages: requestMessages,
+  });
+  const raw = response.text?.trim();
+  if (!raw) throw new Error('AI returned an empty response.');
+
+  try {
+    return parseLanguageLearningReply(raw);
+  } catch {
+    const repaired = await runtimeKernel.completeWithForegroundTracking({
+      model: config.models.chat,
+      temperature: 0,
+      maxTokens: 1000,
+      responseFormat: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `${structurePrompt} Repair the supplied response into the required JSON. Preserve its intended conversational meaning.`,
+        },
+        { role: 'user', content: raw },
+      ],
+    });
+    const repairedText = repaired.text?.trim();
+    if (!repairedText) throw new Error('AI returned an incomplete response.');
+    return parseLanguageLearningReply(repairedText);
+  }
+}
+
+export async function transcribeSpeech(audioBlob: Blob, languageCode = 'es'): Promise<string> {
+  const config = getEffectiveAiConfig();
+  const normalized = languageCode.trim().toLowerCase();
+  const sttLanguage = normalized === 'zh' ? 'zh' : normalized === 'fr' ? 'fr' : normalized === 'de' ? 'de' : normalized;
   const response = await runtimeKernel.transcribeWithForegroundTracking({
-    model: aiConfig.models.stt,
+    model: config.models.stt,
     audio: audioBlob,
-    language: 'es',
+    language: sttLanguage,
   });
   return response.text?.trim() ?? '';
 }
 
+export interface SynthesizeSpeechOptions {
+  voice?: VoicePersona;
+  /**
+   * Language of the text being spoken.
+   *
+   * `TtsSynthesizeRequest` has always had this field and nothing ever set it, so
+   * every prompt in every language was synthesized with the default voice. Hosted
+   * endpoints pick the language from the voice, so this is advisory there; local
+   * Piper voices are per-language and use it to choose the right model.
+   */
+  languageCode?: string;
+}
+
 export async function synthesizeSpeech(
   text: string,
-  voice: VoicePersona = aiConfig.models.ttsVoice,
+  options?: VoicePersona | SynthesizeSpeechOptions,
 ): Promise<Blob> {
+  const config = getEffectiveAiConfig();
+  // Callers previously passed a bare voice persona; keep that working.
+  const resolved: SynthesizeSpeechOptions =
+    typeof options === 'string' ? { voice: options } : options ?? {};
+
   const response = await runtimeKernel.synthesizeWithForegroundTracking({
-    model: aiConfig.models.tts,
+    model: config.models.tts,
     text,
-    voice,
-    format: 'mp3',
+    voice: resolved.voice ?? config.models.ttsVoice,
+    language: resolved.languageCode,
+    format: 'wav',
   });
   return response.audio;
 }

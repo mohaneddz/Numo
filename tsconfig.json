@@ -14,6 +14,13 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Without this, installing @types/node (or any @types/* package, e.g. for
+       scripts/ tooling) silently adds Node globals like `process` and `Buffer` to
+       every file's typecheck, even though this app ships to a browser/Tauri
+       webview where those globals do not exist. `vite-env.d.ts` explicitly
+       references `vite/client` for import.meta.env, so that keeps working. */
+    "types": [],
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

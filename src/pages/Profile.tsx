@@ -233,8 +233,7 @@ export default function ProfilePage() {
                             </button>
                             <button
                               onClick={() => removeLanguage(language.code)}
-                              disabled={languages.length <= 1}
-                              className="rounded-lg p-1.5 text-dim transition-colors hover:bg-red-500/15 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-35"
+                              className="rounded-lg p-1.5 text-dim transition-colors hover:bg-red-500/15 hover:text-red-300"
                               title="Remove language"
                             >
                               <X size={13} />

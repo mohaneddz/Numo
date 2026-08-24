@@ -18,15 +18,14 @@ import { useLanguageProgression } from '../../hooks/useLanguageProgression';
 
 const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     '/': { title: 'Home', subtitle: 'Track your daily momentum and jump into the next best action.' },
-    '/learn': { title: 'Learn', subtitle: 'Continue your path with guided modules, checkpoints, and focused practice missions.' },
+    '/learn': { title: 'Learning', subtitle: 'Continue your path with guided modules, checkpoints, and focused practice missions.' },
     '/review': { title: 'Review', subtitle: 'Strengthen your memory, one correct answer at a time.' },
-    '/immerse': { title: 'Immerse', subtitle: 'Immerse in stories, dialogues, and clips with active transcript mining.' },
-    '/speak': { title: 'Speak', subtitle: 'Enhance pronunciation and fluency through interactive speaking challenges.' },
-    '/write': { title: 'Write', subtitle: 'Practice writing in Spanish with guided prompts, feedback, and correction.' },
+    '/immerse': { title: 'Immersion', subtitle: 'Immerse in stories, dialogues, and clips with active transcript mining.' },
+    '/speak': { title: 'Speaking', subtitle: 'Enhance pronunciation and fluency through interactive speaking challenges.' },
+    '/write': { title: 'Writing', subtitle: 'Practice writing in your active language with guided prompts, feedback, and correction.' },
     '/notebook': { title: 'Notebook', subtitle: 'Save words, phrases, and notes in one place for fast review loops.' },
     '/insights': { title: 'Insights', subtitle: 'Your learning analytics and performance trends at a glance.' },
-    '/library': { title: 'Your Library', subtitle: 'Your words, phrases, and saved gems — organized for you' },
-    '/references': { title: 'References', subtitle: 'Explore character, sound, and word collections for your active language.' },
+    '/library': { title: 'Libraries', subtitle: 'Explore character, sound, and word collections for your active language.' },
     '/chat': { title: 'Chat', subtitle: 'Have a natural conversation with Echo.' },
     '/web-search': { title: 'Web Search', subtitle: 'Search the web, YouTube, images, podcasts, docs, and more from one place.' },
     '/profile': { title: 'Profile', subtitle: 'Your account details and learning identity.' },
@@ -38,7 +37,7 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
 export default function AppShell() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { activeLanguage } = useLanguage();
+    const { activeLanguage, languages } = useLanguage();
     const progression = useLanguageProgression();
     const { setForegroundSurface } = useRuntime();
     const basePath = '/' + (location.pathname.split('/')[1] || '');
@@ -47,19 +46,21 @@ export default function AppShell() {
     const shortcutPrefixRef = useRef<{ key: string; at: number } | null>(null);
     const [showShortcutHelp, setShowShortcutHelp] = useState(false);
     const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     const shortcutRows = useMemo(
         () => [
+            { keys: 'Ctrl + Shift + S', action: 'Toggle Sidebar' },
             { keys: 'g h', action: 'Go to Home' },
-            { keys: 'g l', action: 'Go to Learn' },
+            { keys: 'g l', action: 'Go to Learning' },
             { keys: 'g r', action: 'Go to Review' },
-            { keys: 'g i', action: 'Go to Immerse' },
-            { keys: 'g s', action: 'Go to Speak' },
-            { keys: 'g w', action: 'Go to Write' },
+            { keys: 'g i', action: 'Go to Immersion' },
+            { keys: 'g s', action: 'Go to Speaking' },
+            { keys: 'g w', action: 'Go to Writing' },
             { keys: 'g n', action: 'Go to Notebook' },
             { keys: 'g y', action: 'Go to Insights' },
-            { keys: 'g b', action: 'Go to Library' },
-            { keys: 'g f', action: 'Go to References' },
+            { keys: 'g b', action: 'Go to Libraries' },
+            { keys: 'g f', action: 'Go to Libraries' },
             { keys: 'g c', action: 'Go to Chat' },
             { keys: 'g ,', action: 'Go to Settings' },
             { keys: 'r', action: 'Start Due-Now Flash Cards' },
@@ -76,6 +77,15 @@ export default function AppShell() {
 
     useEffect(() => {
         const inSetupFlow = location.pathname === '/language-setup' || location.pathname === '/language-welcome';
+        if (languages.length === 0) {
+            if (location.pathname !== '/language-setup' && location.pathname !== '/settings') {
+                navigate('/language-setup', { replace: true });
+            }
+            return;
+        }
+        if (location.pathname === '/settings') {
+            return;
+        }
         if (!progression.onboardingCompleted && !inSetupFlow) {
             navigate(`/language-setup?lang=${activeLanguage.code}`, { replace: true });
             return;
@@ -85,6 +95,7 @@ export default function AppShell() {
         }
     }, [
         activeLanguage.code,
+        languages.length,
         location.pathname,
         navigate,
         progression.onboardingCompleted,
@@ -180,7 +191,7 @@ export default function AppShell() {
                 n: '/notebook',
                 y: '/insights',
                 b: '/library',
-                f: '/references',
+                f: '/library',
                 c: '/chat',
                 ',': '/settings',
             };
@@ -192,6 +203,12 @@ export default function AppShell() {
             const key = event.key.toLowerCase();
             const meta = event.metaKey || event.ctrlKey;
             const inReviewSession = location.pathname.startsWith('/review/session');
+
+            if (event.ctrlKey && event.shiftKey && !event.altKey && key === 's') {
+                event.preventDefault();
+                setSidebarCollapsed((prev) => !prev);
+                return;
+            }
 
             if (!shortcutsEnabled) {
                 if ((event.key === '?' || (event.key === '/' && event.shiftKey)) && !meta && !event.altKey) {
@@ -224,6 +241,10 @@ export default function AppShell() {
             }
 
             if (isTypingTarget(event.target)) return;
+
+            if (!progression.onboardingCompleted) {
+                return;
+            }
 
             if (meta && key >= '1' && key <= '9') {
                 event.preventDefault();
@@ -266,7 +287,10 @@ export default function AppShell() {
                     <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block" />
                 </div>
 
-                <Sidebar />
+                <Sidebar
+                    collapsed={sidebarCollapsed}
+                    onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
+                />
                 <main className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
                     {/* Top Bar for all pages */}
                     <header className="flex items-start justify-between shrink-0 px-[clamp(1rem,2.2vw,2.5rem)] pt-[max(1rem,env(safe-area-inset-top))] gap-6">

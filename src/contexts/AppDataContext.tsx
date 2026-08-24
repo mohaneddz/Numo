@@ -10,6 +10,10 @@ import type {
 import { initializeEngineServices, type EngineServices } from '../services/engine';
 import type { EvidenceRecord } from '../persistence';
 import { useProfileSession } from './ProfileSessionContext';
+import { useLanguage } from './LanguageContext';
+import { evaluateLearnTaskSubmission, type LearnGradingMode } from '../services/learningPlanService';
+import { mirrorNotebookEntry } from '../services/noteMirrorService';
+import type { TaskType } from '../types/learningPlan';
 
 export type ReviewMode = 'due-now' | 'weak' | 'mistakes' | 'cram';
 
@@ -24,6 +28,12 @@ interface AppDataState {
   immersionProgress: Record<string, ImmersionProgress>;
   writingDrafts: WritingDraft[];
   notebookEntries: NotebookEntry[];
+  lessonHistory: Array<{
+    lessonId: string;
+    taskType: string;
+    score: number;
+    createdAt: string;
+  }>;
 }
 
 interface AppDataContextValue {
@@ -37,10 +47,31 @@ interface AppDataContextValue {
   gradeReviewItem: (id: string, result: 'correct' | 'incorrect') => void;
   saveSpeakingResult: (sessionId: string, run: Omit<SpeakingSessionRun, 'id' | 'sessionId' | 'recordedAt'>) => SpeakingSessionRun;
   saveImmersionPhrase: (contentId: string, phrase: string, translation?: string) => void;
-  updateImmersionProgress: (contentId: string, positionSec: number, completed?: boolean) => void;
+  updateImmersionProgress: (contentId: string, positionSec: number, completed?: boolean, totalUnits?: number) => void;
   saveDraft: (draft: Partial<WritingDraft> & { content: string; title: string }) => WritingDraft;
   analyzeDraft: (draftId: string, analysis: WritingCorrection[]) => void;
   createNotebookEntry: (entry: Omit<NotebookEntry, 'id' | 'createdAt' | 'updatedAt'>) => NotebookEntry;
+  submitLearnTaskAttempt: (input: {
+    lessonId: string;
+    unitId: string;
+    objectiveId: string;
+    taskTemplateId: string;
+    taskType: TaskType;
+    prompt: string;
+    expectedAnswer: string;
+    learnerAnswer: string;
+    payload?: Record<string, unknown>;
+    structuredResponse?: Record<string, unknown>;
+    gradingMode?: LearnGradingMode;
+    durationMs?: number;
+    /** Target language, so answers are graded with the right script rules. */
+    languageCode?: string;
+    /**
+     * Curriculum skill this task drilled. Carried onto any review item the mistake
+     * creates, so the review loop can credit the same skill the lesson did.
+     */
+    skillId?: string;
+  }) => Promise<{ correct: boolean; score: number; feedback: string }>;
   updateMastery: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
   recordLearnInteraction: (input: { moduleId?: string; lessonId?: string; note?: string }) => void;
@@ -54,7 +85,12 @@ const EMPTY_STATE: AppDataState = {
   immersionProgress: {},
   writingDrafts: [],
   notebookEntries: [],
+  lessonHistory: [],
 };
+
+function immersionProgressKey(learnerId: string, languageId: string): string {
+  return `immersion_progress_v1:${learnerId}:${languageId}`;
+}
 
 function todayIso(): string {
   return new Date().toISOString();
@@ -90,6 +126,9 @@ function mapEngineReviewRecordToItem(record: {
   lastReviewedAt: string | null;
   lastResult: 'correct' | 'incorrect' | 'partial' | 'skipped' | null;
   strength: string | null;
+  source?: string;
+  sourceRef?: string | null;
+  contentDomain?: string;
   metadata: Record<string, unknown>;
 }): ReviewItem {
   const metadata = record.metadata ?? {};
@@ -102,6 +141,25 @@ function mapEngineReviewRecordToItem(record: {
     term: String(metadata.term ?? 'Curriculum item'),
     translation: metadata.translation == null ? '' : String(metadata.translation),
     type,
+    source:
+      record.source === 'notebook'
+      || record.source === 'learn_mistake'
+      || record.source === 'weak_node'
+      || record.source === 'legacy_unit'
+      || record.source === 'immerse_phrase'
+      || record.source === 'write_correction'
+      || record.source === 'speak_pronunciation'
+        ? record.source
+        : 'legacy_unit',
+    sourceRef: record.sourceRef ?? undefined,
+    contentDomain:
+      record.contentDomain === 'vocabulary'
+      || record.contentDomain === 'grammar'
+      || record.contentDomain === 'pronunciation'
+      || record.contentDomain === 'sentence'
+      || record.contentDomain === 'communication'
+        ? record.contentDomain
+        : 'vocabulary',
     attempts: record.attemptsCount,
     strength: (record.strength as ReviewItem['strength']) ?? 'needs work',
     dueDate,
@@ -110,12 +168,13 @@ function mapEngineReviewRecordToItem(record: {
     intervalDays: record.intervalDays,
     ease: record.easeFactor,
     lastResult: record.lastResult === 'correct' ? 'correct' : record.lastResult === 'incorrect' ? 'incorrect' : undefined,
+    skillId: typeof metadata.skillId === 'string' && metadata.skillId ? metadata.skillId : undefined,
   };
 }
 
 function mapSpeakingRunsFromEvidence(evidence: EvidenceRecord[]): SpeakingSessionRun[] {
   return evidence
-    .filter((entry) => entry.activityType === 'speak' || entry.activityType === 'speaking_attempt')
+    .filter((entry) => entry.activityType === 'speak_attempt' || entry.activityType === 'speak' || entry.activityType === 'speaking_attempt')
     .map((entry) => {
       const scores = entry.scores as Record<string, unknown>;
       const metadata = entry.metadata as Record<string, unknown>;
@@ -137,7 +196,7 @@ function mapSpeakingRunsFromEvidence(evidence: EvidenceRecord[]): SpeakingSessio
 
 function mapWritingDraftsFromEvidence(evidence: EvidenceRecord[]): WritingDraft[] {
   return evidence
-    .filter((entry) => entry.activityType === 'write' || entry.activityType === 'writing_submission')
+    .filter((entry) => entry.activityType === 'write_attempt' || entry.activityType === 'write' || entry.activityType === 'writing_submission')
     .map((entry) => {
       const metadata = entry.metadata as Record<string, unknown>;
       const content = String(entry.rawInputText ?? '');
@@ -184,6 +243,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [state, setState] = useState<AppDataState>(EMPTY_STATE);
   const [engine, setEngine] = useState<EngineServices | null>(null);
   const { activeProfile, status: profileStatus } = useProfileSession();
+  const { activeLanguage } = useLanguage();
 
   const refreshFromPersistence = useCallback(async (engineServices: EngineServices) => {
     // Guardrail: core study state is hydrated from persistence only; never from seeded/localStorage snapshots.
@@ -193,6 +253,11 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       400,
     );
     const reviewItems = reviewRecords.map((record) => mapEngineReviewRecordToItem(record));
+    const notebookItems = await engineServices.context.persistence.repositories.notebook.listItems(
+      engineServices.context.learnerId,
+      engineServices.context.languageId,
+      500,
+    );
 
     const evidence = await engineServices.context.persistence.repositories.evidence.listEvidenceByLanguage(
       engineServices.context.learnerId,
@@ -200,12 +265,48 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       300,
     );
 
+    // Immersion progress lived only in React state, so how far the learner had got
+    // through a video or book was lost on every reload.
+    const immersionProgress =
+      (await engineServices.context.persistence.repositories.settings.getJson<Record<string, ImmersionProgress>>(
+        immersionProgressKey(engineServices.context.learnerId, engineServices.context.languageId),
+      )) ?? {};
+
     setState((previous) => ({
       ...previous,
+      immersionProgress,
       reviewItems,
       speakingRuns: mapSpeakingRunsFromEvidence(evidence),
       writingDrafts: mapWritingDraftsFromEvidence(evidence),
-      notebookEntries: mapNotebookEntriesFromReviewItems(reviewItems),
+      notebookEntries:
+        notebookItems.length > 0
+          ? notebookItems.map((item) => ({
+              id: item.id,
+              term: item.term,
+              translation: item.translation ?? '',
+              type: item.itemKind,
+              context: item.context ?? undefined,
+              notes: item.notes ?? undefined,
+              collectionId: item.collectionId ?? undefined,
+              personalHint: item.personalHint ?? undefined,
+              personalExample: item.personalExample ?? undefined,
+              isDifficult: item.isDifficult,
+              isImportant: item.isImportant,
+              tags: item.tags,
+              createdAt: item.createdAt.slice(0, 10),
+              updatedAt: item.updatedAt.slice(0, 10),
+              mastery: item.mastery,
+              source:
+                item.source === 'immerse'
+                || item.source === 'review'
+                || item.source === 'write'
+                || item.source === 'learn'
+                || item.source === 'manual'
+                  ? item.source
+                  : 'manual',
+              favorited: item.favorited,
+            }))
+          : mapNotebookEntriesFromReviewItems(reviewItems),
     }));
   }, []);
 
@@ -220,6 +321,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const initialized = await initializeEngineServices({
         learnerId: activeProfile.id,
+        languageCode: activeLanguage.code,
         forceReload: true,
       });
       if (cancelled || !initialized) return;
@@ -233,7 +335,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => {
       cancelled = true;
     };
-  }, [activeProfile?.id, profileStatus, refreshFromPersistence]);
+  }, [activeProfile?.id, profileStatus, refreshFromPersistence, activeLanguage.code]);
 
   const startReviewSession = useCallback((mode: ReviewMode): ReviewSessionSummary => {
     return {
@@ -271,7 +373,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       void (async () => {
         try {
           const ingestion = await engine.evidenceService.ingest({
-            activityType: 'speak',
+            activityType: 'speak_attempt',
             sessionId,
             rawInputText: entry.transcript,
             rawOutputText: entry.tip,
@@ -289,6 +391,35 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             },
           });
           await engine.learnerStateService.applyEvidence(ingestion.evidence);
+          if (entry.accuracy < 70) {
+            const notebookItem = await engine.context.persistence.repositories.notebook.createItem({
+              learnerId: engine.context.learnerId,
+              languageId: engine.context.languageId,
+              term: entry.transcript.slice(0, 80) || 'Speaking attempt',
+              translation: entry.tip,
+              itemKind: 'pronunciation',
+              source: 'speak',
+              sourceRef: entry.id,
+              tags: ['speaking', 'pronunciation'],
+              isDifficult: true,
+              flashcardEnabled: true,
+            });
+            await engine.context.persistence.repositories.review.createReviewItem({
+              learnerId: engine.context.learnerId,
+              languageId: engine.context.languageId,
+              dueAt: todayIso(),
+              source: 'speak_pronunciation',
+              sourceRef: notebookItem.id,
+              contentDomain: 'pronunciation',
+              metadata: {
+                term: notebookItem.term,
+                translation: notebookItem.translation ?? 'Pronunciation follow-up',
+                type: 'phrase',
+              },
+              strength: 'weak',
+              lastResult: 'incorrect',
+            });
+          }
           await refreshFromPersistence(engine);
         } catch (error) {
           console.error('Failed to ingest speaking evidence', error);
@@ -347,9 +478,43 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         notebookEntries: nextNotebookEntries,
       };
     });
-  }, []);
+    if (engine) {
+      void (async () => {
+        try {
+          const notebookItem = await engine.context.persistence.repositories.notebook.createItem({
+            learnerId: engine.context.learnerId,
+            languageId: engine.context.languageId,
+            term: phrase,
+            translation: translation ?? 'Saved from immersion',
+            itemKind: 'phrase',
+            source: 'immerse',
+            sourceRef: contentId,
+            tags: ['immersion'],
+            flashcardEnabled: true,
+          });
+          await engine.context.persistence.repositories.review.createReviewItem({
+            learnerId: engine.context.learnerId,
+            languageId: engine.context.languageId,
+            dueAt: todayIso(),
+            source: 'immerse_phrase',
+            sourceRef: notebookItem.id,
+            contentDomain: 'communication',
+            metadata: {
+              term: notebookItem.term,
+              translation: notebookItem.translation ?? 'Saved from immersion',
+              type: 'phrase',
+            },
+            strength: 'needs work',
+          });
+          await refreshFromPersistence(engine);
+        } catch (error) {
+          console.error('Failed to persist immersion phrase', error);
+        }
+      })();
+    }
+  }, [engine, refreshFromPersistence]);
 
-  const updateImmersionProgress = useCallback((contentId: string, positionSec: number, completed = false) => {
+  const updateImmersionProgress = useCallback((contentId: string, positionSec: number, completed = false, totalUnits?: number) => {
     setState((previous) => {
       const current = previous.immersionProgress[contentId] ?? {
         contentId,
@@ -359,20 +524,34 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedAt: todayIso(),
       };
 
-      return {
-        ...previous,
-        immersionProgress: {
-          ...previous.immersionProgress,
-          [contentId]: {
-            ...current,
-            positionSec,
-            completed: completed || current.completed,
-            updatedAt: todayIso(),
-          },
+      const nextProgress = {
+        ...previous.immersionProgress,
+        [contentId]: {
+          ...current,
+          // Position only moves forward, so a rewind does not lose the furthest point reached.
+          positionSec: Math.max(current.positionSec, Math.round(positionSec)),
+          totalUnits: totalUnits && totalUnits > 0 ? Math.round(totalUnits) : current.totalUnits,
+          completed: completed || current.completed,
+          updatedAt: todayIso(),
         },
       };
+
+      // Persisted outside the React tree so progress survives a reload.
+      if (engine) {
+        void engine.context.persistence.repositories.settings
+          .setJson(
+            immersionProgressKey(engine.context.learnerId, engine.context.languageId),
+            nextProgress,
+            'immersion_progress',
+          )
+          .catch(() => {
+            // A dropped write costs the last position, not the session.
+          });
+      }
+
+      return { ...previous, immersionProgress: nextProgress };
     });
-  }, []);
+  }, [engine]);
 
   const saveDraft = useCallback<AppDataContextValue['saveDraft']>((draft) => {
     const now = dateOnly(todayIso());
@@ -411,7 +590,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       void (async () => {
         try {
           const ingestion = await engine.evidenceService.ingest({
-            activityType: 'write',
+            activityType: 'write_attempt',
             attemptId: saved.id,
             rawInputText: saved.content,
             scores: {
@@ -458,7 +637,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
           const draft = state.writingDrafts.find((item) => item.id === draftId);
           const ingestion = await engine.evidenceService.ingest({
-            activityType: 'write',
+            activityType: 'write_attempt',
             attemptId: draftId,
             rawInputText: draft?.content ?? null,
             analysisResult: { corrections: analysis },
@@ -472,6 +651,39 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
             },
           });
           await engine.learnerStateService.applyEvidence(ingestion.evidence);
+          const correctionItems = analysis
+            .filter((item) => item.type !== 'correct')
+            .slice(0, 6);
+          for (const correction of correctionItems) {
+            const notebookItem = await engine.context.persistence.repositories.notebook.createItem({
+              learnerId: engine.context.learnerId,
+              languageId: engine.context.languageId,
+              term: correction.original,
+              translation: correction.corrected,
+              itemKind: correction.type === 'style' ? 'sentence' : 'grammar',
+              notes: correction.explanation,
+              source: 'write',
+              sourceRef: draftId,
+              tags: ['writing', correction.type],
+              isDifficult: true,
+              flashcardEnabled: true,
+            });
+            await engine.context.persistence.repositories.review.createReviewItem({
+              learnerId: engine.context.learnerId,
+              languageId: engine.context.languageId,
+              dueAt: todayIso(),
+              source: 'write_correction',
+              sourceRef: notebookItem.id,
+              contentDomain: correction.type === 'style' ? 'sentence' : 'grammar',
+              metadata: {
+                term: correction.original,
+                translation: correction.corrected,
+                type: correction.type === 'style' ? 'phrase' : 'grammar',
+              },
+              strength: 'weak',
+              lastResult: 'incorrect',
+            });
+          }
           await refreshFromPersistence(engine);
         } catch (error) {
           console.error('Failed to ingest analyzed draft evidence', error);
@@ -490,8 +702,172 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setState((previous) => ({ ...previous, notebookEntries: [newEntry, ...previous.notebookEntries] }));
+    void mirrorNotebookEntry(newEntry).catch((error) => {
+      console.error('Failed to mirror notebook entry to the notes folder', error);
+    });
+    if (engine) {
+      void (async () => {
+        try {
+          const persisted = await engine.context.persistence.repositories.notebook.createItem({
+            learnerId: engine.context.learnerId,
+            languageId: engine.context.languageId,
+            collectionId: entry.collectionId ?? null,
+            term: entry.term,
+            translation: entry.translation,
+            itemKind: entry.type,
+            context: entry.context,
+            notes: entry.notes,
+            personalHint: entry.personalHint,
+            personalExample: entry.personalExample,
+            tags: entry.tags,
+            source: entry.source ?? 'manual',
+            mastery: entry.mastery,
+            favorited: entry.favorited ?? false,
+            isDifficult: entry.isDifficult ?? false,
+            isImportant: entry.isImportant ?? false,
+            flashcardEnabled: true,
+          });
+          await engine.context.persistence.repositories.review.createReviewItem({
+            learnerId: engine.context.learnerId,
+            languageId: engine.context.languageId,
+            dueAt: todayIso(),
+            source: 'notebook',
+            sourceRef: persisted.id,
+            contentDomain:
+              persisted.itemKind === 'grammar'
+                ? 'grammar'
+                : persisted.itemKind === 'pronunciation'
+                  ? 'pronunciation'
+                  : persisted.itemKind === 'sentence'
+                    ? 'sentence'
+                    : 'vocabulary',
+            metadata: {
+              term: persisted.term,
+              translation: persisted.translation ?? '',
+              type: persisted.itemKind === 'grammar' ? 'grammar' : persisted.itemKind === 'phrase' ? 'phrase' : 'word',
+            },
+            strength: 'needs work',
+          });
+          await refreshFromPersistence(engine);
+        } catch (error) {
+          console.error('Failed to persist notebook entry', error);
+        }
+      })();
+    }
     return newEntry;
-  }, []);
+  }, [engine, refreshFromPersistence]);
+
+  const submitLearnTaskAttempt = useCallback<AppDataContextValue['submitLearnTaskAttempt']>(async (input) => {
+    const evaluation = await evaluateLearnTaskSubmission({
+      taskType: input.taskType,
+      expectedAnswer: input.expectedAnswer,
+      learnerAnswer: input.learnerAnswer,
+      gradingMode: input.gradingMode ?? 'hybrid',
+      payload: input.payload,
+      structuredResponse: input.structuredResponse,
+      languageCode: input.languageCode,
+    });
+    if (!engine) {
+      return {
+        correct: evaluation.isCorrect,
+        score: evaluation.score,
+        feedback: evaluation.feedback,
+      };
+    }
+    try {
+      await engine.context.persistence.repositories.learning.createTaskAttempt({
+        learnerId: engine.context.learnerId,
+        languageId: engine.context.languageId,
+        unitId: input.unitId,
+        lessonId: input.lessonId,
+        objectiveId: input.objectiveId,
+        taskTemplateId: input.taskTemplateId,
+        taskType: input.taskType,
+        promptText: input.prompt,
+        expectedAnswer: input.expectedAnswer,
+        learnerAnswer: input.learnerAnswer,
+        isCorrect: evaluation.isCorrect,
+        score: evaluation.score,
+        evaluation: {
+          feedback: evaluation.feedback,
+          structuredResponse: input.structuredResponse ?? {},
+          canonicalAnswer: input.learnerAnswer,
+          payload: input.payload ?? {},
+          gradingMode: input.gradingMode ?? 'hybrid',
+        },
+        durationMs: input.durationMs ?? null,
+      });
+      const ingestion = await engine.evidenceService.ingest({
+        activityType: 'learn_task_result',
+        rawInputText: input.learnerAnswer,
+        rawOutputText: input.expectedAnswer,
+        scores: {
+          correctness: evaluation.score,
+        },
+        weakTags: evaluation.isCorrect ? [] : ['learn_accuracy'],
+        metadata: {
+          lessonId: input.lessonId,
+          objectiveId: input.objectiveId,
+          taskTemplateId: input.taskTemplateId,
+          taskType: input.taskType,
+          gradingMode: input.gradingMode ?? 'hybrid',
+        },
+      });
+      await engine.learnerStateService.applyEvidence(ingestion.evidence);
+      if (!evaluation.isCorrect) {
+        await engine.context.persistence.repositories.review.createReviewItem({
+          learnerId: engine.context.learnerId,
+          languageId: engine.context.languageId,
+          dueAt: todayIso(),
+          source: 'learn_mistake',
+          sourceRef: input.taskTemplateId,
+          contentDomain:
+            input.taskType.includes('grammar')
+              ? 'grammar'
+              : input.taskType.includes('pronunciation') || input.taskType.includes('sound') || input.taskType.includes('listen')
+                ? 'pronunciation'
+                : input.taskType.includes('sentence') || input.taskType.includes('dialogue')
+                  ? 'sentence'
+                  : 'vocabulary',
+          metadata: {
+            term: input.prompt.slice(0, 80),
+            translation: input.expectedAnswer,
+            type: input.taskType.includes('grammar') ? 'grammar' : 'phrase',
+            skillId: input.skillId ?? null,
+          },
+          strength: 'weak',
+          lastResult: 'incorrect',
+        });
+      }
+
+      setState((previous) => ({
+        ...previous,
+        lessonHistory: [
+          {
+            lessonId: input.lessonId,
+            taskType: input.taskType,
+            score: evaluation.score,
+            createdAt: todayIso(),
+          },
+          ...previous.lessonHistory,
+        ].slice(0, 200),
+      }));
+
+      await refreshFromPersistence(engine);
+      return {
+        correct: evaluation.isCorrect,
+        score: evaluation.score,
+        feedback: evaluation.feedback,
+      };
+    } catch (error) {
+      console.error('Failed to submit learn task attempt', error);
+      return {
+        correct: evaluation.isCorrect,
+        score: evaluation.score,
+        feedback: evaluation.feedback,
+      };
+    }
+  }, [engine, refreshFromPersistence]);
 
   const updateMastery = useCallback((id: string, delta: number) => {
     setState((previous) => ({
@@ -506,7 +882,21 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
           : entry,
       ),
     }));
-  }, []);
+    if (engine) {
+      void (async () => {
+        try {
+          const current = state.notebookEntries.find((entry) => entry.id === id);
+          if (!current) return;
+          await engine.context.persistence.repositories.notebook.updateItem({
+            id,
+            mastery: Math.max(0, Math.min(100, current.mastery + delta)),
+          });
+        } catch (error) {
+          console.error('Failed to persist mastery update', error);
+        }
+      })();
+    }
+  }, [engine, state.notebookEntries]);
 
   const toggleFavorite = useCallback((id: string) => {
     setState((previous) => ({
@@ -521,14 +911,28 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
           : entry,
       ),
     }));
-  }, []);
+    if (engine) {
+      void (async () => {
+        try {
+          const current = state.notebookEntries.find((entry) => entry.id === id);
+          if (!current) return;
+          await engine.context.persistence.repositories.notebook.updateItem({
+            id,
+            favorited: !Boolean(current.favorited),
+          });
+        } catch (error) {
+          console.error('Failed to persist favorite toggle', error);
+        }
+      })();
+    }
+  }, [engine, state.notebookEntries]);
 
   const recordLearnInteraction = useCallback<AppDataContextValue['recordLearnInteraction']>((input) => {
     if (!engine) return;
     void (async () => {
       try {
         const ingestion = await engine.evidenceService.ingest({
-          activityType: 'learn',
+          activityType: 'learn_task_result',
           rawInputText: input.note ?? null,
           analysisResult: {
             moduleId: input.moduleId ?? null,
@@ -575,6 +979,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       saveDraft,
       analyzeDraft,
       createNotebookEntry,
+      submitLearnTaskAttempt,
       updateMastery,
       toggleFavorite,
       recordLearnInteraction,
@@ -587,6 +992,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveDraft,
     saveImmersionPhrase,
     saveSpeakingResult,
+    submitLearnTaskAttempt,
     startReviewSession,
     state,
     toggleFavorite,

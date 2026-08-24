@@ -20,6 +20,7 @@ const enginePromiseByProfile = new Map<string, Promise<EngineServices | null>>()
 async function resolveEngineContext(
   persistence: PersistenceContext,
   explicitLearnerId?: string,
+  explicitLanguageCode?: string,
 ): Promise<EngineContext> {
   const learner = explicitLearnerId
     ? await persistence.repositories.learner.getProfileById(explicitLearnerId)
@@ -27,9 +28,17 @@ async function resolveEngineContext(
   if (!learner) {
     throw new Error('No active learner profile set.');
   }
-  const activeLanguage =
-    (await persistence.repositories.languages.getActiveLanguage()) ??
-    (await persistence.repositories.languages.listLanguages())[0];
+
+  let activeLanguage;
+  if (explicitLanguageCode) {
+    const list = await persistence.repositories.languages.listLanguages();
+    activeLanguage = list.find((l) => l.code === explicitLanguageCode);
+  }
+  if (!activeLanguage) {
+    activeLanguage =
+      (await persistence.repositories.languages.getActiveLanguage()) ??
+      (await persistence.repositories.languages.listLanguages())[0];
+  }
 
   if (!activeLanguage) {
     throw new Error('No active language available for engine context.');
@@ -50,10 +59,13 @@ async function resolveEngineContext(
   };
 }
 
-async function createEngineServices(learnerId?: string): Promise<EngineServices | null> {
+async function createEngineServices(
+  learnerId?: string,
+  languageCode?: string,
+): Promise<EngineServices | null> {
   try {
     const persistence = await initializePersistence();
-    const context = await resolveEngineContext(persistence, learnerId);
+    const context = await resolveEngineContext(persistence, learnerId, languageCode);
     runtimeKernel.attachPersistenceAdapter(createRuntimePersistenceAdapter(persistence));
 
     return {
@@ -74,15 +86,19 @@ async function createEngineServices(learnerId?: string): Promise<EngineServices 
 
 export async function initializeEngineServices(options?: {
   learnerId?: string;
+  languageCode?: string;
   forceReload?: boolean;
 }): Promise<EngineServices | null> {
-  const key = options?.learnerId ?? '__active__';
+  const learnerId = options?.learnerId ?? '__active__';
+  const languageCode = options?.languageCode ?? '';
+  const key = `${learnerId}::${languageCode}`;
+
   if (options?.forceReload) {
     enginePromiseByProfile.delete(key);
   }
 
   if (!enginePromiseByProfile.has(key)) {
-    enginePromiseByProfile.set(key, createEngineServices(options?.learnerId));
+    enginePromiseByProfile.set(key, createEngineServices(options?.learnerId, options?.languageCode));
   }
   return enginePromiseByProfile.get(key) ?? null;
 }

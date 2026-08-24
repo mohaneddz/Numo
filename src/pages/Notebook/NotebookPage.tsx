@@ -27,6 +27,7 @@ import {
 import { useAppData } from '../../contexts/AppDataContext';
 import { buildActionUrl, buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
+import NotebookSectionNav from '../../components/notebook/NotebookSectionNav';
 
 const TABS = [
   { id: 'all', label: 'All', icon: LayoutGrid },
@@ -112,6 +113,7 @@ export default function NotebookPage() {
   return (
     <PageContent className="pb-12" width="wide">
       <PageActions>
+        <NotebookSectionNav />
         <div className="flex gap-2">
           <Link to="/review/session?mode=due-now" className="no-underline">
             <button className="page-primary-action">

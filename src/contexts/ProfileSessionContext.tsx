@@ -90,7 +90,15 @@ export const ProfileSessionProvider: React.FC<{ children: React.ReactNode }> = (
       setActiveProfile(nextActiveProfile);
 
       if (nextProfiles.length === 0) {
-        setStatus('needs_profile');
+        const profile = await persistence.repositories.learner.createProfile({
+          displayName: 'Learner',
+          nativeLanguageCode: 'en',
+          baseLanguageCode: 'en',
+        });
+        await persistence.repositories.learner.setActiveProfile(profile.id);
+        setProfiles([profile]);
+        setActiveProfile(profile);
+        setStatus('ready');
         return;
       }
 

@@ -9,7 +9,17 @@ import type {
 } from '../../persistence';
 
 export type ReviewQueueMode = 'due-now' | 'weak' | 'mistakes' | 'cram';
-export type EvidenceActivityType = 'review' | 'write' | 'speak' | 'learn';
+export type EvidenceActivityType =
+  | 'review_result'
+  | 'write_attempt'
+  | 'speak_attempt'
+  | 'learn_task_result'
+  | 'immerse_comprehension'
+  | 'notebook_action'
+  | 'review'
+  | 'write'
+  | 'speak'
+  | 'learn';
 
 export interface EngineContext {
   persistence: PersistenceContext;

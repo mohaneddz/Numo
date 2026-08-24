@@ -2,7 +2,7 @@ import {
   GenerationEvaluationPipeline,
 } from './pipeline/generationEvaluationPipeline';
 import { GroqProvider } from './providers/groqProvider';
-import { LocalFallbackProvider } from './providers/localFallbackProvider';
+import { LocalNativeProvider } from './providers/localNativeProvider';
 import { ProviderRouter } from './providers/providerRouter';
 import type {
   LlmGenerateRequest,
@@ -27,6 +27,11 @@ import {
   type RuntimeTask,
   type RuntimeTaskEnqueueInput,
 } from './types';
+import {
+  LOCAL_RUNTIME_SETTINGS_EVENT,
+  readLocalRuntimeSettings,
+  type LocalRuntimeSettings,
+} from '../services/localRuntimeSettings';
 
 const RUNTIME_MODE_STORAGE_KEY = 'noema_runtime_mode_v1';
 
@@ -72,6 +77,7 @@ export class RuntimeKernel {
   constructor(options?: { persistenceAdapter?: RuntimePersistenceAdapter }) {
     const persistenceAdapter = options?.persistenceAdapter;
     this.providers = new ProviderRouter();
+    this.providers.setConnectivityMode(readLocalRuntimeSettings().connectivityMode);
     this.background = new BackgroundTaskManager({
       initialMode: readSavedMode(),
       persistenceAdapter,
@@ -83,6 +89,11 @@ export class RuntimeKernel {
 
     this.registerProviders();
     this.registerTaskHandlers();
+    if (typeof window !== 'undefined') {
+      window.addEventListener(LOCAL_RUNTIME_SETTINGS_EVENT, ((event: CustomEvent<LocalRuntimeSettings>) => {
+        this.providers.setConnectivityMode(event.detail.connectivityMode);
+      }) as EventListener);
+    }
   }
 
   attachPersistenceAdapter(adapter?: RuntimePersistenceAdapter): void {
@@ -92,15 +103,15 @@ export class RuntimeKernel {
 
   private registerProviders(): void {
     const groqProvider = new GroqProvider();
-    const localFallback = new LocalFallbackProvider();
+    const localNative = new LocalNativeProvider();
 
     this.providers.registerLlmProvider(groqProvider, { primaryFor: ['llm'] });
     this.providers.registerSttProvider(groqProvider, { primaryFor: ['stt'] });
     this.providers.registerTtsProvider(groqProvider, { primaryFor: ['tts'] });
 
-    this.providers.registerLlmProvider(localFallback);
-    this.providers.registerSttProvider(localFallback);
-    this.providers.registerTtsProvider(localFallback);
+    this.providers.registerLlmProvider(localNative);
+    this.providers.registerSttProvider(localNative);
+    this.providers.registerTtsProvider(localNative);
   }
 
   private registerTaskHandlers(): void {

@@ -1,4 +1,4 @@
-import { aiConfig } from '../../config/aiConfig';
+import { getConfiguredGroqApiKeys, getEffectiveAiConfig } from '../../config/aiConfig';
 import type { ApiQuotaSnapshot } from '../../types/ai';
 import {
   ProviderCallError,
@@ -92,7 +92,7 @@ async function parseErrorResponse(
 }
 
 function ensureApiKey(providerId: string, modality: 'llm' | 'stt' | 'tts'): void {
-  if (!aiConfig.apiKey) {
+  if (getConfiguredGroqApiKeys().length === 0) {
     throw new ProviderCallError({
       providerId,
       modality,
@@ -101,6 +101,31 @@ function ensureApiKey(providerId: string, modality: 'llm' | 'stt' | 'tts'): void
       retryable: false,
     });
   }
+}
+
+async function fetchWithConfiguredKeys(
+  request: (apiKey: string) => Promise<Response>,
+): Promise<Response> {
+  const keys = getConfiguredGroqApiKeys();
+  let lastResponse: Response | null = null;
+  let lastError: unknown;
+  for (const apiKey of keys) {
+    try {
+      const response = await request(apiKey);
+      if (response.ok) return response;
+      lastResponse = response;
+      const shouldTryAnother =
+        response.status === 401 ||
+        response.status === 403 ||
+        response.status === 429 ||
+        response.status >= 500;
+      if (!shouldTryAnother) return response;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastResponse) return lastResponse;
+  throw lastError instanceof Error ? lastError : new Error('Every configured Groq API key failed.');
 }
 
 export function getGroqQuotaSnapshot(): ApiQuotaSnapshot | null {
@@ -113,20 +138,21 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
   isLocal = false;
 
   listCapabilities(): ProviderCapability[] {
+    const config = getEffectiveAiConfig();
     return [
       {
         modality: 'llm',
-        model: aiConfig.models.chat,
+        model: config.models.chat,
         tags: ['chat', 'json', 'remote'],
       },
       {
         modality: 'stt',
-        model: aiConfig.models.stt,
+        model: config.models.stt,
         tags: ['transcription', 'remote'],
       },
       {
         modality: 'tts',
-        model: aiConfig.models.tts,
+        model: config.models.tts,
         tags: ['speech', 'remote'],
       },
     ];
@@ -134,9 +160,10 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
   async complete(request: LlmGenerateRequest): Promise<LlmGenerateResponse> {
     ensureApiKey(this.id, 'llm');
+    const config = getEffectiveAiConfig();
 
-    const endpoint = `${aiConfig.baseUrl}/chat/completions`;
-    const model = request.model ?? aiConfig.models.chat;
+    const endpoint = `${config.baseUrl}/chat/completions`;
+    const model = request.model ?? config.models.chat;
     const payload: Record<string, unknown> = {
       model,
       messages: request.messages,
@@ -148,14 +175,16 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
       payload.response_format = request.responseFormat;
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiConfig.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await fetchWithConfiguredKeys((apiKey) =>
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
     captureQuotaHeaders(response.headers);
 
     if (!response.ok) {
@@ -188,22 +217,24 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
   async transcribe(request: SttTranscribeRequest): Promise<SttTranscribeResponse> {
     ensureApiKey(this.id, 'stt');
+    const config = getEffectiveAiConfig();
 
-    const endpoint = `${aiConfig.baseUrl}/audio/transcriptions`;
-    const model = request.model ?? aiConfig.models.stt;
-    const formData = new FormData();
-    formData.append('model', model);
-    formData.append('file', request.audio, 'recording.webm');
-    if (request.language) {
-      formData.append('language', request.language);
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiConfig.apiKey}`,
-      },
-      body: formData,
+    const endpoint = `${config.baseUrl}/audio/transcriptions`;
+    const model = request.model ?? config.models.stt;
+    const response = await fetchWithConfiguredKeys((apiKey) => {
+      const formData = new FormData();
+      formData.append('model', model);
+      formData.append('file', request.audio, 'recording.webm');
+      if (request.language) {
+        formData.append('language', request.language);
+      }
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      });
     });
     captureQuotaHeaders(response.headers);
 
@@ -221,24 +252,30 @@ export class GroqProvider implements LlmProvider, SttProvider, TtsProvider {
 
   async synthesize(request: TtsSynthesizeRequest): Promise<TtsSynthesizeResponse> {
     ensureApiKey(this.id, 'tts');
+    const config = getEffectiveAiConfig();
 
-    const endpoint = `${aiConfig.baseUrl}/audio/speech`;
-    const model = request.model ?? aiConfig.models.tts;
+    const endpoint = `${config.baseUrl}/audio/speech`;
+    const model = request.model ?? config.models.tts;
+    // request.language is deliberately not sent: this endpoint derives the spoken
+    // language from the voice and rejects unknown fields. The hint is still carried
+    // on the request for providers that can act on it, such as local Piper.
     const payload = {
       model,
-      voice: request.voice ?? aiConfig.models.ttsVoice,
+      voice: request.voice ?? config.models.ttsVoice,
       input: request.text,
-      response_format: request.format ?? 'mp3',
+      response_format: request.format ?? 'wav',
     };
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiConfig.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await fetchWithConfiguredKeys((apiKey) =>
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
     captureQuotaHeaders(response.headers);
 
     if (!response.ok) {

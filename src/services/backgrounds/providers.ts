@@ -1,4 +1,5 @@
 import type { BackgroundImageCandidate, BackgroundProvider, BackgroundProviderName } from './types';
+import { isOnlineMode } from '../localRuntimeSettings';
 
 interface PexelsSearchResponse {
   photos?: Array<{
@@ -65,6 +66,7 @@ function cleanTags(value: string): string[] {
 }
 
 async function safeJsonFetch<T>(url: string, options?: RequestInit): Promise<T | null> {
+  if (!isOnlineMode()) return null;
   try {
     const response = await fetch(url, options);
     if (!response.ok) {

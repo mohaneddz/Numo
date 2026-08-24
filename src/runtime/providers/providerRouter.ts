@@ -18,6 +18,7 @@ import {
   type TtsSynthesizeRequest,
   type TtsSynthesizeResponse,
 } from './types';
+import type { ConnectivityMode } from '../../services/localRuntimeSettings';
 
 type ModalityProviderMap = {
   llm: LlmProvider;
@@ -56,6 +57,11 @@ export class ProviderRouter {
   private ttsProviders = new Map<string, TtsProvider>();
   private embeddingProviders = new Map<string, EmbeddingProvider>();
   private primaryProvider: Partial<Record<ProviderModality, string>> = {};
+  private connectivityMode: ConnectivityMode = 'online';
+
+  setConnectivityMode(mode: ConnectivityMode): void {
+    this.connectivityMode = mode;
+  }
 
   registerLlmProvider(provider: LlmProvider, options?: RegistrationOptions): void {
     this.llmProviders.set(provider.id, provider);
@@ -143,9 +149,12 @@ export class ProviderRouter {
 
   private orderedProviderIds(
     modality: ProviderModality,
-    availableIds: string[],
+    providers: Map<string, RuntimeProviderBase>,
     options?: ProviderSelectionOptions,
   ): string[] {
+    const availableIds = Array.from(providers.entries())
+      .filter(([, provider]) => this.connectivityMode === 'online' || provider.isLocal)
+      .map(([id]) => id);
     const preferred = options?.preferredProviderId;
     const primary = this.primaryProvider[modality];
     const order: string[] = [];
@@ -174,7 +183,11 @@ export class ProviderRouter {
     operation: (provider: ModalityProviderMap[TModality]) => Promise<TResult>,
   ): Promise<TResult> {
     const providers = this.providersForModality(modality);
-    const providerIds = this.orderedProviderIds(modality, Array.from(providers.keys()), options);
+    const providerIds = this.orderedProviderIds(
+      modality,
+      providers as Map<string, RuntimeProviderBase>,
+      options,
+    );
     if (providerIds.length === 0) {
       throw new AggregateProviderError(modality, []);
     }

@@ -28,3 +28,11 @@ src-tauri/weights/**
 src-tauri/lib/whisper-bin-x64.zip
 
 docs/**
+!docs/app/
+!docs/app/**
+
+# Vite writes these while the dev server is running
+vite.config.ts.timestamp-*
+
+# TypeScript incremental build cache
+*.tsbuildinfo

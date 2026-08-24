@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 export interface DropdownOption {
   value: string;
   label: string;
+  disabled?: boolean;
 }
 
 interface DropdownSelectProps {
@@ -12,6 +13,7 @@ interface DropdownSelectProps {
   options: DropdownOption[];
   className?: string;
   triggerClassName?: string;
+  placeholder?: string;
 }
 
 export function DropdownSelect({
@@ -20,6 +22,7 @@ export function DropdownSelect({
   options,
   className = '',
   triggerClassName = '',
+  placeholder = 'Select an option',
 }: DropdownSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -35,8 +38,8 @@ export function DropdownSelect({
   }, []);
 
   const selected = useMemo(
-    () => options.find((entry) => entry.value === value)?.label ?? value,
-    [options, value],
+    () => options.find((entry) => entry.value === value)?.label ?? (value || placeholder),
+    [options, placeholder, value],
   );
 
   return (
@@ -59,11 +62,13 @@ export function DropdownSelect({
                 <button
                   key={entry.value}
                   type="button"
+                  disabled={entry.disabled}
                   onClick={() => {
+                    if (entry.disabled) return;
                     onChange(entry.value);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center rounded-md px-2.5 py-2 text-left text-[13px] transition-colors ${
+                  className={`flex w-full items-center rounded-md px-2.5 py-2 text-left text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     isActive
                       ? 'bg-indigo-500/25 text-white'
                       : 'text-slate-200 hover:bg-white/10 hover:text-white'

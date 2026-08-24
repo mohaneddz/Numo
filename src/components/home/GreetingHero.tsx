@@ -1,14 +1,14 @@
 import { motion } from 'framer-motion';
 import { Zap, Bell, Gift } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useCurriculum } from '../../contexts/CurriculumContext';
+import { useProfileSession } from '../../contexts/ProfileSessionContext';
 import { LanguageSelector } from '../ui/LanguageSelector';
 import { useNavigate } from 'react-router-dom';
 import { buildActionUrl } from '../../navigation/actionTemplates';
 
 export function GreetingHero() {
     const { activeLanguage } = useLanguage();
-    const { learner } = useCurriculum();
+    const { activeProfile } = useProfileSession();
     const navigate = useNavigate();
     const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35 } };
     const hour = new Date().getHours();
@@ -25,7 +25,7 @@ export function GreetingHero() {
                             className="w-12 h-12 object-contain drop-shadow-[0_0_15px_rgba(139,92,246,0.3)] animate-float"
                         />
                         <h1 className="text-[36px] leading-tight font-extrabold tracking-tight text-[#FAFAFA] pr-4">
-                            {greeting}, {learner.name}.
+                            {greeting}{activeProfile?.displayName ? `, ${activeProfile.displayName}` : ''}.
                         </h1>
                     </div>
                     <p className="text-dim text-[15px]">

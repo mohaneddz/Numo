@@ -1,27 +1,5 @@
 // ===== Core Types =====
 
-export interface LearnerProfile {
-  name: string;
-  nativeLanguage: string;
-  targetLanguage: string;
-  level: 'beginner' | 'intermediate' | 'advanced';
-  dailyGoalMinutes: number;
-  currentStreak: number;
-  longestStreak: number;
-  todayMinutes: number;
-  totalXP: number;
-  joinDate: string;
-  avatar?: string;
-}
-
-export interface DailyMission {
-  title: string;
-  description: string;
-  progress: number;
-  total: number;
-  xpReward: number;
-}
-
 export interface ContinueLearning {
   moduleName: string;
   lessonTitle: string;
@@ -33,9 +11,20 @@ export interface ContinueLearning {
 }
 
 export interface ReviewItem {
+  /**
+   * Curriculum skill this item came from, when it is known.
+   *
+   * Optional on purpose: items mined from immersion or added by hand have no
+   * skill behind them, and guessing one would put invented evidence into the
+   * learner model. Only attributed items affect skill mastery.
+   */
+  skillId?: string;
   id: string;
   sourceNotebookId?: string;
   origin?: 'notebook' | 'legacy';
+  source?: 'notebook' | 'learn_mistake' | 'weak_node' | 'legacy_unit' | 'immerse_phrase' | 'write_correction' | 'speak_pronunciation';
+  sourceRef?: string;
+  contentDomain?: 'vocabulary' | 'grammar' | 'pronunciation' | 'sentence' | 'communication';
   term: string;
   translation: string;
   type: 'word' | 'phrase' | 'grammar';
@@ -60,76 +49,6 @@ export interface RecommendedCard {
   accentColor: string;
 }
 
-export interface FocusArea {
-  skill: string;
-  percentage: number;
-  color: string;
-}
-
-export interface SavedItem {
-  term: string;
-  type: 'Phrase' | 'Noun' | 'Verb' | 'Adjective' | 'Expression' | 'Grammar';
-  translation?: string;
-}
-
-export interface Module {
-  id: string;
-  title: string;
-  description: string;
-  category: 'grammar' | 'vocabulary' | 'conversation' | 'culture' | 'scenario';
-  lessonsCount: number;
-  completedLessons: number;
-  level: 'beginner' | 'intermediate' | 'advanced';
-  duration: string;
-  isLocked: boolean;
-  accentColor: string;
-}
-
-export interface Lesson {
-  id: string;
-  moduleId: string;
-  title: string;
-  description: string;
-  type: 'grammar' | 'vocabulary' | 'listening' | 'speaking' | 'reading' | 'writing' | 'scenario';
-  duration: string;
-  status: 'completed' | 'in-progress' | 'locked' | 'available';
-  xpEarned: number;
-  xpTotal: number;
-}
-
-export interface ImmersionContent {
-  id: string;
-  title: string;
-  description: string;
-  type: 'story' | 'dialogue' | 'podcast' | 'video';
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  duration: string;
-  thumbnail?: string;
-  isNew: boolean;
-  progress: number;
-  tags: string[];
-}
-
-export interface SpeakingSession {
-  id: string;
-  title: string;
-  type: 'pronunciation' | 'shadowing' | 'roleplay' | 'oral-exam' | 'free-talk';
-  description: string;
-  duration: string;
-  difficulty: string;
-  fluencyScore?: number;
-  confidenceScore?: number;
-}
-
-export interface WritingPrompt {
-  id: string;
-  title: string;
-  description: string;
-  type: 'email' | 'message' | 'essay' | 'journal' | 'formal' | 'creative';
-  difficulty: string;
-  wordTarget: number;
-}
-
 export interface WritingDraft {
   id: string;
   promptId?: string;
@@ -147,13 +66,18 @@ export interface NotebookEntry {
   id: string;
   term: string;
   translation: string;
-  type: 'word' | 'phrase' | 'grammar' | 'mistake';
+  type: 'word' | 'phrase' | 'sentence' | 'grammar' | 'pronunciation' | 'translation' | 'mistake';
   context?: string;
   notes?: string;
+  collectionId?: string;
+  personalHint?: string;
+  personalExample?: string;
+  isDifficult?: boolean;
+  isImportant?: boolean;
   tags: string[];
   createdAt: string;
   mastery: number;
-  source?: 'immerse' | 'review' | 'write' | 'manual';
+  source?: 'immerse' | 'review' | 'write' | 'learn' | 'manual';
   favorited?: boolean;
   updatedAt?: string;
 }
@@ -178,35 +102,16 @@ export interface SpeakingSessionRun {
 
 export interface ImmersionProgress {
   contentId: string;
+  /** Seconds for media; line index for text. Paired with `totalUnits`. */
   positionSec: number;
+  /**
+   * Total length in the same unit as `positionSec`, when the player knows it.
+   * Without this a percentage cannot be computed honestly, so the UI reports
+   * "started" instead of inventing one.
+   */
+  totalUnits?: number;
   completed: boolean;
   savedPhrases: string[];
   updatedAt: string;
 }
 
-export interface AnalyticsData {
-  weeklyActivity: { day: string; minutes: number }[];
-  vocabGrowth: { month: string; words: number }[];
-  skillBreakdown: { skill: string; score: number; color: string }[];
-  retentionRate: { week: string; rate: number }[];
-  pronunciationTrend: { session: string; score: number }[];
-  monthlyStats: {
-    totalMinutes: number;
-    wordsLearned: number;
-    lessonsCompleted: number;
-    reviewAccuracy: number;
-    speakingSessions: number;
-    writingPieces: number;
-  };
-}
-
-export interface ContentPack {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  itemCount: number;
-  installed: boolean;
-  size: string;
-  author: string;
-}

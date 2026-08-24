@@ -1,5 +1,10 @@
 import { ImgHTMLAttributes, useEffect, useMemo, useState } from 'react';
 import { fetch_data_url_with_fallback } from '../../utils/tauriNet';
+import {
+  getCachedMediaAssetUrl,
+  invalidateCachedMediaAsset,
+} from '../../services/mediaAssetCache';
+import { LOCAL_RUNTIME_SETTINGS_EVENT } from '../../services/localRuntimeSettings';
 
 type RemoteImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src: string;
@@ -7,23 +12,39 @@ type RemoteImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
 };
 
 export function RemoteImage({ src, fallbackSrc, onError, ...props }: RemoteImageProps) {
-  const [currentSrc, setCurrentSrc] = useState(src);
+  const [currentSrc, setCurrentSrc] = useState('');
   const [didTryProxy, setDidTryProxy] = useState(false);
+  const [connectivityVersion, setConnectivityVersion] = useState(0);
+  const resolvedFallback = useMemo(() => fallbackSrc || '/continue_learning.png', [fallbackSrc]);
 
   useEffect(() => {
-    setCurrentSrc(src);
+    let cancelled = false;
+    setCurrentSrc('');
     setDidTryProxy(false);
-  }, [src]);
+    void getCachedMediaAssetUrl(src).then((resolved) => {
+      if (!cancelled) setCurrentSrc(resolved || resolvedFallback);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [connectivityVersion, resolvedFallback, src]);
 
-  const resolvedFallback = useMemo(() => fallbackSrc || '/continue_learning.png', [fallbackSrc]);
+  useEffect(() => {
+    const handleConnectivityChange = () => {
+      setConnectivityVersion((current) => current + 1);
+    };
+    window.addEventListener(LOCAL_RUNTIME_SETTINGS_EVENT, handleConnectivityChange);
+    return () => window.removeEventListener(LOCAL_RUNTIME_SETTINGS_EVENT, handleConnectivityChange);
+  }, []);
 
   return (
     <img
       {...props}
-      src={currentSrc}
+      src={currentSrc || resolvedFallback}
       onError={(event) => {
         if (!didTryProxy) {
           setDidTryProxy(true);
+          void invalidateCachedMediaAsset(src);
           void fetch_data_url_with_fallback(src)
             .then((dataUrl) => {
               if (dataUrl && dataUrl !== src) {

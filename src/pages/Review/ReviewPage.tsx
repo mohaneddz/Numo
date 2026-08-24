@@ -6,10 +6,10 @@ import { LockedPageState } from '../../components/ui/LockedPageState';
 import { useLanguageProgression } from '../../hooks/useLanguageProgression';
 
 const modes: Array<{ mode: ReviewMode; title: string; description: string; icon: typeof RotateCcw }> = [
-  { mode: 'due-now', title: 'Due Now', description: 'Only cards due from persisted scheduler.', icon: RotateCcw },
-  { mode: 'weak', title: 'Weak Points', description: 'Cards with weak/critical strength in persisted state.', icon: AlertCircle },
-  { mode: 'mistakes', title: 'Mistakes', description: 'Cards last graded incorrect.', icon: RotateCcw },
-  { mode: 'cram', title: 'Cram', description: 'Low-ease items from real review history.', icon: Zap },
+  { mode: 'due-now', title: 'Mixed Review', description: 'Balanced queue from due items and recent review evidence.', icon: RotateCcw },
+  { mode: 'weak', title: 'Weak-Point Review', description: 'Focuses on weak or unstable items first.', icon: AlertCircle },
+  { mode: 'mistakes', title: 'Cumulative Review', description: 'Runs through accumulated mistake-heavy material.', icon: RotateCcw },
+  { mode: 'cram', title: 'Timed Review', description: 'Fast-paced queue optimized for quick repetition.', icon: Zap },
 ];
 
 export default function ReviewPage() {
@@ -37,7 +37,7 @@ export default function ReviewPage() {
       <PageActions>
         <Link to="/review/session?mode=due-now" className="no-underline">
           <button className="page-primary-action">
-            <Zap size={16} /> Start Due Queue
+            <Zap size={16} /> Start Mixed Review
           </button>
         </Link>
       </PageActions>
@@ -80,7 +80,7 @@ export default function ReviewPage() {
               <div key={item.id} className="card" style={{ padding: 10 }}>
                 <p style={{ margin: 0, fontWeight: 600 }}>{item.term}</p>
                 <p style={{ margin: 0, color: 'var(--color-dim)', fontSize: 13 }}>
-                  {item.translation || 'No translation yet'}
+                  {item.translation || 'No translation yet'} • {item.source ?? 'legacy_unit'}
                 </p>
               </div>
             ))}

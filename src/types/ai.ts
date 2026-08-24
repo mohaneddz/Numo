@@ -21,6 +21,18 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   createdAt: number;
+  learningReply?: LanguageLearningReply;
+}
+
+export interface PronouncedWord {
+  text: string;
+  pronunciation: string;
+}
+
+export interface LanguageLearningReply {
+  targetText: string;
+  words: PronouncedWord[];
+  englishMeaning: string;
 }
 
 export interface ApiQuotaSnapshot {

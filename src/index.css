@@ -101,6 +101,41 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@keyframes audio-bar-dance {
+  0%, 100% { transform: scaleY(0.42); opacity: 0.55; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes audio-orbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes audio-breathe {
+  0%, 100% { transform: scale(0.96); opacity: 0.45; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+.audio-bar-dance {
+  transform-origin: center;
+  animation: audio-bar-dance 900ms ease-in-out infinite;
+}
+
+.audio-orbit {
+  animation: audio-orbit 18s linear infinite;
+}
+
+.audio-breathe {
+  animation: audio-breathe 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-bar-dance,
+  .audio-orbit,
+  .audio-breathe {
+    animation: none;
+  }
+}
+
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
@@ -112,6 +147,23 @@ h1, h2, h3, h4, h5, h6 {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+button:not(:disabled),
+a[href],
+[role='button']:not([aria-disabled='true']),
+select,
+summary,
+label[for],
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
 .page-content {
@@ -139,23 +191,55 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 2.5rem;
 }
 
+@keyframes shimmer-slide {
+  0%   { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(250%) skewX(-15deg); }
+}
+
 .page-primary-action {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   border-radius: 9999px;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  background: rgba(37, 99, 235, 0.2);
-  padding: 0.5rem 1.25rem;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.85) 0%, rgba(139, 92, 246, 0.75) 55%, rgba(167, 139, 250, 0.6) 100%);
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.35), inset 0 1px 0 rgba(255,255,255,0.12);
+  padding: 0.55rem 1.5rem;
   font-size: 14px;
   font-weight: 700;
-  color: #60a5fa;
+  letter-spacing: 0.02em;
+  color: #ede9fe;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: box-shadow 0.25s ease, transform 0.15s ease, background 0.25s ease;
+}
+
+.page-primary-action::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  animation: shimmer-slide 3.5s infinite;
+  pointer-events: none;
 }
 
 .page-primary-action:hover {
-  background: rgba(37, 99, 235, 0.3);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.95) 0%, rgba(139, 92, 246, 0.9) 55%, rgba(167, 139, 250, 0.8) 100%);
+  box-shadow: 0 0 28px rgba(139, 92, 246, 0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+  transform: translateY(-1px);
+}
+
+.page-primary-action:active {
+  transform: translateY(0px) scale(0.98);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+}
+
+.page-primary-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .page-section {
@@ -224,4 +308,13 @@ h1, h2, h3, h4, h5, h6 {
 .pill-violet {
   background: rgba(139, 92, 246, 0.18);
   color: #a78bfa;
+}
+
+/* Custom select arrow — apply alongside Tailwind select classes */
+.select-custom {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2393A0B4' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2rem;
 }
