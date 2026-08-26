@@ -15,6 +15,7 @@ import { buildActionUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useRuntime } from '../../contexts/RuntimeContext';
 import { useLanguageProgression } from '../../hooks/useLanguageProgression';
+import { useNotifications } from '../../hooks/useNotifications';
 
 const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     '/': { title: 'Home', subtitle: 'Track your daily momentum and jump into the next best action.' },
@@ -39,6 +40,7 @@ export default function AppShell() {
     const navigate = useNavigate();
     const { activeLanguage, languages } = useLanguage();
     const progression = useLanguageProgression();
+    const notifications = useNotifications();
     const { setForegroundSurface } = useRuntime();
     const basePath = '/' + (location.pathname.split('/')[1] || '');
     const meta = pageMeta[basePath] || { title: '' };
@@ -341,7 +343,9 @@ export default function AppShell() {
                                 }
                             >
                                 <Bell size={16} />
-                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-coral border-2 border-obsidian" />
+                                {notifications.length > 0 && (
+                                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-coral border-2 border-obsidian" />
+                                )}
                             </button>
                             <button
                                 className="w-9 h-9 rounded-xl bg-[linear-gradient(135deg,var(--color-violet),var(--color-cyan))] flex items-center justify-center cursor-pointer shadow-[0_4px_12px_rgba(139,92,246,0.3)] hover:scale-105 active:scale-95 transition-transform"
