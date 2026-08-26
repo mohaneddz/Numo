@@ -96,10 +96,23 @@ export default function SpeakSession() {
 
   const processSpeech = async (blob: Blob) => {
     setIsProcessing(true);
+    setError(null);
+
+    let text: string;
     try {
-      const text = await transcribeSpeech(blob, activeLanguage.code);
-      setTranscription(text);
-      
+      text = await transcribeSpeech(blob, activeLanguage.code);
+    } catch (transcribeError) {
+      setIsProcessing(false);
+      setError(
+        transcribeError instanceof Error && transcribeError.message
+          ? `Couldn't transcribe your recording: ${transcribeError.message}`
+          : "Couldn't transcribe your recording. Check your microphone, or configure a speech-to-text provider in Settings.",
+      );
+      return;
+    }
+    setTranscription(text);
+
+    try {
       const prompt = `
         The learner language is: "${activeLanguage.name}" (${activeLanguage.code})
         Target phrase: "${selectedPrompt.target}"
@@ -149,29 +162,14 @@ export default function SpeakSession() {
         });
       }
 
-    } catch {
-      const fallbackText = selectedPrompt.target;
-      setTranscription(fallbackText);
-      setFeedback({
-        accuracy: 78,
-        fluency: 74,
-        tip: `Fallback feedback: keep a steady rhythm while repeating "${selectedPrompt.target}".`,
-      });
-      saveSpeakingResult(session.id, {
-        transcript: fallbackText,
-        accuracy: 78,
-        fluency: 74,
-        tip: `Fallback feedback: keep a steady rhythm while repeating "${selectedPrompt.target}".`,
-        feedbackSource: 'fallback',
-      });
-      void integrationService.logSpeakAttempt({
-        languageCode: activeLanguage.code,
-        transcript: fallbackText,
-        accuracy: 78,
-        fluency: 74,
-        tip: `Fallback feedback: keep a steady rhythm while repeating "${selectedPrompt.target}".`,
-      });
-      setError(null);
+    } catch (gradingError) {
+      // We have a real transcript but couldn't grade it — say so rather than
+      // inventing a passing score, so a real outage doesn't read as success.
+      setError(
+        gradingError instanceof Error && gradingError.message
+          ? `Recorded and transcribed, but couldn't grade the attempt: ${gradingError.message}`
+          : "Recorded and transcribed, but couldn't grade the attempt. Configure an AI provider in Settings to get feedback.",
+      );
     } finally {
       setIsProcessing(false);
     }
