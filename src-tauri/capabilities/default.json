@@ -29,6 +29,7 @@
     "store:default",
     "notification:default",
     "http:default",
-    "core:path:default"
+    "core:path:default",
+    "autostart:default"
   ]
 }

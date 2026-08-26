@@ -10,6 +10,7 @@ import { appLocalDataDir } from '@tauri-apps/api/path';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config/appearanceSettings';
+import { isAutostartEnabled, setAutostartEnabled } from '../services/autostartService';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
 import { saveToDummyDataFile } from '../utils/saveDisk';
 import { initializePersistence } from '../persistence';
@@ -483,6 +484,15 @@ export default function SettingsPage() {
             .catch(() => setLocalVoices([]));
     }, [settingsState.models?.['Voices Folder']]);
 
+    useEffect(() => {
+        void isAutostartEnabled().then((enabled) => {
+            setSettingsState((previous) => ({
+                ...previous,
+                desktop: { ...previous.desktop, 'Start with System': enabled },
+            }));
+        });
+    }, []);
+
     // Seed the editable Display Name field from the real profile exactly
     // once it loads — after that, the field is user-owned, so an active
     // profile refresh (triggered by this very save) does not stomp on typing.
@@ -518,6 +528,11 @@ export default function SettingsPage() {
     const updateSetting = (sectionId: string, label: string, value: any) => {
         if (sectionId === 'desktop' && label === 'Keyboard Shortcuts') {
             writeKeyboardShortcutsEnabled(Boolean(value));
+        }
+        if (sectionId === 'desktop' && label === 'Start with System') {
+            void setAutostartEnabled(Boolean(value)).catch(() => {
+                setStatus('Could not update the system autostart setting.');
+            });
         }
         if (sectionId === 'models' && label === 'Connection Mode') {
             setConnectivityMode(value === 'offline' ? 'offline' : 'online');
