@@ -14,6 +14,7 @@ import {
   Flame,
   CheckCircle2,
   MoreHorizontal,
+  X,
 } from 'lucide-react';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
 import RemoteImage from '../../components/ui/RemoteImage';
@@ -25,9 +26,13 @@ import {
   PageSidebar,
 } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
-import { buildActionUrl, buildTemplateUrl } from '../../navigation/actionTemplates';
-import { useLanguage } from '../../contexts/LanguageContext';
 import NotebookSectionNav from '../../components/notebook/NotebookSectionNav';
+
+const COLLECTIONS = [
+  { label: 'Daily Life', icon: Bookmark, color: 'text-violet', bg: 'bg-violet/10', border: 'border-violet/20' },
+  { label: 'Trips & Travel', icon: Bookmark, color: 'text-cyan', bg: 'bg-cyan/10', border: 'border-cyan/20' },
+  { label: 'Restaurant Talk', icon: Bookmark, color: 'text-amber', bg: 'bg-amber/10', border: 'border-amber/20' },
+] as const;
 
 const TABS = [
   { id: 'all', label: 'All', icon: LayoutGrid },
@@ -38,14 +43,17 @@ const TABS = [
 export default function NotebookPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { activeLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]['id']>('all');
   const [activeListTab, setActiveListTab] = useState<'favorites' | 'recent' | 'more'>('favorites');
   const [search, setSearch] = useState('');
   const [listLimit, setListLimit] = useState(16);
   const [explorerLimit, setExplorerLimit] = useState(8);
   const [collectionMode, setCollectionMode] = useState<'words' | 'phrases'>('words');
-  const { state, flashCardCount } = useAppData();
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [newTerm, setNewTerm] = useState('');
+  const [newTranslation, setNewTranslation] = useState('');
+  const [newType, setNewType] = useState<'word' | 'phrase'>('word');
+  const { state, flashCardCount, createNotebookEntry } = useAppData();
 
   useEffect(() => {
     const viewOpt = searchParams.get('view');
@@ -53,15 +61,31 @@ export default function NotebookPage() {
       setActiveListTab('more');
       setSearchParams(new URLSearchParams());
     }
-
-    const actionOpt = searchParams.get('action');
-    if (actionOpt === 'new' || actionOpt === 'new_collection') {
-      // Mock action logic
-      alert(`[Mock] Action ${actionOpt} invoked on Notebook page!`);
-      // Clear action param after handling
-      setSearchParams(new URLSearchParams());
-    }
   }, [searchParams, setSearchParams]);
+
+  const handleCreateItem = () => {
+    const term = newTerm.trim();
+    const translation = newTranslation.trim();
+    if (!term || !translation) return;
+    const entry = createNotebookEntry({
+      term,
+      translation,
+      type: newType,
+      tags: [],
+      mastery: 0,
+      source: 'manual',
+    });
+    setAddItemOpen(false);
+    setNewTerm('');
+    setNewTranslation('');
+    navigate(`/notebook/${entry.id}`);
+  };
+
+  const openCollection = (label: string) => {
+    setSearch(label);
+    setActiveTab(collectionMode === 'words' ? 'words' : 'phrases');
+    setActiveListTab('more');
+  };
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -120,16 +144,7 @@ export default function NotebookPage() {
               <Sparkles size={16} /> Flash Cards ({flashCardCount})
             </button>
           </Link>
-          <button
-            className="page-primary-action"
-            onClick={() =>
-              navigate(
-                buildActionUrl('notebook_new_item', {
-                  params: { from: '/notebook', lang: activeLanguage.code },
-                }),
-              )
-            }
-          >
+          <button className="page-primary-action" onClick={() => setAddItemOpen(true)}>
             <Plus size={16} /> New Item
           </button>
         </div>
@@ -137,6 +152,68 @@ export default function NotebookPage() {
 
       <PageMainSidebarLayout>
         <PageMainColumn>
+          {addItemOpen && (
+            <SpotlightCard className="p-5">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-[14px] font-bold text-mist">Add notebook item</h3>
+                <button
+                  onClick={() => setAddItemOpen(false)}
+                  className="text-dim hover:text-mist transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-1 p-1 bg-black/30 rounded-xl w-fit">
+                  {(['word', 'phrase'] as const).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setNewType(type)}
+                      className={`px-4 py-1.5 rounded-lg text-[11px] font-bold capitalize transition-colors ${
+                        newType === type ? 'bg-graphite/60 text-mist shadow-sm' : 'text-dim hover:text-mist'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={newTerm}
+                  onChange={(event) => setNewTerm(event.target.value)}
+                  placeholder={newType === 'word' ? 'Term (target language)' : 'Phrase (target language)'}
+                  className="bg-black/20 border border-white/5 rounded-lg px-4 py-2 text-[13px] text-mist focus:outline-none focus:ring-1 focus:ring-violet/50 w-full"
+                />
+                <input
+                  type="text"
+                  value={newTranslation}
+                  onChange={(event) => setNewTranslation(event.target.value)}
+                  placeholder="Translation"
+                  className="bg-black/20 border border-white/5 rounded-lg px-4 py-2 text-[13px] text-mist focus:outline-none focus:ring-1 focus:ring-violet/50 w-full"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') handleCreateItem();
+                  }}
+                />
+                <div className="flex justify-end gap-2 mt-1">
+                  <button
+                    onClick={() => setAddItemOpen(false)}
+                    className="px-4 py-2 rounded-lg text-[12px] font-bold text-dim hover:text-mist transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateItem}
+                    disabled={!newTerm.trim() || !newTranslation.trim()}
+                    className="page-primary-action disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Save to notebook
+                  </button>
+                </div>
+              </div>
+            </SpotlightCard>
+          )}
+
           <div className="flex justify-between items-center bg-graphite/30 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
             <div className="flex gap-1">
               {TABS.map((tab) => (
@@ -348,23 +425,12 @@ export default function NotebookPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                {[
-                  { label: 'Daily Life', icon: Bookmark, color: 'text-violet', bg: 'bg-violet/10', border: 'border-violet/20' },
-                  { label: 'Trips & Travel', icon: Bookmark, color: 'text-cyan', bg: 'bg-cyan/10', border: 'border-cyan/20' },
-                  { label: 'Restaurant Talk', icon: Bookmark, color: 'text-amber', bg: 'bg-amber/10', border: 'border-amber/20' },
-                ].map((col, i) => (
+                {COLLECTIONS.map((col) => (
                   <button
-                    key={i}
+                    key={col.label}
                     className="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/5 hover:border-white/20 hover:bg-black/30 transition-all group"
-                    onClick={() =>
-                      navigate(
-                        buildTemplateUrl({
-                          templateId: 'notebook-collection',
-                          entityId: col.label.toLowerCase().replace(/\s+/g, '-'),
-                          params: { from: '/notebook', lang: activeLanguage.code, tab: collectionMode },
-                        }),
-                      )
-                    }
+                    onClick={() => openCollection(col.label)}
+                    title={`Filter your notebook for "${col.label}"-tagged entries`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg ${col.bg} ${col.border} border flex items-center justify-center ${col.color}`}>
