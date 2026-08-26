@@ -208,6 +208,31 @@ export class SqliteLearnerRepository implements LearnerRepository {
     }
   }
 
+  async renameProfile(profileId: string, displayName: string): Promise<LearnerProfileRecord> {
+    try {
+      const trimmed = displayName.trim();
+      if (!trimmed) {
+        throw new Error('Display name cannot be empty.');
+      }
+      const timestamp = nowIso();
+      await this.db.execute(
+        `
+        UPDATE learner_profile
+        SET display_name = ?, updated_at = ?
+        WHERE id = ?;
+        `,
+        [trimmed, timestamp, profileId],
+      );
+      const updated = await this.getProfileById(profileId);
+      if (!updated) {
+        throw new Error(`Profile ${profileId} not found after rename.`);
+      }
+      return updated;
+    } catch (error) {
+      throw new RepositoryError('learner', 'renameProfile', error);
+    }
+  }
+
   async getActiveProfile(): Promise<LearnerProfileRecord | null> {
     try {
       const rows = await this.db.select<{ value_json: string }>(

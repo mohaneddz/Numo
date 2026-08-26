@@ -65,6 +65,7 @@ interface ProfileSessionContextValue {
   createProfileAndActivate: (input: CreateProfileInput) => Promise<LearnerProfileRecord | null>;
   activateProfile: (profileId: string) => Promise<void>;
   clearActiveProfile: () => Promise<void>;
+  renameActiveProfile: (displayName: string) => Promise<void>;
 }
 
 const ProfileSessionContext = createContext<ProfileSessionContextValue | undefined>(undefined);
@@ -149,6 +150,13 @@ export const ProfileSessionProvider: React.FC<{ children: React.ReactNode }> = (
     await refresh();
   }, [refresh]);
 
+  const renameActiveProfile = useCallback(async (displayName: string) => {
+    if (!activeProfile) return;
+    const persistence = await initializePersistence();
+    await persistence.repositories.learner.renameProfile(activeProfile.id, displayName);
+    await refresh();
+  }, [activeProfile, refresh]);
+
   const value = useMemo<ProfileSessionContextValue>(() => ({
     status,
     profiles,
@@ -158,7 +166,8 @@ export const ProfileSessionProvider: React.FC<{ children: React.ReactNode }> = (
     createProfileAndActivate,
     activateProfile,
     clearActiveProfile,
-  }), [status, profiles, activeProfile, error, refresh, createProfileAndActivate, activateProfile, clearActiveProfile]);
+    renameActiveProfile,
+  }), [status, profiles, activeProfile, error, refresh, createProfileAndActivate, activateProfile, clearActiveProfile, renameActiveProfile]);
 
   return <ProfileSessionContext.Provider value={value}>{children}</ProfileSessionContext.Provider>;
 };

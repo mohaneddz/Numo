@@ -640,6 +640,7 @@ export interface LearnerRepository {
   listProfiles(): Promise<LearnerProfileRecord[]>;
   getProfileById(id: string): Promise<LearnerProfileRecord | null>;
   createProfile(input: CreateLearnerProfileInput): Promise<LearnerProfileRecord>;
+  renameProfile(profileId: string, displayName: string): Promise<LearnerProfileRecord>;
   getActiveProfile(): Promise<LearnerProfileRecord | null>;
   setActiveProfile(profileId: string): Promise<void>;
   clearActiveProfile(): Promise<void>;

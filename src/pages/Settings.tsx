@@ -16,6 +16,7 @@ import { initializePersistence } from '../persistence';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurriculumState } from '../hooks/useCurriculumState';
 import { useProfileSession } from '../contexts/ProfileSessionContext';
+import { useLanguageJourney, type JourneyLevel } from '../contexts/LanguageJourneyContext';
 import { useAppData } from '../contexts/AppDataContext';
 import { backgroundImageService } from '../services/backgrounds';
 import type { BackgroundMappingPreview, BackgroundValidationResult } from '../services/backgrounds';
@@ -66,16 +67,15 @@ const settingsSections: SettingsSection[] = [
     {
         id: 'profile', title: 'Profile', icon: User, color: '#8B5CF6',
         settings: [
-            { label: 'Display Name', description: 'Your name as shown in the app', type: 'info', value: 'Alex' },
-            { label: 'Native Language', description: 'Your first language', type: 'select', value: 'English', options: ['English', 'French', 'German', 'Arabic', 'Chinese'] },
+            { label: 'Display Name', description: 'Your name as shown in the app', type: 'text', value: '' },
+            { label: 'Native Language', description: 'Your first language, set when this profile was created', type: 'info', value: '' },
         ],
     },
     {
         id: 'target-language', title: 'Target Language', icon: Globe, color: '#0ea5e9',
         settings: [
-            { label: 'Language', description: 'The language you are learning', type: 'select', value: 'Spanish', options: ['Spanish', 'French', 'German', 'Japanese', 'Portuguese'] },
-            { label: 'Dialect', description: 'Preferred dialect or regional variant', type: 'select', value: 'Latin American', options: ['Latin American', 'Castilian', 'Mexican', 'Argentine'] },
-            { label: 'Level', description: 'Your current proficiency level', type: 'select', value: 'Intermediate', options: ['Beginner', 'Elementary', 'Intermediate', 'Upper Intermediate', 'Advanced'] },
+            { label: 'Language', description: 'The language you are actively learning — switches your active language app-wide', type: 'select', value: '', options: [] },
+            { label: 'Level', description: 'Your current proficiency level, set during onboarding', type: 'select', value: '', options: ['Beginner', 'Elementary', 'Intermediate', 'Advanced'] },
         ],
     },
     {
@@ -264,6 +264,27 @@ const settingsSections: SettingsSection[] = [
     },
 ];
 
+// Native language has no picker anywhere in the app yet (every profile is
+// created with 'en') — this is just display-name resolution for whatever
+// code a profile carries, not a claim that more codes are selectable.
+const NATIVE_LANGUAGE_NAMES: Record<string, string> = {
+    en: 'English', fr: 'French', de: 'German', es: 'Spanish', ar: 'Arabic', zh: 'Chinese',
+};
+
+const LEVEL_LABEL_TO_KEY: Record<string, JourneyLevel> = {
+    Beginner: 'complete_beginner',
+    Elementary: 'beginner',
+    Intermediate: 'lower_intermediate',
+    Advanced: 'intermediate_plus',
+};
+
+const LEVEL_KEY_TO_LABEL: Record<JourneyLevel, string> = {
+    complete_beginner: 'Beginner',
+    beginner: 'Elementary',
+    lower_intermediate: 'Intermediate',
+    intermediate_plus: 'Advanced',
+};
+
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) => (
     <button 
         onClick={() => onChange(!checked)}
@@ -344,9 +365,10 @@ export default function SettingsPage() {
         tone: 'idle' | 'busy' | 'ok' | 'error';
         message: string;
     }>>({});
-    const { clearActiveProfile, refresh: refreshProfileSession } = useProfileSession();
+    const { activeProfile, clearActiveProfile, renameActiveProfile, refresh: refreshProfileSession } = useProfileSession();
     const { state: appDataState } = useAppData();
-    const { activeLanguage } = useLanguage();
+    const { activeLanguage, languages, setActiveLanguage } = useLanguage();
+    const { getSettings: getJourneySettings, setLevel } = useLanguageJourney();
     const { selectedTheme } = useCurriculumState();
 
     useEffect(() => {
@@ -408,7 +430,21 @@ export default function SettingsPage() {
         }
     });
 
-    const activeSection = settingsSections.find(s => s.id === activeTabId) || settingsSections[0];
+    const baseSection = settingsSections.find(s => s.id === activeTabId) || settingsSections[0];
+    // 'Language' has no fixed option list — it's whatever languages this
+    // profile is actually learning, so the static section definition can't
+    // carry it; resolve it here instead of duplicating section lookup logic.
+    const activeSection = useMemo<SettingsSection>(() => {
+        if (baseSection.id !== 'target-language') return baseSection;
+        return {
+            ...baseSection,
+            settings: baseSection.settings.map((setting) =>
+                setting.label === 'Language'
+                    ? { ...setting, options: languages.map((language) => language.name) }
+                    : setting,
+            ),
+        };
+    }, [baseSection, languages]);
 
     useEffect(() => {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settingsState));
@@ -447,6 +483,38 @@ export default function SettingsPage() {
             .catch(() => setLocalVoices([]));
     }, [settingsState.models?.['Voices Folder']]);
 
+    // Seed the editable Display Name field from the real profile exactly
+    // once it loads — after that, the field is user-owned, so an active
+    // profile refresh (triggered by this very save) does not stomp on typing.
+    useEffect(() => {
+        if (!activeProfile) return;
+        setSettingsState((previous) => {
+            if (previous.profile?.['Display Name']) return previous;
+            return { ...previous, profile: { ...previous.profile, 'Display Name': activeProfile.displayName } };
+        });
+    }, [activeProfile]);
+
+    useEffect(() => {
+        if (!activeProfile) return;
+        const name = NATIVE_LANGUAGE_NAMES[activeProfile.nativeLanguageCode] ?? activeProfile.nativeLanguageCode.toUpperCase();
+        setSettingsState((previous) => ({ ...previous, profile: { ...previous.profile, 'Native Language': name } }));
+    }, [activeProfile]);
+
+    useEffect(() => {
+        setSettingsState((previous) => ({
+            ...previous,
+            'target-language': { ...previous['target-language'], Language: activeLanguage.name },
+        }));
+    }, [activeLanguage.name]);
+
+    useEffect(() => {
+        const level = LEVEL_KEY_TO_LABEL[getJourneySettings(activeLanguage.code).level];
+        setSettingsState((previous) => ({
+            ...previous,
+            'target-language': { ...previous['target-language'], Level: level },
+        }));
+    }, [activeLanguage.code, getJourneySettings]);
+
     const updateSetting = (sectionId: string, label: string, value: any) => {
         if (sectionId === 'desktop' && label === 'Keyboard Shortcuts') {
             writeKeyboardShortcutsEnabled(Boolean(value));
@@ -482,6 +550,17 @@ export default function SettingsPage() {
         }
         if (sectionId === 'accessibility' && label === 'High Contrast') {
             applyContrast(Boolean(value));
+        }
+        if (sectionId === 'profile' && label === 'Display Name') {
+            void renameActiveProfile(String(value));
+        }
+        if (sectionId === 'target-language' && label === 'Language') {
+            const target = languages.find((language) => language.name === value);
+            if (target) setActiveLanguage(target.code);
+        }
+        if (sectionId === 'target-language' && label === 'Level') {
+            const level = LEVEL_LABEL_TO_KEY[String(value)];
+            if (level) setLevel(activeLanguage.code, level);
         }
         setSettingsState(prev => {
             const next = {

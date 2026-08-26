@@ -36,6 +36,7 @@ interface LanguageJourneyContextType {
   completeOnboarding: (languageCode: string, input: Partial<LanguageJourneySettings>) => void;
   markWelcomeSeen: (languageCode: string) => void;
   setDifficulty: (languageCode: string, difficulty: DifficultyPreference) => void;
+  setLevel: (languageCode: string, level: JourneyLevel) => void;
 }
 
 const STORAGE_PREFIX = 'language_journey';
@@ -166,12 +167,17 @@ export const LanguageJourneyProvider: React.FC<{ children: React.ReactNode }> = 
     updateSettings(languageCode, { difficulty });
   };
 
+  const setLevel = (languageCode: string, level: JourneyLevel) => {
+    updateSettings(languageCode, { level });
+  };
+
   const value = useMemo<LanguageJourneyContextType>(() => ({
     state,
     getSettings,
     completeOnboarding,
     markWelcomeSeen,
     setDifficulty,
+    setLevel,
   }), [state]);
 
   return (
