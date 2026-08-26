@@ -17,7 +17,7 @@ describe('effective online AI configuration', () => {
       },
     };
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => key === 'noema_settings_state_v1' ? JSON.stringify(saved) : null,
+      getItem: (key: string) => key === 'numo_settings_state_v1' ? JSON.stringify(saved) : null,
     });
 
     expect(getEffectiveAiConfig()).toMatchObject({
@@ -33,7 +33,7 @@ describe('effective online AI configuration', () => {
 
   it('rejects an unsafe saved base URL and retains the application default', () => {
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => key === 'noema_settings_state_v1'
+      getItem: (key: string) => key === 'numo_settings_state_v1'
         ? JSON.stringify({ ai: { 'Groq Base URL': 'http://insecure.example/v1' } })
         : null,
     });

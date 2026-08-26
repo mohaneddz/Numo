@@ -15,7 +15,7 @@ describe('GroqProvider saved online configuration', () => {
       },
     };
     vi.stubGlobal('localStorage', {
-      getItem: (key: string) => key === 'noema_settings_state_v1'
+      getItem: (key: string) => key === 'numo_settings_state_v1'
         ? JSON.stringify(settings)
         : null,
     });

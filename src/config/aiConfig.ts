@@ -37,7 +37,7 @@ export function getEffectiveAiConfig(): RuntimeConfig {
   let saved: StoredAiSettings = {};
   if (typeof localStorage !== 'undefined') {
     try {
-      saved = JSON.parse(localStorage.getItem('noema_settings_state_v1') ?? '{}') as StoredAiSettings;
+      saved = JSON.parse(localStorage.getItem('numo_settings_state_v1') ?? '{}') as StoredAiSettings;
     } catch {
       saved = {};
     }
@@ -63,7 +63,7 @@ export function getConfiguredGroqApiKeys(): string[] {
   let savedKeys: string[] = [];
   if (typeof localStorage !== 'undefined') {
     try {
-      const settings = JSON.parse(localStorage.getItem('noema_settings_state_v1') ?? '{}') as {
+      const settings = JSON.parse(localStorage.getItem('numo_settings_state_v1') ?? '{}') as {
         ai?: { 'GROQ APIs'?: unknown };
       };
       if (Array.isArray(settings.ai?.['GROQ APIs'])) {

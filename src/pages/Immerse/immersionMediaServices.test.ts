@@ -46,7 +46,7 @@ describe('immersion media resolution', () => {
 
   it('keeps successful YouTube categories when another category fails', async () => {
     localStorage.setItem(
-      'noema_settings_state_v1',
+      'numo_settings_state_v1',
       JSON.stringify({ integrations: { 'YouTube API Key': 'test-key', 'YouTube Region': 'US' } }),
     );
     const resources = [

@@ -323,8 +323,8 @@ function createProbeWavFile(): File {
 export default function SettingsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const SETTINGS_STORAGE_KEY = 'noema_settings_state_v1';
-    const SETTINGS_LOG_KEY = 'noema_settings_log_v1';
+    const SETTINGS_STORAGE_KEY = 'numo_settings_state_v1';
+    const SETTINGS_LOG_KEY = 'numo_settings_log_v1';
     const [activeTabId, setActiveTabId] = useState<string>('profile');
     const [status, setStatus] = useState<string | null>(null);
     const [bgBusy, setBgBusy] = useState<string | null>(null);
@@ -888,7 +888,7 @@ export default function SettingsPage() {
             settings: exportedSettings,
             actionLog,
         };
-        saveToDummyDataFile('noema-settings-export.json', JSON.stringify(payload, null, 2));
+        saveToDummyDataFile('numo-settings-export.json', JSON.stringify(payload, null, 2));
         setStatus('Settings export generated.');
     };
 

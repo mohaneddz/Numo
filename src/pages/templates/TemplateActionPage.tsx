@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, ExternalLink, RefreshCcw } from 'lucide-react'
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { SpotlightCard } from '../../components/ui/SpotlightCard';
 
-const STORAGE_KEY = 'noema_template_action_log_v1';
+const STORAGE_KEY = 'numo_template_action_log_v1';
 
 interface ActionLogEntry {
   templateId: string;

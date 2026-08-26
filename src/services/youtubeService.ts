@@ -1,7 +1,7 @@
 import type { ImmersionResource } from '../pages/Immerse/immersionCatalog';
 import { isOnlineMode, requireOnline } from './localRuntimeSettings';
 
-const SETTINGS_STORAGE_KEY = 'noema_settings_state_v1';
+const SETTINGS_STORAGE_KEY = 'numo_settings_state_v1';
 const CACHE_STORAGE_KEY = 'numo_youtube_immersion_cache_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 

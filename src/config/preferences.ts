@@ -1,5 +1,5 @@
-export const KEYBOARD_SHORTCUTS_ENABLED_KEY = 'noema.keyboard_shortcuts.enabled';
-export const PREFERENCES_UPDATED_EVENT = 'noema:preferences-updated';
+export const KEYBOARD_SHORTCUTS_ENABLED_KEY = 'numo.keyboard_shortcuts.enabled';
+export const PREFERENCES_UPDATED_EVENT = 'numo:preferences-updated';
 
 export function readKeyboardShortcutsEnabled(): boolean {
   const raw = localStorage.getItem(KEYBOARD_SHORTCUTS_ENABLED_KEY);

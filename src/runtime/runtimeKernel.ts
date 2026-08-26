@@ -33,7 +33,7 @@ import {
   type LocalRuntimeSettings,
 } from '../services/localRuntimeSettings';
 
-const RUNTIME_MODE_STORAGE_KEY = 'noema_runtime_mode_v1';
+const RUNTIME_MODE_STORAGE_KEY = 'numo_runtime_mode_v1';
 
 function readSavedMode(): RuntimeBackgroundMode {
   if (typeof window === 'undefined') {
