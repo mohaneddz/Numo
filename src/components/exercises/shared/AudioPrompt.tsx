@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Volume2 } from 'lucide-react';
 import { synthesizeSpeech } from '../../../services/aiProvider';
+import { isAutoPlayAudioEnabled } from '../../../config/appearanceSettings';
 
 interface AudioPromptProps {
   /** Text to speak. The component renders nothing without it. */
@@ -78,6 +79,7 @@ export function AudioPrompt({ text, languageCode, label = 'Play audio', disabled
 
   useEffect(() => {
     if (!autoPlay || autoPlayedRef.current || !text?.trim() || disabled) return;
+    if (!isAutoPlayAudioEnabled()) return;
     autoPlayedRef.current = true;
     void play();
     // `play` is stable enough for this one-shot effect; re-running on every render

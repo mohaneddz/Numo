@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
 import AppShell from './components/layout/AppShell';
+import {
+  FONT_SIZE_ZOOM_EVENT,
+  MOTION_REDUCED_EVENT,
+  bootstrapAppearanceSettings,
+  fontSizeZoomBaseline,
+  motionReducedBaseline,
+} from './config/appearanceSettings';
 import HomePage from './pages/Home';
 import LearnPage from './pages/Learn/LearnPage';
 import ModuleDetail from './pages/Learn/ModuleDetail';
@@ -113,7 +121,26 @@ function GuardedShell() {
 }
 
 export default function App() {
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(fontSizeZoomBaseline);
+  const [motionReduced, setMotionReduced] = useState(motionReducedBaseline);
+
+  useEffect(() => {
+    bootstrapAppearanceSettings();
+    const onFontSizeChanged = (event: Event) => {
+      const zoom = (event as CustomEvent<number>).detail;
+      if (typeof zoom === 'number') setZoomLevel(zoom);
+    };
+    const onMotionChanged = (event: Event) => {
+      const reduced = (event as CustomEvent<boolean>).detail;
+      if (typeof reduced === 'boolean') setMotionReduced(reduced);
+    };
+    window.addEventListener(FONT_SIZE_ZOOM_EVENT, onFontSizeChanged);
+    window.addEventListener(MOTION_REDUCED_EVENT, onMotionChanged);
+    return () => {
+      window.removeEventListener(FONT_SIZE_ZOOM_EVENT, onFontSizeChanged);
+      window.removeEventListener(MOTION_REDUCED_EVENT, onMotionChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -150,39 +177,41 @@ export default function App() {
   }, []);
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<GuardedShell />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/learn" element={<LearnPage />} />
-        <Route path="/learn/session" element={<LearnSessionPage />} />
-        <Route path="/learn/:moduleId" element={<ModuleDetail />} />
-        <Route path="/practice/quick" element={<PracticeQuickPage />} />
-        <Route path="/review" element={<ReviewPage />} />
-        <Route path="/review/session" element={<ReviewSession />} />
-        <Route path="/immerse" element={<ImmersePage />} />
-        <Route path="/immerse/:contentId" element={<ContentDetail />} />
-        <Route path="/speak" element={<SpeakPage />} />
-        <Route path="/speak/session/:sessionId" element={<SpeakSession />} />
-        <Route path="/write" element={<WritePage />} />
-        <Route path="/write/editor/:draftId?" element={<WriteEditor />} />
-        <Route path="/notebook" element={<NotebookPage />} />
-        <Route path="/notebook/:itemId" element={<NotebookDetail />} />
-        <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/library" element={<LibrariesPage />} />
-        <Route path="/script-practice" element={<ScriptPracticePage />} />
-        <Route path="/notebook/library" element={<NotebookLibraryPage />} />
-        <Route path="/notebook/exercises" element={<ExercisesPage />} />
-        <Route path="/references" element={<Navigate to="/library" replace />} />
-        <Route path="/exercises" element={<Navigate to="/notebook/exercises" replace />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/web-search" element={<WebSearchPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/language-setup" element={<LanguageSetupPage />} />
-        <Route path="/language-welcome" element={<LanguageWelcomePage />} />
-      </Route>
-    </Routes>
+    <MotionConfig reducedMotion={motionReduced ? 'always' : 'never'}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<GuardedShell />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/learn" element={<LearnPage />} />
+          <Route path="/learn/session" element={<LearnSessionPage />} />
+          <Route path="/learn/:moduleId" element={<ModuleDetail />} />
+          <Route path="/practice/quick" element={<PracticeQuickPage />} />
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/review/session" element={<ReviewSession />} />
+          <Route path="/immerse" element={<ImmersePage />} />
+          <Route path="/immerse/:contentId" element={<ContentDetail />} />
+          <Route path="/speak" element={<SpeakPage />} />
+          <Route path="/speak/session/:sessionId" element={<SpeakSession />} />
+          <Route path="/write" element={<WritePage />} />
+          <Route path="/write/editor/:draftId?" element={<WriteEditor />} />
+          <Route path="/notebook" element={<NotebookPage />} />
+          <Route path="/notebook/:itemId" element={<NotebookDetail />} />
+          <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/library" element={<LibrariesPage />} />
+          <Route path="/script-practice" element={<ScriptPracticePage />} />
+          <Route path="/notebook/library" element={<NotebookLibraryPage />} />
+          <Route path="/notebook/exercises" element={<ExercisesPage />} />
+          <Route path="/references" element={<Navigate to="/library" replace />} />
+          <Route path="/exercises" element={<Navigate to="/notebook/exercises" replace />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/web-search" element={<WebSearchPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/language-setup" element={<LanguageSetupPage />} />
+          <Route path="/language-welcome" element={<LanguageWelcomePage />} />
+        </Route>
+      </Routes>
+    </MotionConfig>
   );
 }

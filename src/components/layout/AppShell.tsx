@@ -279,7 +279,7 @@ export default function AppShell() {
     }, [location.pathname, navigate, shortcutsEnabled, showShortcutHelp]);
 
     return (
-        <div className="flex flex-col h-screen w-screen relative z-0 bg-[#050816] text-white">
+        <div className="flex flex-col h-screen w-screen relative z-0 bg-obsidian text-mist">
             {/* Custom Tauri Titlebar */}
             <Titlebar />
 

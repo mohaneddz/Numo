@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
+import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config/appearanceSettings';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
 import { saveToDummyDataFile } from '../utils/saveDisk';
 import { initializePersistence } from '../persistence';
@@ -356,7 +357,11 @@ export default function SettingsPage() {
         }
     }, [searchParams]);
     
-    // In a real app we'd manage this state in a context or global store
+    // This blob is the persisted source of truth for every field below. Most
+    // Appearance/Accessibility fields also apply a real, visible effect via
+    // config/appearanceSettings.ts (see the updateSetting branches below);
+    // Profile/Target Language/Audio/Backup/most Privacy fields are still
+    // display-only preferences with nothing behind them to apply to yet.
     const [settingsState, setSettingsState] = useState<Record<string, Record<string, any>>>(() => {
         let savedState: Record<string, Record<string, any>> = {};
         const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
@@ -456,6 +461,27 @@ export default function SettingsPage() {
             if (pathSetting?.pathKey) {
                 setLocalRuntimePath(pathSetting.pathKey, String(value ?? ''));
             }
+        }
+        if (sectionId === 'appearance' && label === 'Theme') {
+            applyTheme(String(value));
+        }
+        if (sectionId === 'appearance' && label === 'Font Size') {
+            applyFontSize(String(value));
+        }
+        if (sectionId === 'appearance' && label === 'Animations') {
+            applyMotion({
+                animationsEnabled: Boolean(value),
+                reduceMotion: Boolean(settingsState.accessibility?.['Reduce Motion']),
+            });
+        }
+        if (sectionId === 'accessibility' && label === 'Reduce Motion') {
+            applyMotion({
+                animationsEnabled: Boolean(settingsState.appearance?.['Animations'] ?? true),
+                reduceMotion: Boolean(value),
+            });
+        }
+        if (sectionId === 'accessibility' && label === 'High Contrast') {
+            applyContrast(Boolean(value));
         }
         setSettingsState(prev => {
             const next = {

@@ -58,6 +58,57 @@ body {
   color: var(--color-mist);
 }
 
+/*
+ * Settings -> Appearance drives these via `document.documentElement.dataset`
+ * (src/config/appearanceSettings.ts). Most of the app's surfaces are built
+ * from the --color-* tokens above, so overriding them here reaches the bulk
+ * of the UI — a handful of literal/arbitrary colors elsewhere won't repaint,
+ * which is a known, accepted gap rather than a full theme system.
+ */
+:root[data-theme='ocean'] {
+  --color-violet: #38BDF8;
+  --color-violet-dim: rgba(56, 189, 248, 0.15);
+  --color-violet-glow: rgba(56, 189, 248, 0.25);
+  --color-cyan: #22D3EE;
+}
+
+:root[data-theme='forest'] {
+  --color-violet: #34D399;
+  --color-violet-dim: rgba(52, 211, 153, 0.15);
+  --color-violet-glow: rgba(52, 211, 153, 0.25);
+  --color-cyan: #A3E635;
+}
+
+:root[data-theme='light'] {
+  --color-obsidian: #F3F5FA;
+  --color-night: #FFFFFF;
+  --color-graphite: rgba(255, 255, 255, 0.75);
+  --color-slate: rgba(99, 102, 241, 0.12);
+  --color-slate-light: rgba(99, 102, 241, 0.22);
+  --color-mist: #1E2433;
+  --color-dim: #55607A;
+  --color-dim-dark: #38405A;
+}
+
+:root[data-contrast='high'] {
+  --color-dim: #C7D0E0;
+  --color-dim-dark: #E2E8F5;
+}
+
+:root[data-theme='light'][data-contrast='high'] {
+  --color-dim: #1E2433;
+  --color-dim-dark: #10131C;
+}
+
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: 1px;
