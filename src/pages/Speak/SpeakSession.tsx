@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { transcribeSpeech, completeWithEcho, synthesizeSpeech } from '../../services/aiProvider';
+import { speechPlaybackRate } from '../../config/audioPlaybackSettings';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -181,12 +182,14 @@ export default function SpeakSession() {
       const url = URL.createObjectURL(blob);
       if (audioRef.current) {
         audioRef.current.src = url;
+        audioRef.current.playbackRate = speechPlaybackRate();
         audioRef.current.play();
       }
     } catch {
       if ('speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(selectedPrompt.target);
         utterance.lang = activeLanguage.code === 'fr' ? 'fr-FR' : activeLanguage.code === 'de' ? 'de-DE' : activeLanguage.code === 'zh' ? 'zh-CN' : 'es-ES';
+        utterance.rate = speechPlaybackRate();
         window.speechSynthesis.speak(utterance);
       } else {
         setError('Audio playback is not available on this device.');

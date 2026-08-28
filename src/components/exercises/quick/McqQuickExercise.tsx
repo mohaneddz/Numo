@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Volume2 } from 'lucide-react';
 import { synthesizeSpeech } from '../../../services/aiProvider';
+import { speechPlaybackRate } from '../../../config/audioPlaybackSettings';
 import { InteractiveText } from '../shared/InteractiveText';
 import type { QuickExerciseProps } from './types';
 import CachedMediaImage from '../../ui/CachedMediaImage';
@@ -18,6 +19,7 @@ async function playAudio(text: string, languageCode?: string): Promise<void> {
     const blob = await synthesizeSpeech(text, { languageCode });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
+    audio.playbackRate = speechPlaybackRate();
     void audio.play();
   } catch {
     // optional audio

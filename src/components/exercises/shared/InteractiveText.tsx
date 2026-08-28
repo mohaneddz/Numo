@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGlossary } from '../../../hooks/useGlossary';
 import type { GlossaryEntry } from '../../../services/exercises/glossaryData';
 import { synthesizeSpeech } from '../../../services/aiProvider';
+import { speechPlaybackRate } from '../../../config/audioPlaybackSettings';
 import { GlossarySheet } from './GlossarySheet';
 import { GlossaryTooltip } from './GlossaryTooltip';
 
@@ -131,6 +132,7 @@ export function InteractiveText({ text, languageCode, className, onGlossaryUsage
       const blob = await synthesizeSpeech(entry.token, { languageCode });
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.playbackRate = speechPlaybackRate();
       void audio.play();
     } catch {
       // Silence optional hear failures.
