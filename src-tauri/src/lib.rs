@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::State;
+use tauri::{Manager, State, WindowEvent};
 
 struct ConnectivityState {
     online: AtomicBool,
@@ -26,6 +26,20 @@ impl ConnectivityState {
             Ok(())
         } else {
             Err("Network access is disabled while Numo is in offline mode.".to_string())
+        }
+    }
+}
+
+struct TrayState {
+    minimize_to_tray: AtomicBool,
+}
+
+impl TrayState {
+    fn new() -> Self {
+        Self {
+            // Matches Settings.tsx's static default for "Minimize to Tray" (`true`)
+            // until the frontend syncs the persisted value on boot.
+            minimize_to_tray: AtomicBool::new(true),
         }
     }
 }
@@ -55,6 +69,11 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 fn set_connectivity_mode(online: bool, state: State<'_, ConnectivityState>) {
     state.online.store(online, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn set_minimize_to_tray_enabled(enabled: bool, state: State<'_, TrayState>) {
+    state.minimize_to_tray.store(enabled, Ordering::SeqCst);
 }
 
 fn require_file(path: &str, label: &str, extensions: &[&str]) -> Result<PathBuf, String> {
@@ -589,10 +608,56 @@ async fn fetch_youtube_captions(
     Ok(tracks)
 }
 
+fn show_and_focus_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+/// Builds the "Minimize to Tray" tray icon and menu. Only wired up when
+/// Settings -> Desktop Preferences -> "Minimize to Tray" is on, via
+/// `TrayState`/`set_minimize_to_tray_enabled` and the CloseRequested handler
+/// below, which hides the window instead of exiting while that flag is set.
+fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let show_item = MenuItem::with_id(app, "show", "Show Numo", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+    let mut builder = TrayIconBuilder::new().menu(&menu).show_menu_on_left_click(false);
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    builder
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_and_focus_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_and_focus_main_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(ConnectivityState::new())
+        .manage(TrayState::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
@@ -603,9 +668,26 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .setup(|app| Ok(setup_tray(app)?))
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let minimize_to_tray = window
+                    .state::<TrayState>()
+                    .minimize_to_tray
+                    .load(Ordering::SeqCst);
+                if minimize_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             greet,
             set_connectivity_mode,
+            set_minimize_to_tray_enabled,
             validate_local_path,
             detect_local_tool,
             run_local_llm,

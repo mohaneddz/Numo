@@ -11,6 +11,7 @@ import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config/appearanceSettings';
 import { isAutostartEnabled, setAutostartEnabled } from '../services/autostartService';
+import { readMinimizeToTrayEnabled, setMinimizeToTrayEnabled } from '../services/trayService';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
 import { saveToDummyDataFile } from '../utils/saveDisk';
 import { initializePersistence } from '../persistence';
@@ -403,6 +404,8 @@ export default function SettingsPage() {
                 if (section.id === 'desktop' && setting.label === 'Keyboard Shortcuts') {
                     initialState[section.id][setting.label] =
                         savedState[section.id]?.[setting.label] ?? readKeyboardShortcutsEnabled();
+                } else if (section.id === 'desktop' && setting.label === 'Minimize to Tray') {
+                    initialState[section.id][setting.label] = readMinimizeToTrayEnabled();
                 } else if (section.id === 'models' && setting.label === 'Connection Mode') {
                     initialState[section.id][setting.label] = runtimeSettings.connectivityMode;
                 } else if (section.id === 'models' && setting.pathKey) {
@@ -528,6 +531,9 @@ export default function SettingsPage() {
     const updateSetting = (sectionId: string, label: string, value: any) => {
         if (sectionId === 'desktop' && label === 'Keyboard Shortcuts') {
             writeKeyboardShortcutsEnabled(Boolean(value));
+        }
+        if (sectionId === 'desktop' && label === 'Minimize to Tray') {
+            setMinimizeToTrayEnabled(Boolean(value));
         }
         if (sectionId === 'desktop' && label === 'Start with System') {
             void setAutostartEnabled(Boolean(value)).catch(() => {
