@@ -1,7 +1,7 @@
 import { Bot, Save } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCurriculumState } from '../../hooks/useCurriculumState';
-import { saveToDummyDataFile } from '../../utils/saveDisk';
+import { saveTextFile } from '../../utils/saveDisk';
 
 /**
  * Development-only inspector for the curriculum engine.
@@ -34,7 +34,7 @@ export function DebugPanel() {
       },
     };
 
-    saveToDummyDataFile(
+    void saveTextFile(
       `curriculum_state_${activeLanguage.code}.json`,
       JSON.stringify(snapshot, null, 2),
     );

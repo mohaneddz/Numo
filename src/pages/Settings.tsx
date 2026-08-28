@@ -13,7 +13,7 @@ import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config
 import { isAutostartEnabled, setAutostartEnabled } from '../services/autostartService';
 import { readMinimizeToTrayEnabled, setMinimizeToTrayEnabled } from '../services/trayService';
 import { DropdownSelect } from '../components/ui/DropdownSelect';
-import { saveToDummyDataFile } from '../utils/saveDisk';
+import { saveTextFile } from '../utils/saveDisk';
 import { initializePersistence } from '../persistence';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurriculumState } from '../hooks/useCurriculumState';
@@ -299,6 +299,28 @@ const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val:
         />
     </button>
 );
+
+function csvEscape(value: string): string {
+    return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+function settingsExportToCsv(payload: {
+    exportedAt: string;
+    settings: Record<string, Record<string, any>>;
+    actionLog: Array<{ section: string; label: string; value: string; at: string }>;
+}): string {
+    const lines = [`# Exported ${payload.exportedAt}`, 'section,setting,value'];
+    Object.entries(payload.settings).forEach(([section, fields]) => {
+        Object.entries(fields).forEach(([label, value]) => {
+            lines.push([section, label, String(value)].map(csvEscape).join(','));
+        });
+    });
+    lines.push('', 'section,label,value,at');
+    payload.actionLog.forEach((entry) => {
+        lines.push([entry.section, entry.label, entry.value, entry.at].map(csvEscape).join(','));
+    });
+    return lines.join('\n');
+}
 
 function createProbeWavFile(): File {
     const sampleRate = 16000;
@@ -995,7 +1017,7 @@ export default function SettingsPage() {
         }));
     };
 
-    const handleExportSettings = () => {
+    const handleExportSettings = async () => {
         const exportedSettings = {
             ...settingsState,
             ai: {
@@ -1014,7 +1036,13 @@ export default function SettingsPage() {
             settings: exportedSettings,
             actionLog,
         };
-        saveToDummyDataFile('numo-settings-export.json', JSON.stringify(payload, null, 2));
+        const format = String(settingsState.backup?.['Export Format'] ?? 'JSON');
+        if (format === 'JSON' || format === 'Both') {
+            await saveTextFile('numo-settings-export.json', JSON.stringify(payload, null, 2));
+        }
+        if (format === 'CSV' || format === 'Both') {
+            await saveTextFile('numo-settings-export.csv', settingsExportToCsv(payload));
+        }
         setStatus('Settings export generated.');
     };
 
@@ -1089,7 +1117,7 @@ export default function SettingsPage() {
     return (
         <PageContent width="wide" className="h-full pb-10">
             <PageActions>
-                <button className="page-primary-action" onClick={handleExportSettings}>
+                <button className="page-primary-action" onClick={() => void handleExportSettings()}>
                     <Download size={16} /> Export Settings
                 </button>
                 <button
