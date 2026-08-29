@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { generateSession, regenerateExercise, type PracticeItem, type SessionState } from '../../lib/sessionEngine';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguageJourney } from '../../contexts/LanguageJourneyContext';
 import { useProfileSession } from '../../contexts/ProfileSessionContext';
 import { resolveQuickExercise } from '../../components/exercises/quick/registry';
@@ -74,6 +75,7 @@ export default function PracticeQuickPage() {
   const { activeLanguage } = useLanguage();
   const { getSettings } = useLanguageJourney();
   const { activeProfile } = useProfileSession();
+  const { recordPracticeMistake } = useAppData();
 
   const mode = searchParams.get('mode') || undefined;
   const source = searchParams.get('source') || undefined;
@@ -177,6 +179,19 @@ export default function PracticeQuickPage() {
     const selectedOption = typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : undefined;
     const confusionPair = !result.correct && selectedOption ? { a: selectedOption, b: expected } : undefined;
     void persistSignals(result, confusionPair);
+
+    // Learn queues every wrong answer for review; Quick Practice used to update
+    // an aggregate signal and nothing else, so a word missed here never came
+    // back to the learner.
+    if (!result.correct) {
+      recordPracticeMistake({
+        // Cue as the term, expected answer as the translation, matching how
+        // Learn stores its mistakes so both feed one coherent review queue.
+        term: currentItem.audioText?.trim() || currentItem.prompt,
+        translation: expected,
+        exerciseType: currentItem.userKey ?? currentItem.type,
+      });
+    }
 
     setFeedback(
       buildExerciseFeedback({

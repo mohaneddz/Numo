@@ -75,6 +75,18 @@ interface AppDataContextValue {
   updateMastery: (id: string, delta: number) => void;
   toggleFavorite: (id: string) => void;
   recordLearnInteraction: (input: { moduleId?: string; lessonId?: string; note?: string }) => void;
+  /**
+   * Queues a Quick Practice mistake for review.
+   *
+   * Learn already does this for every wrong answer; Quick Practice only
+   * updated an aggregate signal, so a word a learner kept getting wrong there
+   * never came back to them.
+   */
+  recordPracticeMistake: (input: {
+    term: string;
+    translation: string;
+    exerciseType: string;
+  }) => void;
 }
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
@@ -927,6 +939,48 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [engine, state.notebookEntries]);
 
+  const recordPracticeMistake = useCallback<AppDataContextValue['recordPracticeMistake']>(
+    (input) => {
+      if (!engine) return;
+      const term = input.term.trim();
+      const translation = input.translation.trim();
+      if (!term || !translation) return;
+
+      void (async () => {
+        try {
+          await engine.context.persistence.repositories.review.createReviewItem({
+            learnerId: engine.context.learnerId,
+            languageId: engine.context.languageId,
+            dueAt: todayIso(),
+            // The schema's CHECK constraint has no dedicated quick-practice
+            // source, and this is the same thing: a mistake made while
+            // practising.
+            source: 'learn_mistake',
+            sourceRef: input.exerciseType,
+            contentDomain: input.exerciseType.includes('grammar')
+              ? 'grammar'
+              : input.exerciseType.includes('speak') || input.exerciseType.includes('listen')
+                ? 'pronunciation'
+                : input.exerciseType.includes('translate') || input.exerciseType.includes('cloze')
+                  ? 'sentence'
+                  : 'vocabulary',
+            metadata: {
+              term: term.slice(0, 120),
+              translation: translation.slice(0, 200),
+              type: input.exerciseType.includes('grammar') ? 'grammar' : 'phrase',
+            },
+            strength: 'weak',
+            lastResult: 'incorrect',
+          });
+          await refreshFromPersistence(engine);
+        } catch (error) {
+          console.error('Failed to queue practice mistake for review', error);
+        }
+      })();
+    },
+    [engine, refreshFromPersistence],
+  );
+
   const recordLearnInteraction = useCallback<AppDataContextValue['recordLearnInteraction']>((input) => {
     if (!engine) return;
     void (async () => {
@@ -983,12 +1037,14 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updateMastery,
       toggleFavorite,
       recordLearnInteraction,
+      recordPracticeMistake,
     };
   }, [
     analyzeDraft,
     createNotebookEntry,
     gradeReviewItem,
     recordLearnInteraction,
+    recordPracticeMistake,
     saveDraft,
     saveImmersionPhrase,
     saveSpeakingResult,

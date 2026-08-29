@@ -1639,12 +1639,14 @@ export async function regenerateExercise(input: RegenerateExerciseInput): Promis
     const hydrated = await hydrateImageItems([{ ...polished, id: input.currentItem.id }], input);
     return withTargetMarkers(withCatalogKey(hydrated[0]));
   } catch (error) {
+    // This used to hand back the same exercise with " (refreshed)" appended to
+    // the prompt and the options reversed, so a failed regeneration looked like
+    // a successful one. The caller renders a refresh error, so failing here is
+    // both honest and already handled.
     console.error('Failed to regenerate exercise', error);
-    return withTargetMarkers(withCatalogKey({
-      ...input.currentItem,
-      prompt: `${input.currentItem.prompt} (refreshed)`,
-      options: input.currentItem.options ? [...input.currentItem.options].reverse() : input.currentItem.options,
-    }));
+    throw new Error(
+      'Could not generate a new exercise. Check your AI provider settings, or try again.',
+    );
   }
 }
 
