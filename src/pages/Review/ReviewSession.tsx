@@ -28,6 +28,7 @@ import type { ReviewItem } from '../../data/types';
 import { resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
 import { buildTruthStatement } from '../../services/exercises/truthStatementService';
 import { matchAnswer, normalizeAnswer } from '../../utils/textNormalize';
+import { seededShuffle } from '../../utils/seededRandom';
 
 type Result = 'correct' | 'incorrect';
 
@@ -60,28 +61,37 @@ const labels: Record<ReviewCardType, string> = {
  */
 const norm = (value: string) => normalizeAnswer(value);
 
-const shuffle = <T,>(a: T[]) => {
-  const c = [...a];
-  for (let i = c.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [c[i], c[j]] = [c[j], c[i]];
-  }
-  return c;
-};
+/**
+ * Builds the options for a multiple-choice review card.
+ *
+ * Distractors used to be manufactured from the correct answer itself —
+ * "house (formal)", "house now", and the answer with a leading "to"/"the"
+ * removed. They gave the answer away, and on a non-English translation the
+ * word-removal rules matched nothing, so a card could be left with barely any
+ * alternatives at all.
+ *
+ * They now come from other translations in the learner's own queue, which is a
+ * real discrimination test. The order is seeded from the item so grading one
+ * card does not reshuffle the rest of the session.
+ */
+function buildConfusionOptions(item: ReviewItem, pool: readonly ReviewItem[]): string[] {
+  const seen = new Set([norm(item.translation)]);
+  const distractors: string[] = [];
 
-const near = (a: string) => [
-  `${a} (formal)`,
-  a.replace(/\bto\b\s+/i, ''),
-  `${a} now`,
-  a.replace(/\bthe\b\s+/i, ''),
-].filter((x) => norm(x) !== norm(a));
-
-function buildConfusionOptions(item: ReviewItem): string[] {
-  const options = shuffle([item.translation, ...near(item.translation).slice(0, 3)]).slice(0, 4);
-  if (!options.includes(item.translation)) {
-    options[0] = item.translation;
+  for (const candidate of pool) {
+    if (distractors.length >= 3) break;
+    const translation = candidate.translation?.trim();
+    if (!translation || candidate.id === item.id) continue;
+    const key = norm(translation);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    distractors.push(translation);
   }
-  return shuffle(options);
+
+  const options = [item.translation, ...distractors];
+  // With too small a queue there is nothing honest to offer as a fourth option,
+  // so the card simply runs with fewer rather than inventing one.
+  return seededShuffle(options, `options-${item.id}`);
 }
 
 function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewItem[] = []): Q {
@@ -132,7 +142,18 @@ function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewIte
   }
 
   if (type === 'multiple' || type === 'confusion_pair') {
-    const options = buildConfusionOptions(it);
+    const options = buildConfusionOptions(it, pool);
+    // A queue too small to supply a real alternative cannot make a choice
+    // card. Falling back to recall beats rendering an unsupported-exercise
+    // placeholder, and beats inventing an option to pad it out.
+    if (options.length < 2) {
+      return {
+        ...base,
+        type: 'reveal',
+        prompt: 'Reveal the answer and self-grade.',
+        hint: `Type: ${it.type}`,
+      };
+    }
     return {
       ...base,
       type,
@@ -172,7 +193,7 @@ function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewIte
       ...base,
       type,
       prompt: 'Build the exact translation.',
-      bank: shuffle(it.translation.split(/\s+/).filter(Boolean)),
+      bank: seededShuffle(it.translation.split(/\s+/).filter(Boolean), `bank-${it.id}`),
     };
   }
 
