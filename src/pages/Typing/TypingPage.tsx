@@ -66,6 +66,11 @@ export default function TypingPage() {
   const errorsRef = useRef(new Map<string, number>());
   const samplesRef = useRef<TypingSample[]>([]);
   const composingRef = useRef(false);
+  // The exact buffer already counted toward the keystroke tally. An IME commit
+  // fires compositionend and then a change event carrying the same value, and
+  // the change handler's closure still holds the pre-composition buffer — so
+  // without this the committed characters were scored twice.
+  const scoredValueRef = useRef('');
   const finishRef = useRef<(() => void) | null>(null);
 
   // Mirrors of the live typing state. `finish` can be called from a timer tick
@@ -144,6 +149,7 @@ export default function TypingPage() {
     errorsRef.current = new Map();
     samplesRef.current = [];
     composingRef.current = false;
+    scoredValueRef.current = '';
     typedWordsRef.current = [];
     activeIndexRef.current = 0;
     activeInputRef.current = '';
@@ -263,7 +269,9 @@ export default function TypingPage() {
    * characters, and there was never a keystroke per character to listen for.
    */
   const scoreAddedCharacters = useCallback(
-    (previousValue: string, nextValue: string, targetWord: string) => {
+    (nextValue: string, targetWord: string) => {
+      const previousValue = scoredValueRef.current;
+      scoredValueRef.current = nextValue;
       if (nextValue.length <= previousValue.length) return;
 
       for (let position = previousValue.length; position < nextValue.length; position += 1) {
@@ -311,6 +319,7 @@ export default function TypingPage() {
         nextTyped[activeIndex] = { typed: finalWord, settled: true };
         setTypedWords(nextTyped);
         setActiveInput('');
+        scoredValueRef.current = '';
         // The mirrors sync via an effect, which has not run yet — finish() below
         // would otherwise score the run without this last word.
         typedWordsRef.current = nextTyped;
@@ -326,7 +335,7 @@ export default function TypingPage() {
         return;
       }
 
-      scoreAddedCharacters(activeInput, raw, words[activeIndex] ?? '');
+      scoreAddedCharacters(raw, words[activeIndex] ?? '');
       setActiveInput(raw);
       activeInputRef.current = raw;
 
@@ -355,6 +364,7 @@ export default function TypingPage() {
         const previousIndex = activeIndex - 1;
         setActiveIndex(previousIndex);
         setActiveInput(typedWords[previousIndex]?.typed ?? '');
+        scoredValueRef.current = typedWords[previousIndex]?.typed ?? '';
         const nextTyped = [...typedWords];
         nextTyped[previousIndex] = { typed: nextTyped[previousIndex]?.typed ?? '', settled: false };
         setTypedWords(nextTyped);
@@ -507,7 +517,7 @@ export default function TypingPage() {
                   composingRef.current = false;
                   setComposing('');
                   const value = event.currentTarget.value;
-                  scoreAddedCharacters(activeInput, value, words[activeIndex] ?? '');
+                  scoreAddedCharacters(value, words[activeIndex] ?? '');
                   setActiveInput(value);
                 }}
                 className="absolute inset-0 h-full w-full cursor-default opacity-0"
