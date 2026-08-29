@@ -69,8 +69,16 @@ export function ScriptStrokeAnimation({ model }: ScriptStrokeAnimationProps) {
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const gapUntilRef = useRef(0);
+  // The animation advances on refs and commits to state once per frame. Driving
+  // it from state updaters meant calling setStrokeIndex from inside a
+  // setProgress updater, and React may run an updater more than once — which
+  // would skip strokes.
+  const strokeIndexRef = useRef(0);
+  const progressRef = useRef(0);
 
   const reset = useCallback(() => {
+    strokeIndexRef.current = 0;
+    progressRef.current = 0;
     setStrokeIndex(0);
     setProgress(0);
     setPlaying(true);
@@ -98,23 +106,23 @@ export function ScriptStrokeAnimation({ model }: ScriptStrokeAnimationProps) {
         return;
       }
 
-      setProgress((current) => {
-        const points = strokes[strokeIndex]?.points ?? [];
-        const length = Math.max(1, strokeLength(points));
-        const next = current + (DRAW_SPEED * delta) / 1000 / length;
+      const points = strokes[strokeIndexRef.current]?.points ?? [];
+      const length = Math.max(1, strokeLength(points));
+      const next = progressRef.current + (DRAW_SPEED * delta) / 1000 / length;
 
-        if (next < 1) return next;
+      if (next < 1) {
+        progressRef.current = next;
+      } else if (strokeIndexRef.current + 1 >= strokes.length) {
+        progressRef.current = 1;
+        setPlaying(false);
+      } else {
+        strokeIndexRef.current += 1;
+        progressRef.current = 0;
+        gapUntilRef.current = STROKE_GAP_MS;
+      }
 
-        setStrokeIndex((index) => {
-          if (index + 1 >= strokes.length) {
-            setPlaying(false);
-            return index;
-          }
-          gapUntilRef.current = STROKE_GAP_MS;
-          return index + 1;
-        });
-        return strokes.length > strokeIndex + 1 ? 0 : 1;
-      });
+      setStrokeIndex(strokeIndexRef.current);
+      setProgress(progressRef.current);
 
       frameRef.current = requestAnimationFrame(step);
     };
@@ -124,10 +132,12 @@ export function ScriptStrokeAnimation({ model }: ScriptStrokeAnimationProps) {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       lastTimeRef.current = null;
     };
-  }, [playing, strokeIndex, strokes]);
+  }, [playing, strokes]);
 
   const goToStroke = (index: number) => {
     const clamped = Math.max(0, Math.min(strokes.length - 1, index));
+    strokeIndexRef.current = clamped;
+    progressRef.current = 1;
     setStrokeIndex(clamped);
     setProgress(1);
     setPlaying(false);
