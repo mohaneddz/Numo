@@ -150,16 +150,39 @@ function defaultPayload(task: TaskTemplateSeed): Record<string, unknown> {
   };
 }
 
+interface UnitKeyRow {
+  unit_key: string;
+}
+
+/**
+ * Seeds the starter learning plan, once per language.
+ *
+ * This used to delete every unit for the language and rebuild the whole tree
+ * with fresh random ids on every single launch. `task_attempts` references
+ * units, lessons, objectives and templates with ON DELETE SET NULL, so the
+ * rows survived but every attempt older than the current session lost the
+ * record of what it was an attempt at — progress history was silently
+ * orphaned each time the app started.
+ *
+ * Units are now inserted only when their key is missing, so ids stay put and
+ * attempt history stays attributable.
+ */
 export async function seedLearningPlan(context: PersistenceContext): Promise<void> {
   try {
     for (const languageCode of SUPPORTED_LANGUAGE_CODES) {
       const language = await context.repositories.languages.getLanguageByCode(languageCode);
       if (!language) continue;
 
-      await context.db.execute('DELETE FROM learning_units WHERE language_id = ?;', [language.id]);
+      const existingRows = await context.db.select<UnitKeyRow>(
+        'SELECT unit_key FROM learning_units WHERE language_id = ?;',
+        [language.id],
+      );
+      const existingKeys = new Set(existingRows.map((row) => row.unit_key));
 
       for (let unitIndex = 0; unitIndex < UNIT_SEEDS.length; unitIndex += 1) {
         const unit = UNIT_SEEDS[unitIndex];
+        if (existingKeys.has(unit.unitKey)) continue;
+
         const unitId = makeId('unit');
         const lessonId = makeId('lesson');
         const objectiveId = makeId('objective');
