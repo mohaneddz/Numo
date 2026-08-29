@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CosmicShader } from '../../assets/cosmic';
 import Sidebar from './Sidebar';
 import Titlebar from './Titlebar';
+import { CommandPalette } from './CommandPalette';
 import { LanguageSelector } from '../ui/LanguageSelector';
 import { DebugPanel } from './DebugPanel';
 import { DEBUG } from '../../config/env';
@@ -48,10 +49,12 @@ export default function AppShell() {
     const shortcutPrefixRef = useRef<{ key: string; at: number } | null>(null);
     const [showShortcutHelp, setShowShortcutHelp] = useState(false);
     const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+    const [paletteOpen, setPaletteOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     const shortcutRows = useMemo(
         () => [
+            { keys: 'Ctrl/Cmd + K', action: 'Open the command palette' },
             { keys: 'Ctrl + Shift + S', action: 'Toggle Sidebar' },
             { keys: 'g h', action: 'Go to Home' },
             { keys: 'g l', action: 'Go to Learning' },
@@ -212,6 +215,20 @@ export default function AppShell() {
                 return;
             }
 
+            // Deliberately above the shortcutsEnabled gate: the palette is the
+            // way to reach pages without shortcuts, so switching them off must
+            // not take it away too.
+            if (meta && !event.altKey && key === 'k') {
+                event.preventDefault();
+                setPaletteOpen((prev) => !prev);
+                return;
+            }
+
+            if (paletteOpen) {
+                // The palette owns the keyboard while it is open.
+                return;
+            }
+
             if (!shortcutsEnabled) {
                 if ((event.key === '?' || (event.key === '/' && event.shiftKey)) && !meta && !event.altKey) {
                     event.preventDefault();
@@ -276,10 +293,12 @@ export default function AppShell() {
 
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [location.pathname, navigate, shortcutsEnabled, showShortcutHelp]);
+    }, [location.pathname, navigate, paletteOpen, shortcutsEnabled, showShortcutHelp]);
 
     return (
         <div className="flex flex-col h-screen w-screen relative z-0 bg-obsidian text-mist">
+            <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
             {/* Custom Tauri Titlebar */}
             <Titlebar />
 
