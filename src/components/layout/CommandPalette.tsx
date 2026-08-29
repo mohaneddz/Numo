@@ -46,8 +46,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     [state.notebookEntries],
   );
 
-  const results = useMemo(() => searchCommands(commands, query), [commands, query]);
-  const grouped = useMemo(() => groupCommands(results), [results]);
+  const ranked = useMemo(() => searchCommands(commands, query), [commands, query]);
+  const grouped = useMemo(() => groupCommands(ranked), [ranked]);
+  // Rows render grouped, but ranking is flat across groups. Selection has to
+  // follow the order actually on screen, or Enter opens something other than
+  // the highlighted row.
+  const results = useMemo(() => grouped.flatMap(([, items]) => items), [grouped]);
 
   useEffect(() => {
     if (open) {
@@ -102,8 +106,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
   };
 
-  // Ranked order is flat, but display is grouped — this maps a rendered row
-  // back to its position in the ranking so arrow keys move in the order shown.
   let renderIndex = -1;
 
   return (

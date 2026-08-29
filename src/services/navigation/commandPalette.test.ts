@@ -79,3 +79,18 @@ describe('groupCommands', () => {
     expect(grouped.map(([group]) => group)).toEqual(['Your words']);
   });
 });
+
+describe('display order', () => {
+  it('flattens back to exactly the ranked results, so selection can follow the rows', () => {
+    // The palette highlights by index into the flattened grouped list. If
+    // grouping dropped or duplicated anything, Enter would open a different
+    // command than the one highlighted.
+    const ranked = searchCommands(all, 'r');
+    const flattened = groupCommands(ranked).flatMap(([, items]) => items);
+
+    expect(flattened).toHaveLength(ranked.length);
+    expect([...flattened].sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+      [...ranked].sort((a, b) => a.id.localeCompare(b.id)),
+    );
+  });
+});
