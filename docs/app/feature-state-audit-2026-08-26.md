@@ -1,5 +1,10 @@
 # Numo — Feature State Audit (2026-08-26)
 
+> **Updated 2026-08-30.** A later working session closed most of the punch list
+> below. The master status table in Part 6 reflects the current state; the
+> narrative in Parts 1-5 describes the app as it was on 2026-08-26 and is kept
+> as the record of what was found, not as a description of the code today.
+
 A full read-through of the app, page by page and layer by layer, classifying every feature by what the code actually does — not what the README or UI copy claims. Produced by directly reading source (not just grepping), with file:line evidence for every claim below. Supersedes `docs/backup/app_flow_audit_2026-03-26.md` for anything it contradicts.
 
 ## How to read this
@@ -300,28 +305,31 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | Login | COMPLETE | Real local-profile gate, no auth needed by design |
 | Home | COMPLETE | All live cards are real; a few orphaned components exist unused |
 | Learn (page/session/exercises) | COMPLETE | Real curriculum engine, real grading, real SRS |
-| Practice (Quick) | PARTIAL | Real generation/grading; hardcoded fallback content; mock speak exercise |
-| Review | COMPLETE (PARTIAL for T/F content) | Real SRS core; true/false cards never generate a false statement |
+| Practice (Quick) | PARTIAL | Real generation/grading and mistakes now queue for review; bundled fallback content still reachable |
+| Review | COMPLETE | Real SRS core; true/false cards generate real false statements; queue health, forecast and leech detection surfaced |
 | Immerse | COMPLETE | Real YouTube/caption/book fetching and rendering |
-| Speak | PARTIAL | Real 3-tier STT/TTS/LLM pipeline; outer failure path fakes success |
+| Speak | COMPLETE | Real 3-tier STT/TTS/LLM pipeline, honest failure states, plus a live subtitled conversation mode |
 | Write | PARTIAL | Real LLM grading; no working deterministic fallback |
-| Script Practice | PARTIAL (STUB dataset) | Real capture/scoring engine; only 3 characters modeled |
+| Script Practice | COMPLETE | 596 Chinese and 248 Japanese characters with real stroke-order data; watch mode animates the strokes |
+| Typing Trainer | COMPLETE | Per-script speed scoring, learner-vocabulary word source, IME and RTL support |
+| Live Conversation | COMPLETE | Spoken turns with subtitles for both speakers and an audio-reactive companion |
+| Command palette | COMPLETE | Ctrl+K over navigation, practice actions and saved words |
 | Notebook | PARTIAL | Real entries/search; dead mock alert; hardcoded collections sidebar |
 | Notebook Library | COMPLETE | Real approval-queue workspace |
 | Notebook Exercises | COMPLETE (dev-tool UX) | Real generation/grading, internal-facing presentation |
 | Insights | COMPLETE | Real charted evidence data |
-| Library (`/library`, References.tsx) | DUMMY | Entirely hardcoded reference content, fake unlock flags |
+| Library (`/library`, References.tsx) | COMPLETE | Rebuilt on the stroke dataset, authored alphabet/pronunciation data, and the learner's own words |
 | Chat | COMPLETE | Real LLM pipeline, no mocked replies |
 | Web Search | COMPLETE | Real multi-source live search |
-| Notifications | STUB | Static "no notifications," no model at all |
+| Notifications | COMPLETE | Built from due reviews, streak risk, weak skills and today's plan |
 | Profile | COMPLETE | Real dashboard + language management |
-| Settings | PARTIAL | ~4 of 10 sections real; theme/appearance/audio/backup/privacy/most-profile are inert |
+| Settings | COMPLETE | Every section wired to a real effect, including theme, autostart, tray and export |
 | Language Setup / Welcome | COMPLETE | Fully wired onboarding |
 | App shell / nav / shortcuts | COMPLETE | Real, tested-adjacent chrome |
 | Shared UI components | PARTIAL | Small real widget set, not a full design system |
-| Theming (dark/light) | DUMMY | No switching mechanism exists at all |
+| Theming | COMPLETE | Theme, font size, motion and contrast all applied from Settings |
 | App-UI localization | STUB (by design) | English-only interface, RTL only for target-language content |
-| Persistence (SQLite core) | PARTIAL | Real and load-bearing; two overlapping reset mechanisms, one full-rebuild-on-boot seed |
+| Persistence (SQLite core) | COMPLETE | Reset marker moved into the database it guards; seeding is idempotent instead of rebuilt each boot |
 | Persistence (parallel localStorage) | PARTIAL | Real but uncoordinated second state layer |
 | AI providers (Groq + local) | COMPLETE | Real cloud + local fallback, well-tested |
 | Generation/evaluation pipeline | STUB (orphaned) | Real code, never called in production |
@@ -334,7 +342,7 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | Seed generator script | COMPLETE | Production-quality tooling, underused |
 | Tauri/Rust backend | COMPLETE | Real, substantial, tested |
 | Test coverage | PARTIAL | Deep on business logic, absent on UI/shell |
-| `audit:buttons` script | STUB (broken) | Referenced 3x, file doesn't exist |
+| `audit:buttons` script | COMPLETE | Script added; `seed:script-models` added alongside it |
 | Telemetry/analytics | none | Confirmed absent; toggles are decorative |
 
 ---
