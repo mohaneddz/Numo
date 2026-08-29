@@ -270,3 +270,64 @@ export function rankProblemCharacters(
     .slice(0, limit)
     .map(([character, count]) => ({ character, count }));
 }
+
+export interface TypedWord {
+  /** What the learner actually typed for this word, if they have reached it. */
+  typed: string;
+  /** True once the learner has moved past this word. */
+  settled: boolean;
+}
+
+export interface CharacterTally {
+  correct: number;
+  incorrect: number;
+  extra: number;
+  missed: number;
+}
+
+/**
+ * Walks the words typed so far and classifies every character.
+ *
+ * The space that commits a word counts as a character, matching the convention
+ * every typing test uses — dropping it would quietly understate speed by
+ * roughly a fifth on alphabetic scripts. There is no space after the final
+ * word, so it is not credited there.
+ */
+export function tallyCharacters(
+  words: readonly string[],
+  typedWords: readonly TypedWord[],
+  activeIndex: number,
+  activeInput: string,
+): CharacterTally {
+  const tally: CharacterTally = { correct: 0, incorrect: 0, extra: 0, missed: 0 };
+
+  for (let index = 0; index <= activeIndex && index < words.length; index += 1) {
+    const word = words[index];
+    const record = typedWords[index];
+    const settled = record?.settled ?? false;
+    // A settled record wins even at the active index: the final word of a words
+    // test is committed in place, and reading the (now empty) live buffer
+    // instead would score that word as never typed.
+    const typed = settled ? record.typed : index === activeIndex ? activeInput : record?.typed ?? '';
+
+    const span = Math.max(word.length, typed.length);
+    for (let position = 0; position < span; position += 1) {
+      const expected = word[position];
+      const actual = typed[position];
+
+      if (expected === undefined) {
+        tally.extra += 1;
+      } else if (actual === undefined) {
+        if (settled) tally.missed += 1;
+      } else if (actual === expected) {
+        tally.correct += 1;
+      } else {
+        tally.incorrect += 1;
+      }
+    }
+
+    if (settled && index < words.length - 1) tally.correct += 1;
+  }
+
+  return tally;
+}

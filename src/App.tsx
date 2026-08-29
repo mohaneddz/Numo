@@ -29,6 +29,7 @@ import SettingsPage from './pages/Settings';
 import ChatPage from './pages/Chat';
 import WebSearchPage from './pages/WebSearch';
 import ScriptPracticePage from './pages/ScriptPractice/ScriptPracticePage';
+import TypingPage from './pages/Typing/TypingPage';
 import ProfilePage from './pages/Profile';
 import LoginPage from './pages/Login';
 import LanguageSetupPage from './pages/LanguageSetup';
@@ -199,6 +200,7 @@ export default function App() {
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/library" element={<LibrariesPage />} />
           <Route path="/script-practice" element={<ScriptPracticePage />} />
+          <Route path="/typing" element={<TypingPage />} />
           <Route path="/notebook/library" element={<NotebookLibraryPage />} />
           <Route path="/notebook/exercises" element={<ExercisesPage />} />
           <Route path="/references" element={<Navigate to="/library" replace />} />

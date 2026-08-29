@@ -13,6 +13,8 @@ import {
     Settings,
     Star,
     MessageCircle,
+    Keyboard,
+    PenTool,
     PanelLeftClose,
     PanelLeftOpen,
 } from 'lucide-react';
@@ -21,6 +23,8 @@ import { useLanguageProgression } from '../../hooks/useLanguageProgression';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const secondaryNav = [
+    { to: '/typing', icon: Keyboard, label: 'Typing' },
+    { to: '/script-practice', icon: PenTool, label: 'Script Practice' },
     { to: '/library', icon: Library, label: 'Libraries' },
     { to: '/chat', icon: MessageCircle, label: 'Chat' },
     { to: '/settings', icon: Settings, label: 'Settings' },
