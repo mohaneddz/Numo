@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import AppShell from './components/layout/AppShell';
@@ -14,22 +14,15 @@ import LearnPage from './pages/Learn/LearnPage';
 import ModuleDetail from './pages/Learn/ModuleDetail';
 import ReviewPage from './pages/Review/ReviewPage';
 import ReviewSession from './pages/Review/ReviewSession';
-import ImmersePage from './pages/Immerse/ImmersePage';
-import ContentDetail from './pages/Immerse/ContentDetail';
 import SpeakPage from './pages/Speak/SpeakPage';
 import SpeakSession from './pages/Speak/SpeakSession';
 import WritePage from './pages/Write/WritePage';
 import WriteEditor from './pages/Write/WriteEditor';
 import NotebookPage from './pages/Notebook/NotebookPage';
 import NotebookDetail from './pages/Notebook/NotebookDetail';
-import InsightsPage from './pages/Insights';
-import NotebookLibraryPage from './pages/Library';
 import LibrariesPage from './pages/References';
 import SettingsPage from './pages/Settings';
 import ChatPage from './pages/Chat';
-import WebSearchPage from './pages/WebSearch';
-import ScriptPracticePage from './pages/ScriptPractice/ScriptPracticePage';
-import TypingPage from './pages/Typing/TypingPage';
 import ProfilePage from './pages/Profile';
 import LoginPage from './pages/Login';
 import LanguageSetupPage from './pages/LanguageSetup';
@@ -40,7 +33,21 @@ import { useProfileSession } from './contexts/ProfileSessionContext';
 import PracticeQuickPage from './pages/Practice/PracticeQuickPage';
 import LearnSessionPage from './pages/Learn/LearnSessionPage';
 import NotificationsPage from './pages/Notifications/NotificationsPage';
-import ExercisesPage from './pages/Exercises/ExercisesPage';
+
+/**
+ * Routes split out of the initial bundle. These pull in the heaviest
+ * dependencies in the app - epubjs for the reader, recharts for insights, and
+ * the stroke-order dataset for script practice - and none of them is on the
+ * path a learner takes at startup.
+ */
+const ImmersePage = lazy(() => import('./pages/Immerse/ImmersePage'));
+const ContentDetail = lazy(() => import('./pages/Immerse/ContentDetail'));
+const InsightsPage = lazy(() => import('./pages/Insights'));
+const NotebookLibraryPage = lazy(() => import('./pages/Library'));
+const WebSearchPage = lazy(() => import('./pages/WebSearch'));
+const ScriptPracticePage = lazy(() => import('./pages/ScriptPractice/ScriptPracticePage'));
+const TypingPage = lazy(() => import('./pages/Typing/TypingPage'));
+const ExercisesPage = lazy(() => import('./pages/Exercises/ExercisesPage'));
 
 const MIN_ZOOM = 0.7;
 const MAX_ZOOM = 1.8;
@@ -179,6 +186,11 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion={motionReduced ? 'always' : 'never'}>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center text-dim">Loading…</div>
+        }
+      >
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<GuardedShell />}>
@@ -214,6 +226,7 @@ export default function App() {
           <Route path="/language-welcome" element={<LanguageWelcomePage />} />
         </Route>
       </Routes>
+      </Suspense>
     </MotionConfig>
   );
 }
