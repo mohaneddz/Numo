@@ -20,7 +20,7 @@ import WritePage from './pages/Write/WritePage';
 import WriteEditor from './pages/Write/WriteEditor';
 import NotebookPage from './pages/Notebook/NotebookPage';
 import NotebookDetail from './pages/Notebook/NotebookDetail';
-import LibrariesPage from './pages/References';
+
 import SettingsPage from './pages/Settings';
 import ChatPage from './pages/Chat';
 import ProfilePage from './pages/Profile';
@@ -48,6 +48,7 @@ const WebSearchPage = lazy(() => import('./pages/WebSearch'));
 const ScriptPracticePage = lazy(() => import('./pages/ScriptPractice/ScriptPracticePage'));
 const TypingPage = lazy(() => import('./pages/Typing/TypingPage'));
 const SpeakConversation = lazy(() => import('./pages/Speak/SpeakConversation'));
+const LibrariesPage = lazy(() => import('./pages/References'));
 const ExercisesPage = lazy(() => import('./pages/Exercises/ExercisesPage'));
 
 const MIN_ZOOM = 0.7;
