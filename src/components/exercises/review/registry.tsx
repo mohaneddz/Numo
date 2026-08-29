@@ -24,4 +24,5 @@ export const reviewExerciseRegistry = {
   confusion_pair: { component: MultipleReviewExercise, validate: hasOptions, grading: 'deterministic' },
   radical_recall: { component: WriteReviewExercise, validate: () => true, grading: 'hybrid' },
   reading_recall: { component: WriteReviewExercise, validate: () => true, grading: 'hybrid' },
+  produce_term: { component: WriteReviewExercise, validate: () => true, grading: 'hybrid' },
 } satisfies ReviewExerciseRegistry;

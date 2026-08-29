@@ -9,6 +9,7 @@
  * rather than an invented meaning.
  */
 import { createRandom } from '../../utils/seededRandom';
+import { normalizeAnswer } from '../../utils/textNormalize';
 
 export interface TruthCandidate {
   id: string;
@@ -23,14 +24,14 @@ export interface TruthStatement {
   actualMeaning: string;
 }
 
-const normalize = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+/**
+ * Comparison form for rejecting a decoy that means the same thing.
+ *
+ * Uses the shared Unicode-aware normaliser rather than an `a-z`-only one,
+ * which collapsed every CJK, Cyrillic and Arabic translation to an empty
+ * string and so treated all of them as identical.
+ */
+const normalize = (value: string) => normalizeAnswer(value);
 
 /**
  * Builds a true/false statement for `item`, drawing decoys from `pool`.

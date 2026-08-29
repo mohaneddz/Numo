@@ -142,3 +142,25 @@ describe('summarizeQueueHealth', () => {
     expect(summarizeQueueHealth(many, NOW).leechCount).toBe(20);
   });
 });
+
+describe('review card rotations', () => {
+  it('leads production practice with the produce-it card', async () => {
+    const { chooseAdaptiveReviewCardType } = await import('./adaptiveReviewService');
+    const signals = {
+      seenCount: 40,
+      recognitionScore: 90,
+      productionScore: 40,
+      hoverTranslationUsage: 0,
+      confusionPairs: {},
+    } as never;
+
+    const chosen = chooseAdaptiveReviewCardType({
+      index: 0,
+      item: item({ term: 'aunque' }),
+      languageCode: 'es',
+      signals,
+    });
+
+    expect(chosen).toBe('produce_term');
+  });
+});

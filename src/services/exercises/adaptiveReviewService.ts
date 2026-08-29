@@ -5,6 +5,7 @@ import { recognitionProductionGap, topConfusionPairs, type ExerciseSignalSnapsho
 const DEFAULT_ROTATION: ReviewCardType[] = [
   'flash_recall',
   'multiple',
+  'produce_term',
   'reading_recall',
   'build',
   'seen_unseen',
@@ -17,7 +18,10 @@ const DEFAULT_ROTATION: ReviewCardType[] = [
   'tf',
 ];
 
-const PRODUCTION_ROTATION: ReviewCardType[] = ['reading_recall', 'build', 'radical_recall', 'write', 'tfj'];
+// produce_term leads here: it is the only card that asks the learner to
+// generate the target form from its meaning, which is precisely the skill a
+// recognition/production gap says is lagging.
+const PRODUCTION_ROTATION: ReviewCardType[] = ['produce_term', 'reading_recall', 'build', 'radical_recall', 'write', 'tfj'];
 const RECOGNITION_ROTATION: ReviewCardType[] = ['flash_recall', 'multiple', 'seen_unseen', 'reveal', 'tf'];
 
 function normalizedTerm(value: string): string {

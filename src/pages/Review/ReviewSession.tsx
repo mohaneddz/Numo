@@ -27,6 +27,7 @@ import {
 import type { ReviewItem } from '../../data/types';
 import { resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
 import { buildTruthStatement } from '../../services/exercises/truthStatementService';
+import { matchAnswer, normalizeAnswer } from '../../utils/textNormalize';
 
 type Result = 'correct' | 'incorrect';
 
@@ -45,17 +46,19 @@ const labels: Record<ReviewCardType, string> = {
   confusion_pair: 'Contrast Pair',
   radical_recall: 'Radical Recall',
   reading_recall: 'Reading Recall',
+  produce_term: 'Produce It',
 };
 
 
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+/**
+ * Comparison form for option de-duplication and deterministic answer checks.
+ *
+ * This used to strip everything outside `a-z0-9`, so a Chinese, Japanese,
+ * Russian or Arabic answer normalised to an empty string and could never
+ * match — every deterministic grade in this file silently failed for those
+ * languages whenever the AI check was unavailable.
+ */
+const norm = (value: string) => normalizeAnswer(value);
 
 const shuffle = <T,>(a: T[]) => {
   const c = [...a];
@@ -137,6 +140,21 @@ function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewIte
       options,
       correctIndex: options.findIndex((o) => norm(o) === norm(it.translation)),
       hint: type === 'confusion_pair' ? 'Focus on subtle meaning difference.' : undefined,
+    };
+  }
+
+  if (type === 'produce_term') {
+    // The only card that runs the other way: every other written card shows the
+    // target word and asks for its meaning, which tests recognition. Producing
+    // the target from the meaning is the harder direction and the one that
+    // actually shows whether the word is available for use.
+    return {
+      ...base,
+      type,
+      term: it.translation,
+      answer: it.term,
+      prompt: 'Write this in the language you are learning.',
+      hint: `${it.term.length} character${it.term.length === 1 ? '' : 's'}`,
     };
   }
 
@@ -386,8 +404,11 @@ export default function ReviewSession() {
       const r = await aiCheck(cur.answer, txt);
       grade(r.correct ? 'correct' : 'incorrect', r.reason || (r.correct ? 'Accepted by AI.' : `Expected: ${cur.answer}`));
     } catch {
-      const ok = norm(txt) && (norm(txt).includes(norm(cur.answer)) || norm(cur.answer).includes(norm(txt)));
-      grade(ok ? 'correct' : 'incorrect', ok ? 'Accepted in fallback.' : `Expected: ${cur.answer}`);
+      const match = matchAnswer(cur.answer, txt, activeLanguage.code);
+      grade(
+        match.correct ? 'correct' : 'incorrect',
+        match.note ?? (match.correct ? 'Accepted in fallback.' : `Expected: ${cur.answer}`),
+      );
     } finally {
       setChecking(false);
     }

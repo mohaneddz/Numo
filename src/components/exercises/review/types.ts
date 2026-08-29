@@ -13,7 +13,8 @@ export type ReviewCardType =
   | 'seen_unseen'
   | 'confusion_pair'
   | 'radical_recall'
-  | 'reading_recall';
+  | 'reading_recall'
+  | 'produce_term';
 
 export interface ReviewQuestion {
   id: string;

@@ -39,6 +39,7 @@ describe('exercise registries', () => {
       'delayed_recall',
       'flash_recall',
       'multiple',
+      'produce_term',
       'radical_recall',
       'reading_recall',
       'reveal',
