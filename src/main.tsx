@@ -13,6 +13,7 @@ import { ProfileSessionProvider } from './contexts/ProfileSessionContext';
 import { LanguageJourneyProvider } from './contexts/LanguageJourneyContext';
 import { initializeLocalRuntimeSettings } from './services/localRuntimeSettings';
 import { initializeTraySettings } from './services/trayService';
+import { ErrorBoundary } from './components/layout/ErrorBoundary';
 
 // Polyfill country flag emojis for Windows, which otherwise renders them as two text letters (like "DE" instead of 🇩🇪)
 polyfillCountryFlagEmojis();
@@ -21,6 +22,7 @@ initializeTraySettings();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
+    <ErrorBoundary scope="app">
     <ProfileSessionProvider>
       <LanguageProvider>
         <LanguageJourneyProvider>
@@ -34,5 +36,6 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         </LanguageJourneyProvider>
       </LanguageProvider>
     </ProfileSessionProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

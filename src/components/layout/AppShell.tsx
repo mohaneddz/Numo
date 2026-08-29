@@ -5,6 +5,7 @@ import { CosmicShader } from '../../assets/cosmic';
 import Sidebar from './Sidebar';
 import Titlebar from './Titlebar';
 import { CommandPalette } from './CommandPalette';
+import { ErrorBoundary } from './ErrorBoundary';
 import { LanguageSelector } from '../ui/LanguageSelector';
 import { DebugPanel } from './DebugPanel';
 import { DEBUG } from '../../config/env';
@@ -378,7 +379,12 @@ export default function AppShell() {
                     <div
                         className="flex-1 overflow-auto px-[clamp(1rem,2.2vw,2.5rem)] pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4"
                     >
-                        <Outlet />
+                        {/* Per page, so one page throwing keeps the shell and
+                            its navigation alive. Keyed on the path so moving
+                            to another page clears the error. */}
+                        <ErrorBoundary scope="page" resetKey={location.pathname}>
+                            <Outlet />
+                        </ErrorBoundary>
                     </div>
                 </main>
             </div>
