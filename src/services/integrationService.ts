@@ -1288,6 +1288,47 @@ export class IntegrationService {
     );
   }
 
+  /**
+   * Records a completed typing run as study activity.
+   *
+   * Without this the trainer was a closed loop: it stored its own history and
+   * nothing else in the app knew the learner had practised, so a typing session
+   * counted toward no streak, goal, or activity total.
+   */
+  async logTypingRun(input: {
+    languageCode: string;
+    wpm: number;
+    accuracy: number;
+    elapsedSeconds: number;
+    mode: string;
+    charactersTyped: number;
+  }): Promise<void> {
+    await this.withPersistence(
+      async (context) => {
+        const ids = await this.ensureLearnerAndLanguage(context, input.languageCode);
+        if (!ids) return;
+        const nodeId = await this.selectNodeId(context, input.languageCode, `typing-${input.mode}`);
+        if (!nodeId) return;
+
+        await context.repositories.evidence.logEvidence({
+          learnerId: ids.learnerId,
+          languageId: ids.languageId,
+          activityType: 'typing_run',
+          nodeIds: [nodeId],
+          scores: { accuracy: clampPercent(input.accuracy) },
+          confidenceEstimate: clampPercent(input.accuracy) / 100,
+          metadata: {
+            wpm: input.wpm,
+            elapsedSeconds: input.elapsedSeconds,
+            mode: input.mode,
+            charactersTyped: input.charactersTyped,
+          },
+        });
+      },
+      undefined,
+    );
+  }
+
   private async queryLanguageMonitoring(
     context: NonNullable<Awaited<typeof this.persistedContext>>,
     input: { learnerId: string; languageId: string; languageCode: string; languageName: string; isActive: boolean; rangeDays: number },
@@ -1378,6 +1419,10 @@ export class IntegrationService {
       } else if (item.activityType.includes('write')) {
         entry.writingMinutes += minutes;
         writingPieces += 1;
+      } else if (item.activityType.includes('typing')) {
+        // Time at the keyboard is writing time, but a speed run is not a piece
+        // of writing, so it does not count toward writingPieces.
+        entry.writingMinutes += minutes;
       } else if (item.activityType.includes('learn')) {
         entry.readingMinutes += minutes;
         lessonsCompleted += 1;

@@ -26,6 +26,7 @@ import {
 } from '../../services/typing/typingHistory';
 import { TypingTextDisplay } from '../../components/typing/TypingTextDisplay';
 import { TypingResults } from '../../components/typing/TypingResults';
+import { integrationService } from '../../services/integrationService';
 
 const TIME_AMOUNTS = [15, 30, 60, 120];
 const WORD_AMOUNTS = [10, 25, 50, 100];
@@ -201,6 +202,18 @@ export default function TypingPage() {
         setPreviousBest(outcome.previousBest);
       });
     }
+
+    // Logged as evidence so the run counts as study activity everywhere else -
+    // streaks, daily goals, the activity charts - rather than only inside the
+    // trainer's own history.
+    void integrationService.logTypingRun({
+      languageCode: activeLanguage.code,
+      wpm: runResult.wpm,
+      accuracy: runResult.accuracy,
+      elapsedSeconds: runResult.elapsedSeconds,
+      mode: `${runResult.mode}:${runResult.amount}`,
+      charactersTyped: runResult.correctCharacters + runResult.incorrectCharacters,
+    });
   }, [activeLanguage.code, activeProfile?.id, config, wordList, words]);
 
   finishRef.current = finish;
