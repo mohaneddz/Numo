@@ -29,6 +29,7 @@ import { resolveExerciseByInternal } from '../../services/exercises/exerciseCata
 import { buildTruthStatement } from '../../services/exercises/truthStatementService';
 import { matchAnswer, normalizeAnswer } from '../../utils/textNormalize';
 import { seededShuffle } from '../../utils/seededRandom';
+import { buildChoiceOptions } from '../../services/exercises/reviewCardOptions';
 
 type Result = 'correct' | 'incorrect';
 
@@ -60,39 +61,6 @@ const labels: Record<ReviewCardType, string> = {
  * languages whenever the AI check was unavailable.
  */
 const norm = (value: string) => normalizeAnswer(value);
-
-/**
- * Builds the options for a multiple-choice review card.
- *
- * Distractors used to be manufactured from the correct answer itself —
- * "house (formal)", "house now", and the answer with a leading "to"/"the"
- * removed. They gave the answer away, and on a non-English translation the
- * word-removal rules matched nothing, so a card could be left with barely any
- * alternatives at all.
- *
- * They now come from other translations in the learner's own queue, which is a
- * real discrimination test. The order is seeded from the item so grading one
- * card does not reshuffle the rest of the session.
- */
-function buildConfusionOptions(item: ReviewItem, pool: readonly ReviewItem[]): string[] {
-  const seen = new Set([norm(item.translation)]);
-  const distractors: string[] = [];
-
-  for (const candidate of pool) {
-    if (distractors.length >= 3) break;
-    const translation = candidate.translation?.trim();
-    if (!translation || candidate.id === item.id) continue;
-    const key = norm(translation);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    distractors.push(translation);
-  }
-
-  const options = [item.translation, ...distractors];
-  // With too small a queue there is nothing honest to offer as a fourth option,
-  // so the card simply runs with fewer rather than inventing one.
-  return seededShuffle(options, `options-${item.id}`);
-}
 
 function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewItem[] = []): Q {
   const base = {
@@ -142,7 +110,7 @@ function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewIte
   }
 
   if (type === 'multiple' || type === 'confusion_pair') {
-    const options = buildConfusionOptions(it, pool);
+    const options = buildChoiceOptions(it, pool);
     // A queue too small to supply a real alternative cannot make a choice
     // card. Falling back to recall beats rendering an unsupported-exercise
     // placeholder, and beats inventing an option to pad it out.
