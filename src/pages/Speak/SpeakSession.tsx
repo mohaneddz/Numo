@@ -218,9 +218,15 @@ export default function SpeakSession() {
       const blob = await synthesizeSpeech(selectedPrompt.target, { languageCode: activeLanguage.code });
       const url = URL.createObjectURL(blob);
       if (audioRef.current) {
+        // Each replay used to create a blob URL and never release it, leaking
+        // one clip's worth of memory per press for the whole session.
+        const previous = audioRef.current.src;
         audioRef.current.src = url;
         audioRef.current.playbackRate = speechPlaybackRate();
-        audioRef.current.play();
+        void audioRef.current.play();
+        if (previous.startsWith('blob:')) URL.revokeObjectURL(previous);
+      } else {
+        URL.revokeObjectURL(url);
       }
     } catch {
       if ('speechSynthesis' in window) {

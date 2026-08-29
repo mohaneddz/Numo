@@ -63,6 +63,16 @@ export default function SpeakConversation() {
 
   const speak = useCallback(async (text: string) => {
     if (!text.trim()) return;
+
+    // Replaying a line while one is already playing would otherwise leave both
+    // streams audible and leak the first line's object URL.
+    const previous = audioRef.current;
+    if (previous) {
+      previous.pause();
+      if (previous.src.startsWith('blob:')) URL.revokeObjectURL(previous.src);
+      audioRef.current = null;
+    }
+
     try {
       const audio = await synthesizeSpeech(text, { languageCode: activeLanguage.code });
       const url = URL.createObjectURL(audio);
@@ -74,6 +84,7 @@ export default function SpeakConversation() {
       element.onended = () => {
         setStatus('idle');
         URL.revokeObjectURL(url);
+        if (audioRef.current === element) audioRef.current = null;
       };
       await element.play();
     } catch {
