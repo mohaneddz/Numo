@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InteractiveText } from '../shared/InteractiveText';
+import { seededShuffle } from '../../../utils/seededRandom';
 import type { QuickExerciseProps } from './types';
 
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 export function MatchQuickExercise({ item, disabled, onAnswer, rapidMode }: QuickExerciseProps) {
-  const pairs = item.pairs ?? [];
+  // Memoised so it is a stable effect dependency: `item.pairs ?? []` produced a
+  // fresh array on every render, which re-ran the effect below and reshuffled
+  // the answer column under the learner.
+  const pairs = useMemo(() => item.pairs ?? [], [item.pairs]);
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [rightItems, setRightItems] = useState<string[]>([]);
@@ -21,7 +16,8 @@ export function MatchQuickExercise({ item, disabled, onAnswer, rapidMode }: Quic
   useEffect(() => {
     setSelectedLeft(null);
     setMapping({});
-    setRightItems(shuffle(pairs.map((pair) => pair.right)));
+    // Seeded from the item so the column keeps one order for this exercise.
+    setRightItems(seededShuffle(pairs.map((pair) => pair.right), `match-${item.id}`));
     submittedRef.current = false;
   }, [item.id, pairs]);
 
