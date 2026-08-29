@@ -36,6 +36,7 @@ const LADDERS: Record<SkillKind, LadderEntry[]> = {
   vocabulary: [
     { rung: 'recognize', taskTypes: ['image_word_recognition', 'match_word_meaning'], modality: 'recognition' },
     { rung: 'discriminate', taskTypes: ['sound_word_recognition', 'identify_context_meaning', 'listen_choose_written'], modality: 'listening' },
+    { rung: 'produce', taskTypes: ['listen_type_dictation'], modality: 'listening' },
     { rung: 'assemble', taskTypes: ['fill_missing_word', 'single_slot_fill', 'group_words_topic'], modality: 'recognition' },
     { rung: 'produce', taskTypes: ['replace_synonym', 'finish_sentence_starter'], modality: 'production' },
   ],
@@ -94,6 +95,7 @@ export const LISTENING_TASK_TYPES = new Set<TaskType>([
   'listen_choose_written',
   'sound_word_recognition',
   'listen_repeat',
+  'listen_type_dictation',
   'tone_pair_identify',
 ]);
 
@@ -108,6 +110,7 @@ export const PRODUCTION_TASK_TYPES = new Set<TaskType>([
   'compare_structures',
   'explain_pronunciation_rule',
   'listen_repeat',
+  'listen_type_dictation',
   'replace_wrong_character',
   'okurigana_fill',
 ]);

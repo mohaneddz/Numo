@@ -63,6 +63,7 @@ const OPEN_ENDED_TASKS = new Set<TaskType>([
   'correct_grammar',
   'compare_structures',
   'listen_repeat',
+  'listen_type_dictation',
   'explain_pronunciation_rule',
 ]);
 

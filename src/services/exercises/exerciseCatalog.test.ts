@@ -43,6 +43,7 @@ describe('exerciseCatalog', () => {
       'Detail Finding',
       'Listen and Choose',
       'Listen and Type',
+      'Listen and Repeat',
       'Sound Identification',
       'Pronunciation Rule',
       'Guided Repeat',

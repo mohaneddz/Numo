@@ -134,6 +134,7 @@ const PAYLOAD_SPEC: Partial<Record<TaskType, string>> = {
   fill_missing_word: '"promptText": "<sentence with ___ where the answer goes>"',
   single_slot_fill: '"promptText": "<sentence with ___ where the answer goes>"',
   listen_repeat: '"audioText": "<the sentence to say aloud>"',
+  listen_type_dictation: '"audioText": "<the sentence to play>", "expectedText": "<the same sentence, exactly as it should be written>". promptText must not contain the sentence.',
 };
 
 function payloadSpecFor(taskType: TaskType): string {

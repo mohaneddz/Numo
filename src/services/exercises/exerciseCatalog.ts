@@ -91,7 +91,10 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
   { category: 'Reading', displayName: 'Detail Finding', userKey: 'detail_finding', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'read_answer_questions', previewQuickType: 'single_cloze', validationFamily: 'text' } },
 
   { category: 'Listening', displayName: 'Listen and Choose', userKey: 'listen_and_choose', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'listen_choose_written', previewQuickType: 'sound_to_word', validationFamily: 'choice' } },
-  { category: 'Listening', displayName: 'Listen and Type', userKey: 'listen_and_type', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'listen_repeat', previewQuickType: 'sound_to_word', validationFamily: 'text' } },
+  // Was mapped to listen_repeat, which asks the learner to say the line back —
+  // the catalog promised typing and delivered speaking.
+  { category: 'Listening', displayName: 'Listen and Type', userKey: 'listen_and_type', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'listen_type_dictation', previewQuickType: 'sound_to_word', validationFamily: 'text' } },
+  { category: 'Listening', displayName: 'Listen and Repeat', userKey: 'listen_and_repeat', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'listen_repeat', previewQuickType: 'sound_to_word', validationFamily: 'text' } },
   { category: 'Listening', displayName: 'Sound Identification', userKey: 'sound_identification', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'identify_sounds', previewQuickType: 'sound_to_word', validationFamily: 'choice' } },
   { category: 'Listening', displayName: 'Pronunciation Rule', userKey: 'pronunciation_rule', runtimeDomain: 'learn', adapter: { engineDomain: 'learn', internalType: 'explain_pronunciation_rule', previewQuickType: 'sound_to_word', validationFamily: 'text' } },
 

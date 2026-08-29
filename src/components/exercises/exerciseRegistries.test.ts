@@ -114,3 +114,41 @@ describe('exercise registries', () => {
     expect(missingAnswer).toBeNull();
   });
 });
+
+describe('listen_type_dictation', () => {
+  const registration = learnExerciseRegistry.listen_type_dictation;
+  const fallback = { languageCode: 'es' };
+
+  it('accepts a task carrying both audio and an expected spelling', () => {
+    const payload = registration.validatePayload(
+      {
+        promptText: 'Type what you hear.',
+        expectedText: 'Buenos días',
+        audioText: 'Buenos días',
+      },
+      fallback,
+    );
+    expect(payload?.audioText).toBe('Buenos días');
+    expect(payload?.expectedText).toBe('Buenos días');
+  });
+
+  it('falls back to the expected text as the line to play', () => {
+    const payload = registration.validatePayload(
+      { promptText: 'Type what you hear.', expectedText: 'Buenos días' },
+      fallback,
+    );
+    expect(payload?.audioText).toBe('Buenos días');
+  });
+
+  it('drops a task with nothing to write down', () => {
+    // A dictation with no expected spelling cannot be graded, so it is dropped
+    // rather than shown as an ungradeable prompt.
+    expect(
+      registration.validatePayload({ promptText: 'Type what you hear.' }, fallback),
+    ).toBeNull();
+  });
+
+  it('grades deterministically rather than asking a model', () => {
+    expect(registration.grading).toBe('deterministic');
+  });
+});

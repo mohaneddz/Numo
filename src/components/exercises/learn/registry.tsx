@@ -13,6 +13,7 @@ import { IdentifyContextMeaningExercise } from './IdentifyContextMeaningExercise
 import { IdentifySoundsExercise } from './IdentifySoundsExercise';
 import { ListenChooseWrittenExercise } from './ListenChooseWrittenExercise';
 import { ListenRepeatExercise } from './ListenRepeatExercise';
+import { ListenTypeDictationExercise } from './ListenTypeDictationExercise';
 import { MatchSentenceTranslationExercise } from './MatchSentenceTranslationExercise';
 import { MatchWordMeaningExercise } from './MatchWordMeaningExercise';
 import { ReadAnswerQuestionsExercise } from './ReadAnswerQuestionsExercise';
@@ -34,6 +35,18 @@ function commonFields(raw: Record<string, unknown>, fallback: LearnTaskPayload):
     romanization: typeof raw.romanization === 'string' ? raw.romanization : fallback.romanization,
     teachingNote: typeof raw.teachingNote === 'string' ? raw.teachingNote : fallback.teachingNote,
   };
+}
+
+/**
+ * Dictation needs audio and an expected spelling. Without the audio there is no
+ * question at all, so the task is dropped rather than shown as a blank prompt.
+ */
+function normalizeDictationPayload(raw: Record<string, unknown>, fallback: LearnTaskPayload): LearnTaskPayload | null {
+  const payload = normalizeTextPayload(raw, fallback);
+  if (!payload) return null;
+  const audioText = payload.audioText?.trim() || payload.expectedText?.trim();
+  if (!audioText || !payload.expectedText?.trim()) return null;
+  return { ...payload, audioText };
 }
 
 function normalizeTextPayload(raw: Record<string, unknown>, fallback: LearnTaskPayload): LearnTaskPayload | null {
@@ -149,6 +162,7 @@ export const learnExerciseRegistry = {
   listen_repeat: { component: ListenRepeatExercise, validatePayload: normalizeTextPayload, grading: 'hybrid' },
   identify_sounds: { component: IdentifySoundsExercise, validatePayload: normalizeOptionPayload, grading: 'deterministic' },
   listen_choose_written: { component: ListenChooseWrittenExercise, validatePayload: normalizeOptionPayload, grading: 'deterministic' },
+  listen_type_dictation: { component: ListenTypeDictationExercise, validatePayload: normalizeDictationPayload, grading: 'deterministic' },
   explain_pronunciation_rule: { component: ExplainPronunciationRuleExercise, validatePayload: normalizeTextPayload, grading: 'ai' },
   greeting_response_select: deterministicOptionRegistration(),
   single_slot_fill: { component: FillMissingWordExercise, validatePayload: normalizeTextPayload, grading: 'deterministic' },

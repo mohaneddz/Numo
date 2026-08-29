@@ -74,6 +74,7 @@ const TASK_TEMPLATE_SEEDS: TaskTemplateSeed[] = [
   { taskType: 'compare_structures', instruction: 'Choose the better structure and explain briefly.', promptTemplate: 'Compare two structures and select the natural one.', answerTemplate: 'Preferred structure with brief reason.' },
   { taskType: 'listen_repeat', instruction: 'Listen and repeat the phrase accurately.', promptTemplate: 'Repeat this target phrase clearly and naturally.', answerTemplate: 'Faithful repetition of the phrase.' },
   { taskType: 'identify_sounds', instruction: 'Identify sound differences.', promptTemplate: 'Identify whether the sound pair is same or different.', answerTemplate: 'Correct sound discrimination outcome.', gradingMode: 'deterministic' },
+  { taskType: 'listen_type_dictation', instruction: 'Listen, then write down exactly what you hear.', promptTemplate: 'Type what you hear from this {{unitTitle}} line.', answerTemplate: 'The line as it should be written.', gradingMode: 'deterministic' },
   { taskType: 'listen_choose_written', instruction: 'Listen and choose the correct written form.', promptTemplate: 'Choose the written form that matches the audio.', answerTemplate: 'Correct written form.', gradingMode: 'deterministic' },
   { taskType: 'explain_pronunciation_rule', instruction: 'Explain the pronunciation rule in one line.', promptTemplate: 'Explain why this word is pronounced this way.', answerTemplate: 'Short accurate pronunciation explanation.' },
   { taskType: 'greeting_response_select', instruction: 'Choose the best greeting response.', promptTemplate: 'Select the best response in this {{unitTitle}} exchange.', answerTemplate: 'Most natural response.', gradingMode: 'deterministic' },
@@ -134,6 +135,15 @@ function defaultPayload(task: TaskTemplateSeed): Record<string, unknown> {
     || task.taskType === 'classifier_choice'
   ) {
     return { options, correctOption: task.answerTemplate };
+  }
+  if (task.taskType === 'listen_type_dictation') {
+    // The audio carries the line; the prompt must not, or the task answers
+    // itself before it is heard.
+    return {
+      promptText: task.promptTemplate,
+      expectedText: task.answerTemplate,
+      audioText: task.answerTemplate,
+    };
   }
   if (task.taskType === 'character_reading_match' || task.taskType === 'reading_character_match') {
     return {

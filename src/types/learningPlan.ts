@@ -18,6 +18,7 @@ export const LESSON_TASK_TYPES = [
   'listen_repeat',
   'identify_sounds',
   'listen_choose_written',
+  'listen_type_dictation',
   'explain_pronunciation_rule',
   'greeting_response_select',
   'single_slot_fill',
