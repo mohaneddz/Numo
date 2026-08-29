@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Mic, Zap } from 'lucide-react';
+import { Mic, MessagesSquare, Zap } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -61,6 +61,22 @@ export default function SpeakPage() {
         <p style={{ color: 'var(--color-dim)', margin: 0 }}>
           Record short sessions, review pronunciation feedback, and track progress over time.
         </p>
+      </div>
+
+      <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p style={{ margin: 0, fontWeight: 600 }}>Live conversation</p>
+            <p style={{ margin: 0, color: 'var(--color-dim)', fontSize: 13 }}>
+              Talk freely with a {activeLanguage.name} companion, subtitled on both sides.
+            </p>
+          </div>
+          <Link to="/speak/conversation" className="no-underline">
+            <button className="page-primary-action">
+              <MessagesSquare size={14} /> Start Talking
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 16, marginBottom: 12 }}>

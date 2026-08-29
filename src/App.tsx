@@ -47,6 +47,7 @@ const NotebookLibraryPage = lazy(() => import('./pages/Library'));
 const WebSearchPage = lazy(() => import('./pages/WebSearch'));
 const ScriptPracticePage = lazy(() => import('./pages/ScriptPractice/ScriptPracticePage'));
 const TypingPage = lazy(() => import('./pages/Typing/TypingPage'));
+const SpeakConversation = lazy(() => import('./pages/Speak/SpeakConversation'));
 const ExercisesPage = lazy(() => import('./pages/Exercises/ExercisesPage'));
 
 const MIN_ZOOM = 0.7;
@@ -204,6 +205,7 @@ export default function App() {
           <Route path="/immerse" element={<ImmersePage />} />
           <Route path="/immerse/:contentId" element={<ContentDetail />} />
           <Route path="/speak" element={<SpeakPage />} />
+          <Route path="/speak/conversation" element={<SpeakConversation />} />
           <Route path="/speak/session/:sessionId" element={<SpeakSession />} />
           <Route path="/write" element={<WritePage />} />
           <Route path="/write/editor/:draftId?" element={<WriteEditor />} />

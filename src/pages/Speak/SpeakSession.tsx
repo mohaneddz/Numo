@@ -12,26 +12,63 @@ import { integrationService } from '../../services/integrationService';
 import { speakExerciseRegistry } from '../../components/exercises/speak/registry';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
 
+/**
+ * Prompts for the guided pronunciation drill.
+ *
+ * Written in each language's own script. The Chinese set used to be in
+ * romanised pinyin, so the learner practised reading Latin letters aloud
+ * rather than the writing system they are actually studying.
+ */
 const SPEAKING_PROMPTS: Record<string, Array<{ target: string; gloss: string }>> = {
   es: [
-    { target: 'Buenos dias, mucho gusto.', gloss: 'Good morning, nice to meet you.' },
-    { target: 'Me gustaria una mesa para dos.', gloss: 'I would like a table for two.' },
-    { target: 'Podria repetirlo mas despacio?', gloss: 'Could you repeat that more slowly?' },
+    { target: 'Buenos días, mucho gusto.', gloss: 'Good morning, nice to meet you.' },
+    { target: 'Me gustaría una mesa para dos.', gloss: 'I would like a table for two.' },
+    { target: '¿Podría repetirlo más despacio?', gloss: 'Could you repeat that more slowly?' },
   ],
   fr: [
     { target: 'Bonjour, ravi de vous rencontrer.', gloss: 'Hello, pleased to meet you.' },
     { target: 'Je voudrais une table pour deux.', gloss: 'I would like a table for two.' },
-    { target: 'Pouvez-vous parler plus lentement?', gloss: 'Can you speak more slowly?' },
+    { target: 'Pouvez-vous parler plus lentement ?', gloss: 'Can you speak more slowly?' },
   ],
   de: [
     { target: 'Guten Tag, freut mich sehr.', gloss: 'Good day, pleased to meet you.' },
-    { target: 'Ich mochte einen Tisch fur zwei.', gloss: 'I would like a table for two.' },
-    { target: 'Konnen Sie das bitte wiederholen?', gloss: 'Can you repeat that please?' },
+    { target: 'Ich möchte einen Tisch für zwei.', gloss: 'I would like a table for two.' },
+    { target: 'Können Sie das bitte wiederholen?', gloss: 'Can you repeat that please?' },
+  ],
+  it: [
+    { target: 'Buongiorno, piacere di conoscerla.', gloss: 'Good morning, pleased to meet you.' },
+    { target: 'Vorrei un tavolo per due.', gloss: 'I would like a table for two.' },
+    { target: 'Può ripetere più lentamente?', gloss: 'Could you repeat that more slowly?' },
+  ],
+  pt: [
+    { target: 'Bom dia, muito prazer.', gloss: 'Good morning, nice to meet you.' },
+    { target: 'Queria uma mesa para dois.', gloss: 'I would like a table for two.' },
+    { target: 'Pode repetir mais devagar?', gloss: 'Could you repeat that more slowly?' },
   ],
   zh: [
-    { target: 'Ni hao, hen gaoxing renshi ni.', gloss: 'Hello, nice to meet you.' },
-    { target: 'Wo yao liang ge ren de zhuozi.', gloss: 'I want a table for two.' },
-    { target: 'Qing zai shuo yi bian, man yi dian.', gloss: 'Please say it again, more slowly.' },
+    { target: '你好，很高兴认识你。', gloss: 'Hello, very pleased to meet you.' },
+    { target: '我要一张两个人的桌子。', gloss: 'I would like a table for two.' },
+    { target: '请再说一遍，慢一点。', gloss: 'Please say it again, a little more slowly.' },
+  ],
+  ja: [
+    { target: 'はじめまして、よろしくお願いします。', gloss: 'Nice to meet you, I look forward to it.' },
+    { target: '二人分の席をお願いします。', gloss: 'A table for two, please.' },
+    { target: 'もう一度ゆっくり言ってください。', gloss: 'Please say that once more, slowly.' },
+  ],
+  ko: [
+    { target: '안녕하세요, 만나서 반갑습니다.', gloss: 'Hello, pleased to meet you.' },
+    { target: '두 사람 자리 주세요.', gloss: 'A table for two, please.' },
+    { target: '다시 천천히 말해 주세요.', gloss: 'Please say that again slowly.' },
+  ],
+  ru: [
+    { target: 'Здравствуйте, очень приятно.', gloss: 'Hello, very pleased to meet you.' },
+    { target: 'Я хотел бы столик на двоих.', gloss: 'I would like a table for two.' },
+    { target: 'Повторите, пожалуйста, помедленнее.', gloss: 'Please repeat that more slowly.' },
+  ],
+  ar: [
+    { target: 'مرحبا، تشرفت بمعرفتك.', gloss: 'Hello, pleased to meet you.' },
+    { target: 'أريد طاولة لشخصين.', gloss: 'I would like a table for two.' },
+    { target: 'من فضلك أعد ذلك ببطء.', gloss: 'Please repeat that slowly.' },
   ],
 };
 
