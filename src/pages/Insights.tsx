@@ -20,6 +20,13 @@ import { buildActionUrl } from '../navigation/actionTemplates';
 import { integrationService, type InsightsSnapshot } from '../services/integrationService';
 import { LockedPageState } from '../components/ui/LockedPageState';
 import { useLanguageProgression } from '../hooks/useLanguageProgression';
+import { useProfileSession } from '../contexts/ProfileSessionContext';
+import {
+  loadTypingHistory,
+  summarizeHistory,
+  type TypingHistory,
+} from '../services/typing/typingHistory';
+import { typingWordListForLanguage } from '../data/typingWordLists';
 
 const chartTooltip = {
   background: 'rgba(13, 18, 41, 0.95)',
@@ -33,9 +40,23 @@ export default function InsightsPage() {
   const navigate = useNavigate();
   const { activeLanguage } = useLanguage();
   const { lockStates } = useLanguageProgression();
+  const { activeProfile } = useProfileSession();
   const [snapshot, setSnapshot] = useState<InsightsSnapshot | null>(null);
+  const [typing, setTyping] = useState<TypingHistory>({ entries: [], bests: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeProfile?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const history = await loadTypingHistory(activeProfile.id, activeLanguage.code);
+      if (!cancelled) setTyping(history);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile?.id, activeLanguage.code]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +108,19 @@ export default function InsightsPage() {
       </PageContent>
     );
   }
+
+  const typingSummary = useMemo(() => summarizeHistory(typing), [typing]);
+  const typingUnit =
+    typingWordListForLanguage(activeLanguage.code).charsPerWord === 1 ? 'cpm' : 'wpm';
+  const typingSeries = useMemo(
+    () =>
+      typingSummary.recent.map((entry, index) => ({
+        run: index + 1,
+        speed: entry.wpm,
+        accuracy: entry.accuracy,
+      })),
+    [typingSummary.recent],
+  );
 
   return (
     <PageContent width="wide" className="pb-10">
@@ -174,6 +208,51 @@ export default function InsightsPage() {
               </PieChart>
             </ResponsiveContainer>
           </div>
+        </SpotlightCard>
+
+        <SpotlightCard className="p-6">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h3 className="text-[20px] font-bold text-white">Typing Speed</h3>
+            {typingSummary.runCount > 0 && (
+              <span className="text-[13px] text-dim">
+                best {typingSummary.bestWpm} {typingUnit} · {typingSummary.runCount} runs
+              </span>
+            )}
+          </div>
+
+          {typingSummary.runCount === 0 ? (
+            <p className="text-[13px] text-dim">
+              No typing runs yet. The trainer records speed and accuracy per language.
+            </p>
+          ) : (
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={typingSeries}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="run" stroke="#64748B" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748B" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={chartTooltip} />
+                  <Line
+                    type="monotone"
+                    dataKey="speed"
+                    name={typingUnit}
+                    stroke="var(--color-violet)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="accuracy"
+                    name="accuracy %"
+                    stroke="var(--color-mint)"
+                    strokeWidth={1}
+                    strokeDasharray="4 4"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </SpotlightCard>
       </div>
     </PageContent>

@@ -8,6 +8,9 @@ vi.mock('../contexts/LanguageContext', () => ({
     activeLanguage: { code: 'es', name: 'Spanish', flag: '🇪🇸' },
   }),
 }));
+vi.mock('../contexts/ProfileSessionContext', () => ({
+  useProfileSession: () => ({ activeProfile: { id: 'profile-1', name: 'Learner' } }),
+}));
 vi.mock('../hooks/useLanguageProgression', () => ({
   useLanguageProgression: () => ({
     lockStates: {
