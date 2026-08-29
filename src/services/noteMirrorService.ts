@@ -6,6 +6,9 @@ import { readLocalRuntimeSettings } from './localRuntimeSettings';
 function safeFilename(value: string): string {
   return value
     .normalize('NFKD')
+    // Control characters are exactly what this strips out of a filename, so
+    // the regex genuinely needs to match them.
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
