@@ -42,7 +42,46 @@ export function ScriptDrawingInput({ payload, mode, model, onChange }: ScriptDra
     });
   };
 
-  const templateVisible = mode === 'watch' || mode === 'trace' || mode === 'guided_draw';
+  /** Seconds the character is shown before a timed-recall attempt. */
+  const RECALL_PREVIEW_SECONDS = 5;
+  const [previewLeft, setPreviewLeft] = useState(
+    mode === 'timed_recall_draw' ? RECALL_PREVIEW_SECONDS : 0,
+  );
+
+  // Timed recall shows the character briefly, then takes it away — the whole
+  // point of the mode is drawing it back from memory.
+  useEffect(() => {
+    if (mode !== 'timed_recall_draw') {
+      setPreviewLeft(0);
+      return undefined;
+    }
+    setPreviewLeft(RECALL_PREVIEW_SECONDS);
+    const timer = window.setInterval(() => {
+      setPreviewLeft((left) => (left <= 1 ? 0 : left - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [mode, model?.key]);
+
+  /**
+   * Which model strokes to show, which is what actually separates the modes.
+   * They previously all rendered the same full template despite their copy
+   * promising otherwise.
+   */
+  const visibleModelStrokes = useMemo(() => {
+    const all = model?.strokes ?? [];
+    switch (mode) {
+      case 'trace':
+        return all;
+      case 'guided_draw':
+        // Only the stroke that comes next, so the learner is led one stroke at
+        // a time rather than copying the finished character.
+        return all.slice(strokePaths.length, strokePaths.length + 1);
+      case 'timed_recall_draw':
+        return previewLeft > 0 ? all : [];
+      default:
+        return [];
+    }
+  }, [mode, model?.strokes, previewLeft, strokePaths.length]);
 
   // The guide used on real character practice paper: a centre cross plus
   // diagonals, which is what a character's proportions are actually judged
@@ -133,7 +172,7 @@ export function ScriptDrawingInput({ payload, mode, model, onChange }: ScriptDra
           />
         ))}
 
-        {templateVisible && model?.strokes.map((stroke) => (
+        {visibleModelStrokes.map((stroke) => (
           <g key={`model-${stroke.index}`}>
             <path d={pathD(stroke.points)} fill="none" stroke="rgba(125,211,252,0.35)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             {stroke.points[0] ? (
@@ -156,6 +195,7 @@ export function ScriptDrawingInput({ payload, mode, model, onChange }: ScriptDra
 
       <div className="flex items-center justify-between">
         <p className="text-[12px] text-dim">
+          {mode === 'timed_recall_draw' && previewLeft > 0 ? `Memorise it — ${previewLeft}s · ` : ''}
           {model ? `Model: ${model.character}${model.reading ? ` (${model.reading})` : ''} · stroke ${strokePaths.length}/${model.strokes.length}` : `Captured strokes: ${strokePaths.length}`}
         </p>
         <button
