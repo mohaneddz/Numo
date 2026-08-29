@@ -26,6 +26,7 @@ import {
 } from '../../services/exercises/adaptiveReviewService';
 import type { ReviewItem } from '../../data/types';
 import { resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
+import { buildTruthStatement } from '../../services/exercises/truthStatementService';
 
 type Result = 'correct' | 'incorrect';
 
@@ -80,7 +81,7 @@ function buildConfusionOptions(item: ReviewItem): string[] {
   return shuffle(options);
 }
 
-function fromItem(it: ReviewItem, type: ReviewCardType): Q {
+function fromItem(it: ReviewItem, type: ReviewCardType, pool: readonly ReviewItem[] = []): Q {
   const base = {
     id: `live-${it.id}-${type}`,
     term: it.term,
@@ -117,12 +118,13 @@ function fromItem(it: ReviewItem, type: ReviewCardType): Q {
   }
 
   if (type === 'tf') {
+    const truth = buildTruthStatement(it, pool, `tf-${it.id}`);
     return {
       ...base,
       type,
       prompt: 'Is this statement true or false?',
-      statement: `"${it.term}" means "${it.translation}".`,
-      correctBool: true,
+      statement: truth.statement,
+      correctBool: truth.correctBool,
     };
   }
 
@@ -157,13 +159,13 @@ function fromItem(it: ReviewItem, type: ReviewCardType): Q {
   }
 
   if (type === 'seen_unseen') {
-    const statement = `"${it.term}" means "${it.translation}".`;
+    const truth = buildTruthStatement(it, pool, `seen-${it.id}`);
     return {
       ...base,
       type,
       prompt: 'Seen/unseen memory check. Is this mapping true?',
-      statement,
-      correctBool: true,
+      statement: truth.statement,
+      correctBool: truth.correctBool,
     };
   }
 
@@ -186,13 +188,16 @@ function fromItem(it: ReviewItem, type: ReviewCardType): Q {
   }
 
   if (type === 'tfj') {
+    const truth = buildTruthStatement(it, pool, `tfj-${it.id}`);
     return {
       ...base,
       type: 'tfj',
       prompt: 'True/False + short reason.',
-      statement: `"${it.term}" means "${it.translation}".`,
-      correctBool: true,
-      expectedReason: `It matches ${it.translation}.`,
+      statement: truth.statement,
+      correctBool: truth.correctBool,
+      expectedReason: truth.correctBool
+        ? `It matches ${truth.actualMeaning}.`
+        : `The statement is wrong: "${it.term}" actually means ${truth.actualMeaning}.`,
     };
   }
 
@@ -265,6 +270,7 @@ export default function ReviewSession() {
             languageCode: activeLanguage.code,
             signals,
           }),
+          queue,
         ),
       ),
     [activeLanguage.code, queue, signals],
