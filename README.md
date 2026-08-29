@@ -39,13 +39,21 @@ Pinyin-aware prompts, vocabulary pairs).
 - **Offline curriculum seed generator** — a bundled fallback content pack so lessons work without a
   live connection before falling back to AI generation; Chinese vocabulary seeding is in progress
   (partial coverage as of the last content commit)
+- **Live conversation** — free-form spoken practice with a target-language companion, subtitled on
+  both sides (target text, pronunciation, and English meaning) around an audio-reactive voice orb
+- **Typing trainer** — a monkeytype-style speed test for the target language, drawing on the
+  learner's own saved vocabulary, with IME support for Chinese/Japanese/Korean, RTL for Arabic,
+  and per-script speed units (`src/services/typing`)
+- **Script practice** — real stroke-order data for 596 Chinese characters and 248 Japanese
+  characters (both kana syllabaries in full), generated from Make Me a Hanzi and KanjiVG, with
+  stroke-by-stroke animation and geometric scoring of the learner's drawing
 - **Text-to-speech** — target-language-aware speech synthesis for prompts and content
 - **Insights** — progress and learning-evidence charts via `recharts` (streaks, review activity,
   consistency trends)
 - **Chat** — target-language conversation practice with word-level pronunciation and English
   meaning
-- **Libraries** — a browsable reference catalog (characters, sounds, words, grammar) for the active
-  language
+- **Reference hub** — the writing system, pronunciation, and the learner's own collected words for
+  the active language, with familiarity computed from what they have genuinely studied
 - Automated tests with Vitest, including coverage for Login, Profile, Insights, and curriculum
   services; a custom `pnpm audit:buttons` script audits UI buttons
 
@@ -60,7 +68,10 @@ src/
 |-- services/
 |   |-- curriculum/    # skill graph, mastery, roadmap, session planning
 |   |-- engine/        # curriculum runtime engine
-|   `-- exercises/     # exercise generation and validation
+|   |-- exercises/     # exercise generation, validation and review analysis
+|   |-- reference/     # reference-hub content assembly
+|   |-- speak/         # spoken conversation turns
+|   `-- typing/        # typing trainer scoring and history
 |-- runtime/
 |   |-- pipeline/      # content pipeline
 |   |-- providers/     # AI/content providers (online + offline fallback)
@@ -71,7 +82,7 @@ src/
 `-- App.tsx            # routes and application shell
 
 src-tauri/              # Tauri backend (Rust)
-scripts/                 # curriculum seed generation, button audit
+scripts/                 # curriculum seed generation, stroke-model generation, button audit
 docs/app/                # living product docs (page inventory, curriculum engine, exercise
                           # system, chat contract, models & storage, onboarding)
 ```
@@ -105,7 +116,8 @@ pnpm preview               # Preview the production frontend build
 pnpm tauri dev              # Run the desktop app
 pnpm test                    # Run the Vitest suite
 pnpm seed:curriculum          # Regenerate the offline curriculum seed pack
-pnpm audit:buttons             # Audit UI buttons across the app
+pnpm seed:script-models        # Regenerate stroke-order data for script practice
+pnpm audit:buttons              # Audit UI buttons across the app
 ```
 
 ---
@@ -113,7 +125,14 @@ pnpm audit:buttons             # Audit UI buttons across the app
 ## Current Status
 
 Actively developed (`0.1.0`, no tagged release yet). The curriculum engine, page set, and core
-learning loop are functional. Chinese vocabulary seeding for the offline curriculum pack is
-partial (roughly a third of core pairs seeded so far, per the latest content commit) — the rest
-currently rely on live AI generation. See `docs/app/README.md` for the full product/architecture
-guide and `docs/app/curriculum-engine.md` / `docs/app/exercise-system.md` for implementation detail.
+learning loop are functional.
+
+Known gaps, so they are not oversold: Chinese vocabulary seeding for the offline curriculum pack
+covers only part of the first theme — everything else relies on live AI generation; the reference
+hub has hand-authored pronunciation content for the ten supported languages but alphabets only
+where a language has a non-Latin script; and the generation/evaluation pipeline under
+`src/runtime/pipeline` is built but not yet wired into any production path.
+
+See `docs/app/README.md` for the full product/architecture guide,
+`docs/app/curriculum-engine.md` / `docs/app/exercise-system.md` for implementation detail, and
+`docs/app/feature-state-audit-2026-08-26.md` for a page-by-page account of what is real.
