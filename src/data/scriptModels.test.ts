@@ -92,3 +92,44 @@ describe('stroke data correctness', () => {
     expect(findScriptModel('zh', '你')?.reading).toBeUndefined();
   });
 });
+
+describe('stroke geometry matches how the characters are actually written', () => {
+  const strokeEnds = (language: string, character: string) =>
+    findScriptModel(language, character)!.strokes.map((stroke) => ({
+      from: stroke.points[0],
+      to: stroke.points[stroke.points.length - 1],
+    }));
+
+  const isHorizontal = (stroke: { from: { x: number; y: number }; to: { x: number; y: number } }) =>
+    Math.abs(stroke.to.x - stroke.from.x) > Math.abs(stroke.to.y - stroke.from.y);
+
+  it('writes 三 as three horizontal strokes, ordered top to bottom', () => {
+    const strokes = strokeEnds('zh', '三');
+    expect(strokes).toHaveLength(3);
+    expect(strokes.every(isHorizontal)).toBe(true);
+    expect(strokes[0].from.y).toBeLessThan(strokes[1].from.y);
+    expect(strokes[1].from.y).toBeLessThan(strokes[2].from.y);
+  });
+
+  it('writes 十 as the horizontal stroke before the vertical one', () => {
+    const [first, second] = strokeEnds('zh', '十');
+    expect(isHorizontal(first)).toBe(true);
+    expect(isHorizontal(second)).toBe(false);
+  });
+
+  it('writes 人 as a left-falling stroke then a right-falling one', () => {
+    const [left, right] = strokeEnds('zh', '人');
+    expect(left.to.x).toBeLessThan(left.from.x);
+    expect(right.to.x).toBeGreaterThan(right.from.x);
+    // Both sweep downward from near the apex.
+    expect(left.to.y).toBeGreaterThan(left.from.y);
+    expect(right.to.y).toBeGreaterThan(right.from.y);
+  });
+
+  it('orients characters upright rather than flipped', () => {
+    // A sign error in the source's y-up-to-y-down conversion would put 二's
+    // second stroke above its first, and nothing else would catch it.
+    const [top, bottom] = strokeEnds('zh', '二');
+    expect(top.from.y).toBeLessThan(bottom.from.y);
+  });
+});
