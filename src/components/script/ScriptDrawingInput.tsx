@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ScriptPracticeMode, ScriptPracticePayload, ScriptStrokeModel, ScriptStrokePath } from '../../types/scriptPractice';
+import { SCRIPT_CANVAS_SIZE } from '../../data/scriptModels';
 
 interface ScriptDrawingInputProps {
   payload: ScriptPracticePayload;
@@ -8,8 +9,10 @@ interface ScriptDrawingInputProps {
   onChange: (payload: ScriptPracticePayload) => void;
 }
 
-const CANVAS_WIDTH = 380;
-const CANVAS_HEIGHT = 220;
+// CJK characters occupy a square box; a wide canvas stretched every model out
+// of shape and made the position score meaningless.
+const CANVAS_WIDTH = SCRIPT_CANVAS_SIZE;
+const CANVAS_HEIGHT = SCRIPT_CANVAS_SIZE;
 
 function pathD(points: Array<{ x: number; y: number }>): string {
   if (points.length === 0) return '';
@@ -41,16 +44,17 @@ export function ScriptDrawingInput({ payload, mode, model, onChange }: ScriptDra
 
   const templateVisible = mode === 'watch' || mode === 'trace' || mode === 'guided_draw';
 
+  // The guide used on real character practice paper: a centre cross plus
+  // diagonals, which is what a character's proportions are actually judged
+  // against. A plain square grid told the learner nothing.
   const guideGrid = useMemo(() => {
-    const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-    const step = 44;
-    for (let x = step; x < CANVAS_WIDTH; x += step) {
-      lines.push({ x1: x, y1: 0, x2: x, y2: CANVAS_HEIGHT });
-    }
-    for (let y = step; y < CANVAS_HEIGHT; y += step) {
-      lines.push({ x1: 0, y1: y, x2: CANVAS_WIDTH, y2: y });
-    }
-    return lines;
+    const mid = CANVAS_WIDTH / 2;
+    return [
+      { x1: mid, y1: 0, x2: mid, y2: CANVAS_HEIGHT },
+      { x1: 0, y1: mid, x2: CANVAS_WIDTH, y2: mid },
+      { x1: 0, y1: 0, x2: CANVAS_WIDTH, y2: CANVAS_HEIGHT },
+      { x1: CANVAS_WIDTH, y1: 0, x2: 0, y2: CANVAS_HEIGHT },
+    ];
   }, []);
 
   const startPath = (clientX: number, clientY: number, target: Element) => {
@@ -103,7 +107,7 @@ export function ScriptDrawingInput({ payload, mode, model, onChange }: ScriptDra
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
         viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-        className="w-full rounded-xl border border-white/15 bg-slate-950/70 touch-none"
+        className="mx-auto block w-full max-w-[360px] rounded-xl border border-white/15 bg-slate-950/70 touch-none"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           startPath(event.clientX, event.clientY, event.currentTarget);
@@ -152,7 +156,7 @@ export function ScriptDrawingInput({ payload, mode, model, onChange }: ScriptDra
 
       <div className="flex items-center justify-between">
         <p className="text-[12px] text-dim">
-          {model ? `Model: ${model.character}${model.reading ? ` (${model.reading})` : ''} • strokes ${strokePaths.length}/${model.strokes.length}` : `Captured strokes: ${strokePaths.length}`}
+          {model ? `Model: ${model.character}${model.reading ? ` (${model.reading})` : ''} Â· stroke ${strokePaths.length}/${model.strokes.length}` : `Captured strokes: ${strokePaths.length}`}
         </p>
         <button
           type="button"

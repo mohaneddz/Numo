@@ -11,11 +11,11 @@ import { ExerciseShell } from '../../components/exercises/shared/ExerciseShell';
 import { ExerciseStateBanner } from '../../components/exercises/shared/ExerciseStateBanner';
 import { ExerciseActionBar } from '../../components/exercises/shared/ExerciseActionBar';
 import { integrationService } from '../../services/integrationService';
-import { getScriptModels } from '../../data/scriptModels';
+import { defaultScriptModel, scriptLanguageIsSupported } from '../../data/scriptModels';
+import { ScriptCharacterPicker } from '../../components/script/ScriptCharacterPicker';
 import { useProfileSession } from '../../contexts/ProfileSessionContext';
 import { updateExerciseSignals } from '../../services/exercises/exerciseSignalsService';
 
-const SUPPORTED_SCRIPT_LANGUAGES = new Set(['zh', 'ja']);
 const MODES: ScriptPracticeMode[] = ['watch', 'trace', 'guided_draw', 'free_draw', 'timed_recall_draw'];
 
 export default function ScriptPracticePage() {
@@ -23,11 +23,15 @@ export default function ScriptPracticePage() {
   const { activeLanguage } = useLanguage();
   const { activeProfile } = useProfileSession();
   const { lockStates } = useLanguageProgression();
-  const enabled = useMemo(() => SUPPORTED_SCRIPT_LANGUAGES.has(activeLanguage.code), [activeLanguage.code]);
+  // Driven by whether stroke data actually exists, rather than a separate list
+  // that could drift away from the generated dataset.
+  const enabled = useMemo(() => scriptLanguageIsSupported(activeLanguage.code), [activeLanguage.code]);
   const lock = lockStates.script_practice;
 
-  const models = useMemo(() => getScriptModels(activeLanguage.code), [activeLanguage.code]);
-  const defaultModelKey = searchParams.get('script') ?? models[0]?.key ?? 'script:default';
+  const defaultModelKey = useMemo(
+    () => defaultScriptModel(activeLanguage.code, searchParams.get('script') ?? undefined)?.key ?? 'script:default',
+    [activeLanguage.code, searchParams],
+  );
 
   const [scriptKey, setScriptKey] = useState(defaultModelKey);
   const [mode, setMode] = useState<ScriptPracticeMode>('trace');
@@ -105,7 +109,7 @@ export default function ScriptPracticePage() {
   if (!enabled) {
     return (
       <PageContent width="wide" className="pb-16">
-        <ExerciseStateBanner tone="empty" message="Script practice is currently enabled for zh and ja only." />
+        <ExerciseStateBanner tone="empty" message="Script practice covers Chinese and Japanese, the languages Numo has stroke-order data for." />
       </PageContent>
     );
   }
@@ -126,25 +130,16 @@ export default function ScriptPracticePage() {
             />
           )}
         >
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-[12px] text-dim">Script key</span>
-              <select
-                value={scriptKey}
-                onChange={(event) => {
-                  const key = event.target.value;
-                  setScriptKey(key);
-                  setPayload((previous) => ({ ...previous, strokePaths: [], modelKey: key }));
-                }}
-                className="select-custom w-full rounded-lg border border-white/10 bg-black/20 pl-3 py-2 text-[13px] text-mist"
-              >
-                {models.map((model) => (
-                  <option key={model.key} value={model.key}>
-                    {model.character} {model.reading ? `(${model.reading})` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <ScriptCharacterPicker
+            languageCode={activeLanguage.code}
+            selectedKey={scriptKey}
+            onSelect={(key) => {
+              setScriptKey(key);
+              setPayload((previous) => ({ ...previous, strokePaths: [], modelKey: key }));
+            }}
+          />
+
+          <div className="grid gap-3">
             <label className="space-y-1">
               <span className="text-[12px] text-dim">Mode</span>
               <select

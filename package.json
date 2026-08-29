@@ -11,7 +11,8 @@
     "audit:buttons": "node scripts/audit-buttons.mjs",
     "test": "vitest run",
     "seed:curriculum": "vite-node scripts/generateCurriculumSeed.ts",
-    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit"
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
+    "seed:script-models": "node scripts/generateScriptModels.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -39,6 +40,8 @@
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "hanzi-writer-data": "^2.0.1",
+    "hanzi-writer-data-jp": "^0.0.2",
     "tailwindcss": "latest",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
