@@ -399,7 +399,7 @@ export async function youtube_search(
   const endpoint = new URL("https://www.youtube.com/feeds/videos.xml");
   endpoint.searchParams.set("search_query", normalized);
 
-  let xml = "";
+  let xml: string;
   try {
     xml = await fetch_text_with_fallback(endpoint.toString());
   } catch {

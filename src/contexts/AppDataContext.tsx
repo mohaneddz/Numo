@@ -930,7 +930,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (!current) return;
           await engine.context.persistence.repositories.notebook.updateItem({
             id,
-            favorited: !Boolean(current.favorited),
+            favorited: !current.favorited,
           });
         } catch (error) {
           console.error('Failed to persist favorite toggle', error);

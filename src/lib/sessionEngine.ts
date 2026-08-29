@@ -746,7 +746,7 @@ function zhFallbackItems(languageLabel: string): PracticeItem[] {
     {
       id: 'zh-pinyin',
       type: 'hanzi_pinyin',
-      prompt: 'Choose the correct pinyin for \"\u732b\".',
+      prompt: 'Choose the correct pinyin for "\u732b".',
       answer: 'mao1',
       options: ['mao1', 'miao3', 'muo2', 'mao3'],
       languageCode: 'zh',
@@ -754,7 +754,7 @@ function zhFallbackItems(languageLabel: string): PracticeItem[] {
     {
       id: 'zh-radical',
       type: 'radical_match',
-      prompt: 'Which character shares the \"\u5973\" component?',
+      prompt: 'Which character shares the "\u5973" component?',
       answer: '\u5988',
       options: ['\u5988', '\u53e3', '\u6728', '\u4eba'],
       languageCode: 'zh',
@@ -791,7 +791,7 @@ function jaFallbackItems(languageLabel: string): PracticeItem[] {
     {
       id: 'ja-reading',
       type: 'kanji_reading',
-      prompt: 'Choose the reading for \"\u6c34\".',
+      prompt: 'Choose the reading for "\u6c34".',
       answer: 'mizu',
       options: ['mizu', 'ki', 'hi', 'yama'],
       languageCode: 'ja',
@@ -1084,7 +1084,7 @@ function createCoverageItem(type: PracticeItemType, languageCode: string, langua
   return {
     id: 'cov-ja-kana',
     type: 'kana_confusion',
-    prompt: 'Choose the correct kana for \"shi\".',
+    prompt: 'Choose the correct kana for "shi".',
     answer: '\u3057',
     options: ['\u3057', '\u3061', '\u3055', '\u30b7'],
     ...common,
@@ -1643,9 +1643,9 @@ export async function regenerateExercise(input: RegenerateExerciseInput): Promis
     // the prompt and the options reversed, so a failed regeneration looked like
     // a successful one. The caller renders a refresh error, so failing here is
     // both honest and already handled.
-    console.error('Failed to regenerate exercise', error);
     throw new Error(
       'Could not generate a new exercise. Check your AI provider settings, or try again.',
+      { cause: error },
     );
   }
 }

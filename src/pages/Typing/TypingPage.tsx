@@ -222,7 +222,11 @@ export default function TypingPage() {
     });
   }, [activeLanguage.code, activeProfile?.id, config, wordList, words]);
 
-  finishRef.current = finish;
+  // Held in a ref so the timer effect can call the latest `finish` without
+  // listing it as a dependency and restarting the countdown every second.
+  useEffect(() => {
+    finishRef.current = finish;
+  }, [finish]);
 
   // Ticks the countdown and records one speed sample per second.
   useEffect(() => {

@@ -91,6 +91,19 @@ export default function InsightsPage() {
     return values;
   }, [snapshot]);
 
+  const typingSummary = useMemo(() => summarizeHistory(typing), [typing]);
+  const typingUnit =
+    typingWordListForLanguage(activeLanguage.code).charsPerWord === 1 ? 'cpm' : 'wpm';
+  const typingSeries = useMemo(
+    () =>
+      typingSummary.recent.map((entry, index) => ({
+        run: index + 1,
+        speed: entry.wpm,
+        accuracy: entry.accuracy,
+      })),
+    [typingSummary.recent],
+  );
+
   const hasModeData = modeSeries.some((item) => item.value > 0);
   const lock = lockStates.insights;
 
@@ -108,19 +121,6 @@ export default function InsightsPage() {
       </PageContent>
     );
   }
-
-  const typingSummary = useMemo(() => summarizeHistory(typing), [typing]);
-  const typingUnit =
-    typingWordListForLanguage(activeLanguage.code).charsPerWord === 1 ? 'cpm' : 'wpm';
-  const typingSeries = useMemo(
-    () =>
-      typingSummary.recent.map((entry, index) => ({
-        run: index + 1,
-        speed: entry.wpm,
-        accuracy: entry.accuracy,
-      })),
-    [typingSummary.recent],
-  );
 
   return (
     <PageContent width="wide" className="pb-10">

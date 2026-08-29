@@ -71,8 +71,15 @@ export function VoiceOrb({ state, level, size = 280, reducedMotion = false }: Vo
   const levelRef = useRef(level);
   const smoothedRef = useRef(0);
 
-  stateRef.current = state;
-  levelRef.current = level;
+  // Mirrored in an effect rather than during render: the animation loop reads
+  // these every frame and must not restart when they change, but writing refs
+  // while rendering is not safe under concurrent rendering.
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
