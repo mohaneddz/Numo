@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createRandom } from '../../utils/seededRandom';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -303,7 +304,14 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
   const progress = youtube && streamDurationSeconds > 0
     ? (streamCurrentSeconds / streamDurationSeconds) * 100
     : ((activeIndex + 1) / lineCount) * 100;
-  const waveform = [22, 40, 65, 36, 78, 52, 88, 44, 68, 30, 74, 48, 92, 60, 35, 70, 50, 82, 42, 64, 28, 56, 76, 46, 66, 38, 85, 54, 72, 32];
+  // A scrubber, not a waveform. Playback runs through YouTube's iframe, which
+  // exposes no audio data to read amplitudes from, so the bar heights are
+  // decorative — seeded from the resource id only so two tracks do not render
+  // the identical shape and imply it was measured from the audio.
+  const scrubberBars = useMemo(() => {
+    const random = createRandom(`scrubber-${resource.id}`);
+    return Array.from({ length: 30 }, () => 22 + Math.round(random() * 70));
+  }, [resource.id]);
   // Scoped to the resource's own language; this previously pulled from the whole
   // bundled catalog regardless of what the learner was studying.
   const audioQueue = getImmersionResourcesForLanguage(resource.languageCode)
@@ -523,13 +531,13 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
               <p className="relative mt-1 text-[12px] text-white/60">{audioArtwork?.creator || resource.author || resource.category}</p>
 
               <div className="relative mt-8 flex h-20 w-full max-w-2xl items-center justify-center gap-1.5">
-                {waveform.map((height, index) => {
-                  const reached = index / waveform.length <= progress / 100;
+                {scrubberBars.map((height, index) => {
+                  const reached = index / scrubberBars.length <= progress / 100;
                   return (
                     <button
                       type="button"
-                      aria-label={`Seek to ${Math.round((index / waveform.length) * 100)} percent`}
-                      onClick={() => seekToFraction(index / waveform.length)}
+                      aria-label={`Seek to ${Math.round((index / scrubberBars.length) * 100)} percent`}
+                      onClick={() => seekToFraction(index / scrubberBars.length)}
                       key={`${height}-${index}`}
                       className={`w-1.5 rounded-full transition-colors hover:bg-white ${reached ? 'bg-cyan-200 shadow-[0_0_10px_rgba(165,243,252,0.4)]' : 'bg-white/15'} ${isPlaying ? 'audio-bar-dance' : ''}`}
                       style={{ height: `${height}%`, animationDelay: `${index * -55}ms`, animationDuration: `${650 + (index % 5) * 100}ms` }}
