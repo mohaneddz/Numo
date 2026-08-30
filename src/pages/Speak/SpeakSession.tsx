@@ -101,6 +101,9 @@ export default function SpeakSession() {
   const [error, setError] = useState<string | null>(null);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // From starting the recording to receiving feedback, so the attempt's real
+  // length is recorded rather than the flat default.
+  const attemptStartedAtRef = useRef(Date.now());
   const activeExercise = speakExerciseRegistry.guided_repeat;
 
   if (!session) {
@@ -130,6 +133,7 @@ export default function SpeakSession() {
       setError(null);
       setFeedback(null);
       setTranscription('');
+      attemptStartedAtRef.current = Date.now();
       await startRecording();
     }
   };
@@ -192,6 +196,7 @@ export default function SpeakSession() {
         accuracy: feedbackData.accuracy,
         fluency: feedbackData.fluency,
         tip: feedbackData.tip,
+        durationMs: Math.max(1000, Date.now() - attemptStartedAtRef.current),
       });
 
     } catch (gradingError) {

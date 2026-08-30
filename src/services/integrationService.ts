@@ -969,7 +969,7 @@ export class IntegrationService {
     );
   }
 
-  async logWriteAttempt(input: { languageCode: string; text: string; corrections: number; hasAnalysis: boolean }): Promise<void> {
+  async logWriteAttempt(input: { languageCode: string; text: string; corrections: number; hasAnalysis: boolean; durationMs?: number }): Promise<void> {
     await this.withPersistence(
       async (context) => {
         const ids = await this.ensureLearnerAndLanguage(context, input.languageCode);
@@ -984,6 +984,7 @@ export class IntegrationService {
           languageId: ids.languageId,
           activityType: 'writing_submission',
           nodeIds: [nodeId],
+          timeTakenMs: input.durationMs ?? null,
           rawInputText: input.text,
           analysisResult: {
             hasAnalysis: input.hasAnalysis,
@@ -1031,7 +1032,7 @@ export class IntegrationService {
     );
   }
 
-  async logSpeakAttempt(input: { languageCode: string; transcript: string; accuracy: number; fluency: number; tip: string }): Promise<void> {
+  async logSpeakAttempt(input: { languageCode: string; transcript: string; accuracy: number; fluency: number; tip: string; durationMs?: number }): Promise<void> {
     await this.withPersistence(
       async (context) => {
         const ids = await this.ensureLearnerAndLanguage(context, input.languageCode);
@@ -1045,6 +1046,7 @@ export class IntegrationService {
           languageId: ids.languageId,
           activityType: 'speaking_attempt',
           nodeIds: [nodeId],
+          timeTakenMs: input.durationMs ?? null,
           rawOutputText: input.transcript,
           transcription: input.transcript,
           pronunciationNotes: input.tip,

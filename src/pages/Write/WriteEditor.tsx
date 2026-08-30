@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
@@ -16,6 +16,9 @@ import { writeExerciseRegistry } from '../../components/exercises/write/registry
 import type { WriteCorrectionItem } from '../../components/exercises/write/types';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
 
+/** Upper bound on a single composing session, so an idle editor cannot credit hours. */
+const MAX_COMPOSING_MS = 60 * 60 * 1000;
+
 export default function WriteEditor() {
     const DEFAULT_TEXT = '';
 
@@ -30,6 +33,9 @@ export default function WriteEditor() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [corrections, setCorrections] = useState<WriteCorrectionItem[]>([]);
     const [error, setError] = useState<string | null>(null);
+    // Time spent composing, capped so an editor left open overnight does not
+    // credit hours of study.
+    const composingStartedAtRef = useRef(Date.now());
 
     useEffect(() => {
         if (activeDraft) {
@@ -126,6 +132,10 @@ export default function WriteEditor() {
                 text,
                 corrections: countRealCorrections(data),
                 hasAnalysis: true,
+                durationMs: Math.min(
+                    MAX_COMPOSING_MS,
+                    Math.max(1000, Date.now() - composingStartedAtRef.current),
+                ),
             });
         } catch {
             setCorrections([]);
