@@ -8,6 +8,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { runBackupIfDue, setBackupEnabled } from '../services/backup/autoBackup';
+import { clearCrashLog, readCrashLog, setCrashLogEnabled, type CrashEntry } from '../services/diagnostics/crashLog';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config/appearanceSettings';
@@ -120,9 +121,7 @@ const settingsSections: SettingsSection[] = [
     {
         id: 'privacy', title: 'Privacy', icon: Shield, color: '#ef4444',
         settings: [
-            { label: 'Recording Consent', description: 'Show notice before microphone recording', type: 'toggle', value: true },
-            { label: 'Analytics', description: 'Help improve the app with anonymous usage data', type: 'toggle', value: false },
-            { label: 'Crash Reports', description: 'Send crash reports to help fix bugs', type: 'toggle', value: true },
+            { label: 'Crash Log', description: 'Keep a local record of errors for troubleshooting. Never leaves this device.', type: 'toggle', value: true },
         ],
     },
     {
@@ -375,6 +374,7 @@ export default function SettingsPage() {
     const [activeTabId, setActiveTabId] = useState<string>('profile');
     const [status, setStatus] = useState<string | null>(null);
     const [bgBusy, setBgBusy] = useState<string | null>(null);
+    const [crashEntries, setCrashEntries] = useState<CrashEntry[]>([]);
     const [bgMappings, setBgMappings] = useState<BackgroundMappingPreview[]>([]);
     const [bgValidation, setBgValidation] = useState<BackgroundValidationResult | null>(null);
     const [bgCacheFiles, setBgCacheFiles] = useState(0);
@@ -573,6 +573,11 @@ export default function SettingsPage() {
             if (pathSetting?.pathKey) {
                 setLocalRuntimePath(pathSetting.pathKey, String(value ?? ''));
             }
+        }
+        if (sectionId === 'privacy' && label === 'Crash Log') {
+            void setCrashLogEnabled(Boolean(value)).catch(() => {
+                setStatus('Could not update the crash log setting.');
+            });
         }
         if (sectionId === 'backup' && label === 'Auto Backup') {
             void setBackupEnabled(Boolean(value)).catch(() => {
@@ -1081,6 +1086,10 @@ export default function SettingsPage() {
         void refreshBackgroundDiagnostics();
     }, []);
 
+    useEffect(() => {
+        void readCrashLog().then(setCrashEntries);
+    }, []);
+
     const runBackgroundAction = async (actionKey: string, action: () => Promise<void>) => {
         setBgBusy(actionKey);
         try {
@@ -1290,6 +1299,41 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
                             ) : null}
+
+                            <div className={`${activeTabId === 'privacy' ? '' : 'hidden'} mb-8 rounded-2xl border border-white/10 bg-[#0a1222]/60 p-5`}>
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <h3 className="text-[16px] font-bold text-white">Crash Log</h3>
+                                        <p className="text-[12px] text-dim">
+                                            {crashEntries.length === 0
+                                                ? 'Nothing recorded. Errors that break a page are kept here, on this device only.'
+                                                : `${crashEntries.length} recorded on this device. Nothing is sent anywhere.`}
+                                        </p>
+                                    </div>
+                                    <button
+                                        className="rounded-lg border border-white/15 px-3 py-1.5 text-[12px] text-mist hover:bg-white/5"
+                                        onClick={() => void clearCrashLog().then(() => setCrashEntries([]))}
+                                        disabled={crashEntries.length === 0}
+                                    >
+                                        Clear Log
+                                    </button>
+                                </div>
+                                {crashEntries.length > 0 && (
+                                    <div className="grid max-h-64 gap-2 overflow-y-auto">
+                                        {[...crashEntries].reverse().map((entry) => (
+                                            <div
+                                                key={`${entry.at}-${entry.message}`}
+                                                className="rounded-lg border border-white/5 bg-black/30 p-3"
+                                            >
+                                                <p className="text-[12px] text-mist">{entry.message}</p>
+                                                <p className="mt-1 text-[11px] text-dim">
+                                                    {new Date(entry.at).toLocaleString()} • {entry.scope}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
                             <div className={`${activeTabId === 'appearance' ? '' : 'hidden'} mb-8 rounded-2xl border border-white/10 bg-[#0a1222]/60 p-5`}>
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

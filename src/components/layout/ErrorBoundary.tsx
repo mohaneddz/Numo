@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, Copy, Home, RotateCcw } from 'lucide-react';
+import { recordCrash } from '../../services/diagnostics/crashLog';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -37,6 +38,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // only record of what happened.
     console.error('Render error caught by boundary', error, info.componentStack);
     this.setState({ componentStack: info.componentStack ?? '' });
+
+    // Kept on the device so there is something to read after a crash. Never
+    // sent anywhere.
+    void recordCrash({
+      message: error.message || error.name,
+      scope: this.props.scope === 'page' ? this.props.resetKey ?? 'page' : 'app',
+      stack: error.stack,
+    });
   }
 
   componentDidUpdate(previous: ErrorBoundaryProps) {
