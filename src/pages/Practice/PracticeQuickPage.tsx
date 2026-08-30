@@ -294,6 +294,7 @@ export default function PracticeQuickPage() {
           subtitle={`Item ${session.currentIndex + 1} of ${session.items.length}`}
           progressLabel={`${session.correctAnswers} correct`}
           prompt={currentItem.prompt}
+          scriptHint={currentItem.scriptHint}
           languageCode={languageCode}
           onGlossaryUsage={(count) => setHoverUsage((value) => value + count)}
           actions={(

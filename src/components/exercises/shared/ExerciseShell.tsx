@@ -6,6 +6,15 @@ interface ExerciseShellProps {
   subtitle?: string;
   progressLabel?: string;
   prompt?: string;
+  /**
+   * Pronunciation for the target text, e.g. pinyin or romaji.
+   *
+   * Generated content has carried a `scriptHint` all along — it is requested
+   * from the model, parsed and passed around — but nothing ever rendered it, so
+   * a learner of a non-Latin script never saw the reading that was produced for
+   * them.
+   */
+  scriptHint?: string;
   languageCode?: string;
   actions?: ReactNode;
   footer?: ReactNode;
@@ -18,6 +27,7 @@ export function ExerciseShell({
   subtitle,
   progressLabel,
   prompt,
+  scriptHint,
   languageCode,
   actions,
   footer,
@@ -39,6 +49,9 @@ export function ExerciseShell({
             className="text-[14px] leading-relaxed text-mist"
             onGlossaryUsage={onGlossaryUsage}
           />
+        ) : null}
+        {scriptHint ? (
+          <p className="text-[13px] italic text-cyan/80">{scriptHint}</p>
         ) : null}
       </header>
 
