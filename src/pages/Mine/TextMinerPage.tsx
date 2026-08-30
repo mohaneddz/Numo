@@ -70,11 +70,20 @@ export default function TextMinerPage() {
       // Look the meaning up first: a notebook entry with no translation is not
       // worth having, and this is the same lookup the tooltips use.
       const resolved = await glossary.resolveEntry(entry.word);
+      if (!resolved?.translation?.trim()) {
+        // Saving a word with no meaning attached produces a notebook entry that
+        // can never be reviewed, so this reports instead of storing a blank.
+        setSaveError(
+          `No meaning found for "${entry.word}". Select it in the passage to look it up first.`,
+        );
+        return;
+      }
+
       createNotebookEntry({
         term: entry.word,
-        translation: resolved?.translation ?? '',
+        translation: resolved.translation,
         type: 'word',
-        notes: resolved?.example,
+        notes: resolved.example,
         tags: [activeLanguage.code, 'mined'],
         source: 'manual',
         mastery: 0,

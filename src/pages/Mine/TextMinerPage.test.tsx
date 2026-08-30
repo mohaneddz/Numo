@@ -128,3 +128,28 @@ describe('long passages', () => {
     expect(screen.getByText('Select any word to see its meaning.')).toBeTruthy();
   });
 });
+
+describe('saving a word with no meaning', () => {
+  it('reports instead of storing a blank entry', async () => {
+    // A notebook entry with no translation can never be reviewed.
+    resolveEntry.mockResolvedValueOnce(null);
+    const input = setup();
+    analyse(input, 'la casa es grande');
+
+    fireEvent.click(screen.getByLabelText('Save grande to your notebook'));
+    await vi.waitFor(() => expect(screen.getByText(/No meaning found/)).toBeTruthy());
+
+    expect(createNotebookEntry).not.toHaveBeenCalled();
+  });
+
+  it('treats a whitespace-only translation as no meaning', async () => {
+    resolveEntry.mockResolvedValueOnce({ translation: '   ' });
+    const input = setup();
+    analyse(input, 'la casa es grande');
+
+    fireEvent.click(screen.getByLabelText('Save grande to your notebook'));
+    await vi.waitFor(() => expect(screen.getByText(/No meaning found/)).toBeTruthy());
+
+    expect(createNotebookEntry).not.toHaveBeenCalled();
+  });
+});
