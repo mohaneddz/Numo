@@ -112,6 +112,14 @@ export interface ImmersionProgress {
   totalUnits?: number;
   completed: boolean;
   savedPhrases: string[];
+  /**
+   * Furthest position already counted as study time.
+   *
+   * Immersion writes position updates several times a second, so evidence is
+   * logged per milestone rather than per update; this is what the milestone is
+   * measured from.
+   */
+  loggedThroughSec?: number;
   updatedAt: string;
 }
 

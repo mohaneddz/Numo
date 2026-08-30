@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ImmersionProgress,
   NotebookEntry,
@@ -11,6 +11,7 @@ import { initializeEngineServices, type EngineServices } from '../services/engin
 import type { EvidenceRecord } from '../persistence';
 import { useProfileSession } from './ProfileSessionContext';
 import { useLanguage } from './LanguageContext';
+import { integrationService } from '../services/integrationService';
 import { evaluateLearnTaskSubmission, type LearnGradingMode } from '../services/learningPlanService';
 import { mirrorNotebookEntry } from '../services/noteMirrorService';
 import type { TaskType } from '../types/learningPlan';
@@ -35,6 +36,9 @@ interface AppDataState {
     createdAt: string;
   }>;
 }
+
+/** Seconds of immersion to accumulate before banking them as study time. */
+const IMMERSION_LOG_MILESTONE_SEC = 60;
 
 interface AppDataContextValue {
   state: AppDataState;
@@ -537,9 +541,17 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [engine, refreshFromPersistence]);
 
-  const updateImmersionProgress = useCallback((contentId: string, positionSec: number, completed = false, totalUnits?: number) => {
-    setState((previous) => {
-      const current = previous.immersionProgress[contentId] ?? {
+  // Mirrors immersion progress so the callback can decide what to persist and
+  // log without doing either inside a setState updater, which React may run
+  // more than once.
+  const immersionProgressRef = useRef(state.immersionProgress);
+  useEffect(() => {
+    immersionProgressRef.current = state.immersionProgress;
+  }, [state.immersionProgress]);
+
+  const updateImmersionProgress = useCallback(
+    (contentId: string, positionSec: number, completed = false, totalUnits?: number) => {
+      const current = immersionProgressRef.current[contentId] ?? {
         contentId,
         positionSec: 0,
         completed: false,
@@ -547,34 +559,53 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedAt: todayIso(),
       };
 
-      const nextProgress = {
-        ...previous.immersionProgress,
-        [contentId]: {
-          ...current,
-          // Position only moves forward, so a rewind does not lose the furthest point reached.
-          positionSec: Math.max(current.positionSec, Math.round(positionSec)),
-          totalUnits: totalUnits && totalUnits > 0 ? Math.round(totalUnits) : current.totalUnits,
-          completed: completed || current.completed,
-          updatedAt: todayIso(),
-        },
-      };
+      // Position only moves forward, so a rewind does not lose the furthest
+      // point reached.
+      const furthest = Math.max(current.positionSec, Math.round(positionSec));
 
-      // Persisted outside the React tree so progress survives a reload.
-      if (engine) {
-        void engine.context.persistence.repositories.settings
-          .setJson(
-            immersionProgressKey(engine.context.learnerId, engine.context.languageId),
-            nextProgress,
-            'immersion_progress',
-          )
-          .catch(() => {
-            // A dropped write costs the last position, not the session.
-          });
+      // Position updates fire several times a second, so study time is banked
+      // in milestones rather than logged on every update.
+      const loggedThrough = current.loggedThroughSec ?? 0;
+      const unlogged = furthest - loggedThrough;
+      const shouldLog = unlogged >= IMMERSION_LOG_MILESTONE_SEC || (completed && unlogged > 0);
+
+      const nextEntry = {
+        ...current,
+        positionSec: furthest,
+        totalUnits: totalUnits && totalUnits > 0 ? Math.round(totalUnits) : current.totalUnits,
+        completed: completed || current.completed,
+        loggedThroughSec: shouldLog ? furthest : loggedThrough,
+        updatedAt: todayIso(),
+      };
+      const nextProgress = { ...immersionProgressRef.current, [contentId]: nextEntry };
+      immersionProgressRef.current = nextProgress;
+
+      setState((previous) => ({ ...previous, immersionProgress: nextProgress }));
+
+      if (!engine) return;
+
+      if (shouldLog) {
+        void integrationService.logImmersionProgress({
+          languageCode: activeLanguage.code,
+          contentId,
+          seconds: unlogged,
+          completed: nextEntry.completed,
+        });
       }
 
-      return { ...previous, immersionProgress: nextProgress };
-    });
-  }, [engine]);
+      // Persisted outside the React tree so progress survives a reload.
+      void engine.context.persistence.repositories.settings
+        .setJson(
+          immersionProgressKey(engine.context.learnerId, engine.context.languageId),
+          nextProgress,
+          'immersion_progress',
+        )
+        .catch(() => {
+          // A dropped write costs the last position, not the session.
+        });
+    },
+    [activeLanguage.code, engine],
+  );
 
   const saveDraft = useCallback<AppDataContextValue['saveDraft']>((draft) => {
     const now = dateOnly(todayIso());

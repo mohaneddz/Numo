@@ -1404,6 +1404,42 @@ export class IntegrationService {
     );
   }
 
+  /**
+   * Records time spent on immersion content as study activity.
+   *
+   * Immersion persisted position and saved phrases but logged no evidence, so
+   * an hour of video or reading left the learner's minutes for the day at
+   * zero — the longest activity in the app counted for nothing.
+   */
+  async logImmersionProgress(input: {
+    languageCode: string;
+    contentId: string;
+    seconds: number;
+    completed: boolean;
+  }): Promise<void> {
+    if (input.seconds <= 0) return;
+    await this.withPersistence(
+      async (context) => {
+        const ids = await this.ensureLearnerAndLanguage(context, input.languageCode);
+        if (!ids) return;
+        const nodeId = await this.selectNodeId(context, input.languageCode, input.contentId);
+        if (!nodeId) return;
+
+        await context.repositories.evidence.logEvidence({
+          learnerId: ids.learnerId,
+          languageId: ids.languageId,
+          activityType: 'immersion_progress',
+          nodeIds: [nodeId],
+          // Time spent listening or reading is not a graded answer, so it
+          // carries no correctness score.
+          scores: { seconds: input.seconds },
+          metadata: { contentId: input.contentId, completed: input.completed },
+        });
+      },
+      undefined,
+    );
+  }
+
   private async queryLanguageMonitoring(
     context: NonNullable<Awaited<typeof this.persistedContext>>,
     input: { learnerId: string; languageId: string; languageCode: string; languageName: string; isActive: boolean; rangeDays: number },
@@ -1506,6 +1542,8 @@ export class IntegrationService {
         // Time at the keyboard is writing time, but a speed run is not a piece
         // of writing, so it does not count toward writingPieces.
         entry.writingMinutes += minutes;
+      } else if (item.activityType.includes('immersion')) {
+        entry.listeningMinutes += minutes;
       } else if (item.activityType.includes('quick_practice')) {
         // Drill time is study time, but a drill item is not a lesson, so it
         // does not inflate the lessons-completed count.
