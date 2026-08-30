@@ -387,7 +387,8 @@ export default function ReviewSession() {
   };
 
   const submitWrite = async () => {
-    if (!cur || (cur.type !== 'write' && cur.type !== 'reading_recall' && cur.type !== 'radical_recall') || done || checking) return;
+    const writeTypes: ReviewCardType[] = ['write', 'reading_recall', 'radical_recall', 'produce_term'];
+    if (!cur || !writeTypes.includes(cur.type) || done || checking) return;
     setChecking(true);
     try {
       const r = await aiCheck(cur.answer, txt);
@@ -416,6 +417,81 @@ export default function ReviewSession() {
       setChecking(false);
     }
   };
+
+  /**
+   * The keyboard scheme every review card already advertises.
+   *
+   * Buttons were labelled "Skip (S)", "Correct (C)", "True (T)" and
+   * "Validate (Enter)" throughout, but nothing ever listened for those keys —
+   * the whole scheme was captions on buttons.
+   */
+  useEffect(() => {
+    const isTyping = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      if (!element) return false;
+      const tag = element.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || element.isContentEditable;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!cur || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === 'Enter') {
+        // The write card submits from its own textarea; this covers the rest.
+        if (isTyping(event.target)) return;
+        if (cur.type === 'tfj') {
+          event.preventDefault();
+          void submitTfj();
+        }
+        return;
+      }
+
+      // Single-letter shortcuts must not fire while the learner is writing.
+      if (isTyping(event.target)) return;
+
+      switch (event.key.toLowerCase()) {
+        case 's':
+          event.preventDefault();
+          skipCard();
+          break;
+        case 'c':
+          event.preventDefault();
+          if (cur.type === 'build') setBuild([]);
+          else if (rev && !done) grade('correct', 'Correct recall.');
+          break;
+        case 'x':
+          if (rev && !done) {
+            event.preventDefault();
+            grade('incorrect', `Answer: ${cur.answer}`);
+          }
+          break;
+        case 't':
+        case 'f': {
+          const answeredTrue = event.key.toLowerCase() === 't';
+          if (cur.type === 'tf' && !done) {
+            // A plain true/false card grades on the press, matching its buttons.
+            event.preventDefault();
+            const correct = answeredTrue === Boolean(cur.correctBool);
+            grade(
+              correct ? 'correct' : 'incorrect',
+              correct ? 'Correct.' : `Statement is ${cur.correctBool ? 'true' : 'false'}.`,
+            );
+          } else if (cur.type === 'tfj') {
+            // The justified variant needs a reason too, so this only picks the
+            // side; Enter submits.
+            event.preventDefault();
+            setTf(answeredTrue);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   if (total === 0) {
     return (

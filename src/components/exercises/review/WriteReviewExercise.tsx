@@ -1,13 +1,41 @@
+import { InteractiveText } from '../shared/InteractiveText';
 import type { ReviewExerciseProps } from './types';
 
-export function WriteReviewExercise({ text = '', onSetText, onSubmitWrite, checking, done, onSkip }: ReviewExerciseProps) {
+/**
+ * Written-recall card.
+ *
+ * The word being asked about was never rendered: the shell shows the prompt
+ * ("Write the exact meaning.") and this component showed only a textarea, so
+ * every write, radical-recall, reading-recall and produce-it card asked the
+ * learner to type an answer without ever telling them what for.
+ */
+export function WriteReviewExercise({
+  question,
+  text = '',
+  onSetText,
+  onSubmitWrite,
+  checking,
+  done,
+  onSkip,
+}: ReviewExerciseProps) {
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3">
+      <h2 className="text-center" style={{ fontSize: 30 }}>
+        <InteractiveText text={question.term} className="text-[30px]" />
+      </h2>
+
       <textarea
         value={text}
         onChange={(event) => onSetText?.(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            onSubmitWrite?.();
+          }
+        }}
         rows={4}
         placeholder="Type your recall..."
+        aria-label="Your answer"
         style={{
           width: '100%',
           borderRadius: 12,
