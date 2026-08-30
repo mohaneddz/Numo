@@ -1480,6 +1480,13 @@ export async function generateExerciseDraft(input: GenerateExerciseDraftInput): 
     exerciseDomain: effectiveDomain,
     exerciseType: effectiveType,
     userExerciseKey: input.userExerciseKey ?? catalogEntry?.userKey ?? null,
+    // The catalog has several entries per internal type — "Sort by Grammar",
+    // "Sort by Meaning" and "Sort by Register" all run on group_words_topic.
+    // Without the variant name the model saw identical input for all three and
+    // produced identical exercises, so the catalog advertised variety the
+    // learner never got.
+    exerciseVariant: catalogEntry?.displayName ?? null,
+    exerciseCategory: catalogEntry?.category ?? null,
     unit: input.unit ? { id: input.unit.id, title: input.unit.title } : null,
     concept: input.concept?.trim() || null,
     learnerLevel: input.journeyLevel ?? 'beginner',
@@ -1524,6 +1531,11 @@ Rules:
 - If any target-language token/phrase appears to learners, wrap it with [[...]] markers.
 - Keep beginner-safe content and one clear concept.
 - If concept is provided, guide the content with it.
+- exerciseVariant names the specific exercise being asked for. Several variants
+  share one exerciseType, so the content must match the variant, not just the
+  type: "Sort by Grammar" groups by grammatical form, "Sort by Meaning" groups
+  by semantic field, "Sort by Register" groups by formality. Honour it the same
+  way for every other variant name.
 - If unit is provided, align vocabulary/theme with that unit title.
 - For quick MCQ-style types, prefer explicit prompts such as:
   - "What does '...' mean?"
