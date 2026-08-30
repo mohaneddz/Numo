@@ -624,7 +624,10 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     return saved;
-  }, [engine, refreshFromPersistence]);
+    // state.writingDrafts is read above to decide update-vs-create. Leaving it
+    // out of the deps captured a stale list, so editing a draft created since
+    // the callback was last built found no match and saved a duplicate.
+  }, [engine, refreshFromPersistence, state.writingDrafts]);
 
   const analyzeDraft = useCallback((draftId: string, analysis: WritingCorrection[]) => {
     const now = dateOnly(todayIso());

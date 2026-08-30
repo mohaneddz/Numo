@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
 import type { ScriptStrokeModel } from '../../types/scriptPractice';
 import { SCRIPT_CANVAS_SIZE } from '../../data/scriptModels';
@@ -61,7 +61,9 @@ function partialStroke(points: Array<{ x: number; y: number }>, progress: number
  * missing.
  */
 export function ScriptStrokeAnimation({ model }: ScriptStrokeAnimationProps) {
-  const strokes = model?.strokes ?? [];
+  // Memoised so the animation effect below has a stable dependency: a bare
+  // `?? []` produced a new array every render and restarted the loop.
+  const strokes = useMemo(() => model?.strokes ?? [], [model?.strokes]);
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);

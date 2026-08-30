@@ -294,7 +294,7 @@ export default function AppShell() {
 
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [location.pathname, navigate, paletteOpen, shortcutsEnabled, showShortcutHelp]);
+    }, [location.pathname, navigate, paletteOpen, progression.onboardingCompleted, shortcutsEnabled, showShortcutHelp]);
 
     return (
         <div className="flex flex-col h-screen w-screen relative z-0 bg-obsidian text-mist">
