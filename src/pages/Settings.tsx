@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { appLocalDataDir } from '@tauri-apps/api/path';
+import { runBackupIfDue, setBackupEnabled } from '../services/backup/autoBackup';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config/appearanceSettings';
@@ -112,7 +113,7 @@ const settingsSections: SettingsSection[] = [
     {
         id: 'backup', title: 'Backup & Export', icon: Download, color: '#10b981',
         settings: [
-            { label: 'Auto Backup', description: 'Automatically back up learning data weekly', type: 'toggle', value: true },
+            { label: 'Auto Backup', description: 'Snapshot saved words and the review queue weekly, into the app data folder', type: 'toggle', value: true },
             { label: 'Export Format', description: 'File format for data export', type: 'select', value: 'JSON', options: ['JSON', 'CSV', 'Both'] },
         ],
     },
@@ -573,6 +574,11 @@ export default function SettingsPage() {
                 setLocalRuntimePath(pathSetting.pathKey, String(value ?? ''));
             }
         }
+        if (sectionId === 'backup' && label === 'Auto Backup') {
+            void setBackupEnabled(Boolean(value)).catch(() => {
+                setStatus('Could not update the automatic backup setting.');
+            });
+        }
         if (sectionId === 'appearance' && label === 'Theme') {
             applyTheme(String(value));
         }
@@ -1017,6 +1023,18 @@ export default function SettingsPage() {
         }));
     };
 
+    /**
+     * Forces a snapshot regardless of when the last one ran, so the learner can
+     * confirm the automatic backup actually works rather than taking it on
+     * trust for a week.
+     */
+    const handleBackupNow = async () => {
+        setStatus('Backing up…');
+        const result = await runBackupIfDue({ force: true });
+        if (result.status === 'written') setStatus(`Backup written to ${result.path}`);
+        else setStatus(result.reason ?? 'Backup did not run.');
+    };
+
     const handleExportSettings = async () => {
         const exportedSettings = {
             ...settingsState,
@@ -1119,6 +1137,9 @@ export default function SettingsPage() {
             <PageActions>
                 <button className="page-primary-action" onClick={() => void handleExportSettings()}>
                     <Download size={16} /> Export Settings
+                </button>
+                <button className="page-primary-action" onClick={() => void handleBackupNow()}>
+                    <Download size={16} /> Back Up Now
                 </button>
                 <button
                     className="page-primary-action !bg-rose-600/20 !border-rose-500/40 !text-rose-200 hover:!bg-rose-600/30"

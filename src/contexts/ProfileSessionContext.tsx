@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { PersistenceUnavailableError, initializePersistence, type LearnerProfileRecord } from '../persistence';
+import { runBackupIfDue } from '../services/backup/autoBackup';
 
 export type ProfileSessionStatus =
   | 'loading'
@@ -109,6 +110,14 @@ export const ProfileSessionProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       setStatus('ready');
+
+      // Deliberately not awaited: a snapshot must never delay the app opening,
+      // and it reports its own outcome rather than surfacing here.
+      void runBackupIfDue().then((result) => {
+        if (result.status === 'failed') {
+          console.error('Automatic backup failed:', result.reason);
+        }
+      });
     } catch (nextError) {
       console.error('Profile session bootstrap failed:', nextError);
       const mapped = mapProfileSessionBootstrapError(nextError);
