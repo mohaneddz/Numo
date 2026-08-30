@@ -52,6 +52,8 @@ Pinyin-aware prompts, vocabulary pairs).
   consistency trends)
 - **Chat** — target-language conversation practice with word-level pronunciation and English
   meaning
+- **Weekly local backup** — automatic snapshots of saved words and the review queue into the app
+  data folder, plus a local-only crash log; nothing is ever sent off the device
 - **Text miner** — paste any passage to see what share of it your saved vocabulary already
   covers, and mine the words it does not (`src/services/mining`)
 - **Reference hub** — the writing system, pronunciation, and the learner's own collected words for

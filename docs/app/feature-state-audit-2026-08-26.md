@@ -326,7 +326,8 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | Web Search | COMPLETE | Real multi-source live search |
 | Notifications | COMPLETE | Built from due reviews, streak risk, weak skills and today's plan |
 | Profile | COMPLETE | Real dashboard + language management |
-| Settings | COMPLETE | Every section wired to a real effect, including theme, autostart, tray and export |
+| Settings | COMPLETE | Every control does what it says: theme, autostart, tray, export, weekly backup, local crash log, and real audio device selection |
+| Telemetry/analytics | none (and no longer claimed) | The Analytics and 'send crash reports' toggles are gone; the crash log is local only |
 | Language Setup / Welcome | COMPLETE | Fully wired onboarding |
 | App shell / nav / shortcuts | COMPLETE | Real, tested-adjacent chrome |
 | Shared UI components | PARTIAL | Small real widget set, not a full design system |
@@ -346,7 +347,6 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | Tauri/Rust backend | COMPLETE | Real, substantial, tested |
 | Test coverage | PARTIAL | Deep on business logic, absent on UI/shell |
 | `audit:buttons` script | COMPLETE | Script added; `seed:script-models` added alongside it |
-| Telemetry/analytics | none | Confirmed absent; toggles are decorative |
 
 ---
 
