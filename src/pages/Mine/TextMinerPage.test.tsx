@@ -110,3 +110,21 @@ describe('TextMinerPage', () => {
     expect(screen.queryByText('coverage')).toBeNull();
   });
 });
+
+describe('long passages', () => {
+  it('still counts the whole passage while capping the interactive view', () => {
+    const input = setup();
+    const long = 'la casa es grande '.repeat(200);
+    analyse(input, long);
+
+    // 4 words per repeat, 200 repeats.
+    expect(screen.getByText('800')).toBeTruthy();
+    expect(screen.getByText(/counts above cover the whole passage/)).toBeTruthy();
+  });
+
+  it('does not mention the cap for a short passage', () => {
+    const input = setup();
+    analyse(input, 'la casa es grande');
+    expect(screen.getByText('Select any word to see its meaning.')).toBeTruthy();
+  });
+});

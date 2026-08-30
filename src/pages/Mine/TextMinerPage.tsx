@@ -14,6 +14,16 @@ const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
 const VISIBLE_NEW_WORDS = 40;
 
 /**
+ * Characters rendered as individually clickable words.
+ *
+ * Every interactive token becomes a focusable element with its own handlers, so
+ * a pasted chapter would render thousands of them and put the whole text in the
+ * tab order. The analysis still covers the entire passage; only the lookup view
+ * is capped.
+ */
+const INTERACTIVE_CHARACTER_LIMIT = 1500;
+
+/**
  * Text miner: paste anything in the target language and see what you already
  * know.
  *
@@ -146,10 +156,20 @@ export default function TextMinerPage() {
             <section className="mt-6 rounded-xl border border-white/5 bg-graphite p-5">
               <p className="mb-3 text-xs uppercase tracking-wider text-dim">The passage</p>
               <div dir={rtl ? 'rtl' : 'ltr'} className="text-[17px] leading-relaxed">
-                <InteractiveText text={analyzed} languageCode={activeLanguage.code} />
+                <InteractiveText
+                  text={analyzed.slice(0, INTERACTIVE_CHARACTER_LIMIT)}
+                  languageCode={activeLanguage.code}
+                />
+                {analyzed.length > INTERACTIVE_CHARACTER_LIMIT && (
+                  <span className="text-dim">
+                    {analyzed.slice(INTERACTIVE_CHARACTER_LIMIT)}
+                  </span>
+                )}
               </div>
               <p className="mt-3 text-xs text-dim">
-                Select any word to see its meaning.
+                {analyzed.length > INTERACTIVE_CHARACTER_LIMIT
+                  ? `Select any word in the first ${INTERACTIVE_CHARACTER_LIMIT} characters to see its meaning. The counts above cover the whole passage.`
+                  : 'Select any word to see its meaning.'}
               </p>
             </section>
 
