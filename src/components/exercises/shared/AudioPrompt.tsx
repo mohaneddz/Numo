@@ -3,6 +3,7 @@ import { Loader2, Volume2 } from 'lucide-react';
 import { synthesizeSpeech } from '../../../services/aiProvider';
 import { isAutoPlayAudioEnabled } from '../../../config/appearanceSettings';
 import { speechPlaybackRate } from '../../../config/audioPlaybackSettings';
+import { applyPreferredOutput } from '../../../services/audio/audioDevices';
 
 interface AudioPromptProps {
   /** Text to speak. The component renders nothing without it. */
@@ -66,6 +67,7 @@ export function AudioPrompt({ text, languageCode, label = 'Play audio', disabled
       audio.currentTime = 0;
       audio.playbackRate = speechPlaybackRate();
       audio.onended = () => setStatus('idle');
+      await applyPreferredOutput(audio);
       await audio.play();
 
       setStatus('playing');

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { inputConstraints } from "../services/audio/audioDevices";
 
 export interface AudioRecorderResult {
     isRecording: boolean;
@@ -36,7 +37,9 @@ export function useAudioRecorder(): AudioRecorderResult {
 
     const startRecording = useCallback(async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Honours the microphone chosen in Settings, falling back to the
+            // system default if that device has since been unplugged.
+            const stream = await navigator.mediaDevices.getUserMedia(inputConstraints());
             mediaStreamRef.current = stream;
 
             const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });

@@ -9,6 +9,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { runBackupIfDue, setBackupEnabled } from '../services/backup/autoBackup';
 import { clearCrashLog, readCrashLog, setCrashLogEnabled, type CrashEntry } from '../services/diagnostics/crashLog';
+import {
+    listInputDevices,
+    listOutputDevices,
+    setPreferredInputDeviceId,
+    setPreferredOutputDeviceId,
+    type AudioDeviceOption,
+} from '../services/audio/audioDevices';
 import { PageActions, PageContent } from '../components/layout/PageLayout';
 import { readKeyboardShortcutsEnabled, writeKeyboardShortcutsEnabled } from '../config/preferences';
 import { applyContrast, applyFontSize, applyMotion, applyTheme } from '../config/appearanceSettings';
@@ -93,8 +100,8 @@ const settingsSections: SettingsSection[] = [
     {
         id: 'audio', title: 'Audio & Microphone', icon: Volume2, color: '#f59e0b',
         settings: [
-            { label: 'Input Device', description: 'Microphone for speaking exercises', type: 'select', value: 'Default Microphone', options: ['Default Microphone', 'External Mic'] },
-            { label: 'Audio Output', description: 'Speaker or headphone output', type: 'select', value: 'Default Speakers', options: ['Default Speakers', 'Headphones'] },
+            { label: 'Input Device', description: 'Microphone for speaking exercises', type: 'select', value: 'System default', options: ['System default'] },
+            { label: 'Audio Output', description: 'Speaker or headphone output', type: 'select', value: 'System default', options: ['System default'] },
             { label: 'Auto-play Audio', description: 'Automatically play example audio', type: 'toggle', value: true },
             { label: 'Speech Speed', description: 'Default playback speed for audio', type: 'select', value: 'Normal', options: ['Slow', 'Normal', 'Fast'] },
         ],
@@ -375,6 +382,8 @@ export default function SettingsPage() {
     const [status, setStatus] = useState<string | null>(null);
     const [bgBusy, setBgBusy] = useState<string | null>(null);
     const [crashEntries, setCrashEntries] = useState<CrashEntry[]>([]);
+    const [inputDevices, setInputDevices] = useState<AudioDeviceOption[]>([]);
+    const [outputDevices, setOutputDevices] = useState<AudioDeviceOption[]>([]);
     const [bgMappings, setBgMappings] = useState<BackgroundMappingPreview[]>([]);
     const [bgValidation, setBgValidation] = useState<BackgroundValidationResult | null>(null);
     const [bgCacheFiles, setBgCacheFiles] = useState(0);
@@ -573,6 +582,14 @@ export default function SettingsPage() {
             if (pathSetting?.pathKey) {
                 setLocalRuntimePath(pathSetting.pathKey, String(value ?? ''));
             }
+        }
+        if (sectionId === 'audio' && label === 'Input Device') {
+            const match = inputDevices.find((device) => device.label === value);
+            if (match) setPreferredInputDeviceId(match.deviceId);
+        }
+        if (sectionId === 'audio' && label === 'Audio Output') {
+            const match = outputDevices.find((device) => device.label === value);
+            if (match) setPreferredOutputDeviceId(match.deviceId);
         }
         if (sectionId === 'privacy' && label === 'Crash Log') {
             void setCrashLogEnabled(Boolean(value)).catch(() => {
@@ -1033,6 +1050,23 @@ export default function SettingsPage() {
      * confirm the automatic backup actually works rather than taking it on
      * trust for a week.
      */
+    /**
+     * Options for a select.
+     *
+     * The audio device lists used to be hardcoded invented names — 'External
+     * Mic', 'Headphones' — that matched no real hardware. They now come from
+     * what the system actually reports.
+     */
+    const optionsFor = (sectionId: string, setting: { label: string; options?: string[] }) => {
+        if (sectionId === 'audio' && setting.label === 'Input Device') {
+            return inputDevices.map((device) => ({ value: device.label, label: device.label }));
+        }
+        if (sectionId === 'audio' && setting.label === 'Audio Output') {
+            return outputDevices.map((device) => ({ value: device.label, label: device.label }));
+        }
+        return (setting.options ?? []).map((option) => ({ value: option, label: option }));
+    };
+
     const handleBackupNow = async () => {
         setStatus('Backing up…');
         const result = await runBackupIfDue({ force: true });
@@ -1088,6 +1122,18 @@ export default function SettingsPage() {
 
     useEffect(() => {
         void readCrashLog().then(setCrashEntries);
+    }, []);
+
+    // Device labels stay blank until microphone permission has been granted, so
+    // this is re-read whenever the OS reports a device change.
+    useEffect(() => {
+        const refresh = () => {
+            void listInputDevices().then(setInputDevices);
+            void listOutputDevices().then(setOutputDevices);
+        };
+        refresh();
+        navigator.mediaDevices?.addEventListener?.('devicechange', refresh);
+        return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refresh);
     }, []);
 
     const runBackgroundAction = async (actionKey: string, action: () => Promise<void>) => {
@@ -1429,7 +1475,7 @@ export default function SettingsPage() {
                                                 <DropdownSelect
                                                     value={settingsState[activeSection.id][setting.label] as string}
                                                     onChange={(next) => updateSetting(activeSection.id, setting.label, next)}
-                                                    options={(setting.options ?? []).map((opt) => ({ value: opt, label: opt }))}
+                                                    options={optionsFor(activeSection.id, setting)}
                                                     triggerClassName="rounded-xl h-[42px] px-4 text-base text-gray-200"
                                                 />
                                             )}
