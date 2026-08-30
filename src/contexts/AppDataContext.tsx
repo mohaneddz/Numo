@@ -87,6 +87,17 @@ interface AppDataContextValue {
     translation: string;
     exerciseType: string;
   }) => void;
+  /**
+   * Edits a saved word's personal fields.
+   *
+   * The schema and repository have carried personal_hint, personal_example and
+   * is_difficult all along — real columns with real update logic — but nothing
+   * in the UI ever set or read them.
+   */
+  updateNotebookEntry: (
+    id: string,
+    patch: Partial<Pick<NotebookEntry, 'personalHint' | 'personalExample' | 'isDifficult' | 'notes'>>,
+  ) => void;
 }
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
@@ -942,6 +953,27 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [engine, state.notebookEntries]);
 
+  const updateNotebookEntry = useCallback<AppDataContextValue['updateNotebookEntry']>(
+    (id, patch) => {
+      setState((previous) => ({
+        ...previous,
+        notebookEntries: previous.notebookEntries.map((entry) =>
+          entry.id === id ? { ...entry, ...patch, updatedAt: dateOnly(todayIso()) } : entry,
+        ),
+      }));
+
+      if (!engine) return;
+      void (async () => {
+        try {
+          await engine.context.persistence.repositories.notebook.updateItem({ id, ...patch });
+        } catch (error) {
+          console.error('Failed to persist notebook edit', error);
+        }
+      })();
+    },
+    [engine],
+  );
+
   const recordPracticeMistake = useCallback<AppDataContextValue['recordPracticeMistake']>(
     (input) => {
       if (!engine) return;
@@ -1041,6 +1073,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
       toggleFavorite,
       recordLearnInteraction,
       recordPracticeMistake,
+      updateNotebookEntry,
     };
   }, [
     analyzeDraft,
@@ -1048,6 +1081,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     gradeReviewItem,
     recordLearnInteraction,
     recordPracticeMistake,
+    updateNotebookEntry,
     saveDraft,
     saveImmersionPhrase,
     saveSpeakingResult,

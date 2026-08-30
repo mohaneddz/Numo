@@ -6,6 +6,7 @@ import {
   MessageCircle,
   ChevronRight,
   Star,
+  AlertTriangle,
   Plus,
   Sparkles,
   LayoutGrid,
@@ -44,7 +45,7 @@ export default function NotebookPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]['id']>('all');
-  const [activeListTab, setActiveListTab] = useState<'favorites' | 'recent' | 'more'>('favorites');
+  const [activeListTab, setActiveListTab] = useState<'favorites' | 'difficult' | 'recent' | 'more'>('favorites');
   const [search, setSearch] = useState('');
   const [listLimit, setListLimit] = useState(16);
   const [explorerLimit, setExplorerLimit] = useState(8);
@@ -113,6 +114,11 @@ export default function NotebookPage() {
   }, [filteredItems]);
 
   const listItems = useMemo(() => {
+    if (activeListTab === 'difficult') {
+      // Words the learner has flagged themselves, which is a better signal of
+      // what is hard for them than any computed score.
+      return filteredItems.filter((item) => item.isDifficult).slice(0, listLimit);
+    }
     if (activeListTab === 'favorites') {
       return favorites.slice(0, listLimit);
     }
@@ -281,12 +287,13 @@ export default function NotebookPage() {
             <div className="flex gap-4 mb-4 items-center">
               {[
                 { id: 'favorites', label: 'Favorites', icon: Star },
+                { id: 'difficult', label: 'Difficult', icon: AlertTriangle },
                 { id: 'recent', label: 'Recent', icon: Clock },
                 { id: 'more', label: 'More all', icon: MoreHorizontal },
               ].map((seg) => (
                 <button
                   key={seg.id}
-                  onClick={() => setActiveListTab(seg.id as 'favorites' | 'recent' | 'more')}
+                  onClick={() => setActiveListTab(seg.id as 'favorites' | 'difficult' | 'recent' | 'more')}
                   className={`flex items-center gap-2 text-[14px] font-bold pb-1 px-1 transition-all border-b-2 ${
                     activeListTab === seg.id ? 'text-violet border-violet' : 'text-dim border-transparent hover:text-mist'
                   }`}

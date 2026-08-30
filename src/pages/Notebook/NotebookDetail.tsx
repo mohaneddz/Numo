@@ -7,12 +7,13 @@ import { useNavigate } from 'react-router-dom';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { AudioPrompt } from '../../components/exercises/shared/AudioPrompt';
+import { PersonalNotesPanel } from '../../components/notebook/PersonalNotesPanel';
 
 export default function NotebookDetail() {
   const navigate = useNavigate();
   const { activeLanguage } = useLanguage();
   const { itemId } = useParams();
-  const { state, toggleFavorite } = useAppData();
+  const { state, toggleFavorite, updateNotebookEntry } = useAppData();
   const item = state.notebookEntries.find((i) => i.id === itemId);
 
   if (!item) {
@@ -159,6 +160,11 @@ export default function NotebookDetail() {
               <p style={{ fontSize: 14, color: 'var(--color-dim)', lineHeight: 1.5 }}>{item.notes}</p>
             </div>
           )}
+
+          <PersonalNotesPanel
+            entry={item}
+            onSave={(patch) => updateNotebookEntry(item.id, patch)}
+          />
 
           <p style={{ fontSize: 12, color: 'var(--color-dim-dark)', marginTop: 16 }}>Added on {item.createdAt}</p>
         </div>
