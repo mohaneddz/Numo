@@ -307,7 +307,7 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | Learn (page/session/exercises) | COMPLETE | Real curriculum engine, real grading, real SRS |
 | Practice (Quick) | PARTIAL | Real generation/grading and mistakes now queue for review; bundled fallback content still reachable |
 | Review | COMPLETE | Real SRS core; true/false cards generate real false statements; queue health, forecast and leech detection surfaced |
-| Immerse | COMPLETE | Real YouTube/caption/book fetching and rendering |
+| Immerse | COMPLETE (one caveat) | Real YouTube/caption/book fetching and rendering; see the CEFR-level note below |
 | Speak | COMPLETE | Real 3-tier STT/TTS/LLM pipeline, honest failure states, plus a live subtitled conversation mode |
 | Write | PARTIAL | Real LLM grading; no working deterministic fallback |
 | Script Practice | COMPLETE | 596 Chinese and 248 Japanese characters with real stroke-order data; watch mode animates the strokes |
@@ -349,6 +349,31 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | `audit:buttons` script | COMPLETE | Script added; `seed:script-models` added alongside it |
 
 ---
+
+### Open question: CEFR levels on immersion video and audio
+
+The reading catalog (`realReadingSeeds`) is genuinely real — Don Quijote,
+Lazarillo de Tormes, La Regenta and so on, with correct authors and years,
+linking to Project Gutenberg — and its hand-assigned CEFR levels describe those
+actual works.
+
+The video and audio entries are different. Their titles, subtitles, durations
+and levels are scaffold: `searchCategory` queries YouTube by *category*
+("Documentaries", "Short Films") and assigns results to catalog rows by index,
+then overwrites the title, description and duration with the real video's. The
+CEFR `level` is never overwritten — so once a real video resolves, it carries a
+difficulty that nothing assessed.
+
+That matters because `level` is not merely displayed: `ImmersePage` filters on
+it and matches it against the learner's own level to recommend content. A
+learner filtering to A2 gets videos whose difficulty was assigned to a
+placeholder.
+
+Left as-is rather than reworked, because the scaffold-plus-live-resolution
+design looks deliberate and the fix is a product decision: either stop showing
+and filtering on a level for category-resolved media, or derive one from
+something real (caption complexity would be available — the app already fetches
+transcripts).
 
 ## Part 7 — Prioritized punch list
 
