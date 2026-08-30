@@ -343,6 +343,8 @@ export default function PracticeQuickPage() {
 
           {activeExercise ? (
             <activeExercise.component
+              // Remounts per item; see the note in LearnSessionPage.
+              key={currentItem.id}
               item={currentItem}
               disabled={feedback !== null}
               onAnswer={handleAnswer}

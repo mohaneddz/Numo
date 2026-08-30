@@ -563,6 +563,8 @@ export default function ReviewSession() {
 
           {activeExercise && validExercise ? (
             <activeExercise.component
+              // Remounts per card; see the note in LearnSessionPage.
+              key={cur.id}
               question={cur}
               done={Boolean(done)}
               checking={checking}

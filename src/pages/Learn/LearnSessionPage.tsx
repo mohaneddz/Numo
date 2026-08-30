@@ -430,6 +430,11 @@ export default function LearnSessionPage() {
           <form onSubmit={handleSubmit} className="grid gap-3">
             {activeExercise ? (
               <activeExercise.component
+                // Keyed per task so the component remounts. Without it React
+                // reuses the instance across questions and the hint ladder
+                // stays open on the next one — showing help the learner never
+                // asked for, while the signal still records "no hint used".
+                key={activeTask.blueprint.id}
                 payload={{
                   ...activeExercise.payload,
                   languageCode: activeLanguage.code,
