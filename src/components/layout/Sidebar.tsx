@@ -15,6 +15,7 @@ import {
     MessageCircle,
     Keyboard,
     PenTool,
+    ScanText,
     PanelLeftClose,
     PanelLeftOpen,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 const secondaryNav = [
     { to: '/typing', icon: Keyboard, label: 'Typing' },
+    { to: '/mine', icon: ScanText, label: 'Text Miner' },
     { to: '/script-practice', icon: PenTool, label: 'Script Practice' },
     { to: '/library', icon: Library, label: 'Libraries' },
     { to: '/chat', icon: MessageCircle, label: 'Chat' },

@@ -34,6 +34,7 @@ export const NAVIGATION_COMMANDS: Command[] = [
   { id: 'nav-insights', label: 'Insights', group: 'Go to', to: '/insights', keywords: ['stats', 'progress', 'charts'] },
   { id: 'nav-library', label: 'Reference', group: 'Go to', to: '/library', keywords: ['alphabet', 'characters', 'sounds', 'libraries'] },
   { id: 'nav-typing', label: 'Typing Trainer', group: 'Go to', to: '/typing', keywords: ['speed', 'wpm', 'keyboard'] },
+  { id: 'nav-mine', label: 'Text Miner', group: 'Go to', to: '/mine', keywords: ['coverage', 'reading', 'vocabulary', 'paste', 'analyse', 'analyze'] },
   { id: 'nav-script', label: 'Script Practice', group: 'Go to', to: '/script-practice', keywords: ['handwriting', 'strokes', 'draw', 'kanji', 'hanzi'] },
   { id: 'nav-chat', label: 'Chat', group: 'Go to', to: '/chat', keywords: ['conversation', 'message'] },
   { id: 'nav-search', label: 'Web Search', group: 'Go to', to: '/web-search', keywords: ['lookup', 'find'] },
@@ -50,6 +51,7 @@ export const PRACTICE_COMMANDS: Command[] = [
   { id: 'do-lesson', label: 'Continue the lesson', group: 'Practice', to: '/learn/session', keywords: ['study', 'next'] },
   { id: 'do-talk', label: 'Start a live conversation', group: 'Practice', to: '/speak/conversation', keywords: ['speak', 'talk', 'voice'] },
   { id: 'do-type', label: 'Take a typing test', group: 'Practice', to: '/typing', keywords: ['speed', 'wpm'] },
+  { id: 'do-mine', label: 'Analyse a text for new words', group: 'Practice', to: '/mine', keywords: ['coverage', 'reading', 'mine'] },
   { id: 'do-draw', label: 'Practise writing characters', group: 'Practice', to: '/script-practice', keywords: ['strokes', 'draw'] },
 ];
 

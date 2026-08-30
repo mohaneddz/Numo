@@ -49,6 +49,7 @@ const ScriptPracticePage = lazy(() => import('./pages/ScriptPractice/ScriptPract
 const TypingPage = lazy(() => import('./pages/Typing/TypingPage'));
 const SpeakConversation = lazy(() => import('./pages/Speak/SpeakConversation'));
 const LibrariesPage = lazy(() => import('./pages/References'));
+const TextMinerPage = lazy(() => import('./pages/Mine/TextMinerPage'));
 const ExercisesPage = lazy(() => import('./pages/Exercises/ExercisesPage'));
 
 const MIN_ZOOM = 0.7;
@@ -207,6 +208,7 @@ export default function App() {
           <Route path="/library" element={<LibrariesPage />} />
           <Route path="/script-practice" element={<ScriptPracticePage />} />
           <Route path="/typing" element={<TypingPage />} />
+          <Route path="/mine" element={<TextMinerPage />} />
           <Route path="/notebook/library" element={<NotebookLibraryPage />} />
           <Route path="/notebook/exercises" element={<ExercisesPage />} />
           <Route path="/references" element={<Navigate to="/library" replace />} />
