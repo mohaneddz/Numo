@@ -314,6 +314,9 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 | Typing Trainer | COMPLETE | Per-script speed scoring, learner-vocabulary word source, IME and RTL support |
 | Live Conversation | COMPLETE | Spoken turns with subtitles for both speakers and an audio-reactive companion |
 | Command palette | COMPLETE | Ctrl+K over navigation, practice actions and saved words |
+| Text Miner | COMPLETE | Reading coverage against the learner's own vocabulary, plus word mining |
+| Error boundaries | COMPLETE | Root and per-page, so one bad page no longer blanks the window |
+| Lint | COMPLETE | ESLint with hook-dependency and correctness rules; runs clean of errors |
 | Notebook | PARTIAL | Real entries/search; dead mock alert; hardcoded collections sidebar |
 | Notebook Library | COMPLETE | Real approval-queue workspace |
 | Notebook Exercises | COMPLETE (dev-tool UX) | Real generation/grading, internal-facing presentation |

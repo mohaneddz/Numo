@@ -52,6 +52,8 @@ Pinyin-aware prompts, vocabulary pairs).
   consistency trends)
 - **Chat** — target-language conversation practice with word-level pronunciation and English
   meaning
+- **Text miner** — paste any passage to see what share of it your saved vocabulary already
+  covers, and mine the words it does not (`src/services/mining`)
 - **Reference hub** — the writing system, pronunciation, and the learner's own collected words for
   the active language, with familiarity computed from what they have genuinely studied
 - Automated tests with Vitest, including coverage for Login, Profile, Insights, and curriculum
@@ -69,6 +71,8 @@ src/
 |   |-- curriculum/    # skill graph, mastery, roadmap, session planning
 |   |-- engine/        # curriculum runtime engine
 |   |-- exercises/     # exercise generation, validation and review analysis
+|   |-- mining/        # reading coverage and vocabulary mining
+|   |-- navigation/    # command palette sources and matching
 |   |-- reference/     # reference-hub content assembly
 |   |-- speak/         # spoken conversation turns
 |   `-- typing/        # typing trainer scoring and history
