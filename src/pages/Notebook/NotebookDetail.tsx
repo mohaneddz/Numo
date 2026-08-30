@@ -1,11 +1,12 @@
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Volume2, Star, Sparkles } from 'lucide-react';
+import { ArrowLeft, Star, Sparkles } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useNavigate } from 'react-router-dom';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { AudioPrompt } from '../../components/exercises/shared/AudioPrompt';
 
 export default function NotebookDetail() {
   const navigate = useNavigate();
@@ -90,31 +91,10 @@ export default function NotebookDetail() {
           <p style={{ fontSize: 18, color: '#22D3EE', fontWeight: 500, marginBottom: 16 }}>{item.translation}</p>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-            <button
-              onClick={() =>
-                navigate(
-                  buildTemplateUrl({
-                    templateId: 'notebook-listen',
-                    entityId: item.id,
-                    params: { from: `/notebook/${item.id}`, lang: activeLanguage.code },
-                  }),
-                )
-              }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                borderRadius: 8,
-                background: 'var(--color-slate)',
-                color: 'var(--color-dim)',
-                border: 'none',
-                fontSize: 12,
-                cursor: 'pointer',
-              }}
-            >
-              <Volume2 size={13} /> Listen
-            </button>
+            {/* Was a navigation to Quick Practice: a speaker icon labelled
+                "Listen" that took you to another page instead of saying the
+                word. This plays it, with the same TTS the exercises use. */}
+            <AudioPrompt text={item.term} languageCode={activeLanguage.code} label="Listen" />
             <button
               onClick={() => toggleFavorite(item.id)}
               style={{
