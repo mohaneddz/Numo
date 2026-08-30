@@ -16,6 +16,7 @@ import { ExerciseFeedbackCard } from '../../components/exercises/shared/Exercise
 import { buildExerciseFeedback, type ExerciseFeedbackModel } from '../../services/exercises/feedbackService';
 import { updateExerciseSignals } from '../../services/exercises/exerciseSignalsService';
 import { getExerciseByUserKey, resolveExerciseByInternal } from '../../services/exercises/exerciseCatalog';
+import { integrationService } from '../../services/integrationService';
 
 function normalize(text: string): string {
   return text
@@ -179,6 +180,16 @@ export default function PracticeQuickPage() {
     const selectedOption = typeof structuredResponse?.selectedOption === 'string' ? structuredResponse.selectedOption : undefined;
     const confusionPair = !result.correct && selectedOption ? { a: selectedOption, b: expected } : undefined;
     void persistSignals(result, confusionPair);
+
+    // Quick Practice logged no evidence at all, so a full drill session counted
+    // toward no streak, goal or activity total.
+    void integrationService.logQuickPracticeAttempt({
+      languageCode,
+      prompt: currentItem.prompt,
+      expectedAnswer: expected,
+      correct: result.correct,
+      exerciseType: currentItem.userKey ?? currentItem.type,
+    });
 
     // Learn queues every wrong answer for review; Quick Practice used to update
     // an aggregate signal and nothing else, so a word missed here never came

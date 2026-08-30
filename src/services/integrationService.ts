@@ -1339,6 +1339,8 @@ export class IntegrationService {
     languageCode: string;
     learnerText: string;
     replyText: string;
+    /** Spoken practice rather than typed, so the two can be told apart later. */
+    spoken?: boolean;
   }): Promise<void> {
     await this.withPersistence(
       async (context) => {
@@ -1350,14 +1352,52 @@ export class IntegrationService {
         await context.repositories.evidence.logEvidence({
           learnerId: ids.learnerId,
           languageId: ids.languageId,
-          activityType: 'chat_turn',
+          activityType: input.spoken ? 'spoken_chat_turn' : 'chat_turn',
           nodeIds: [nodeId],
           rawInputText: input.learnerText,
           rawOutputText: input.replyText,
           // A conversation turn is participation, not a graded answer, so it
           // carries no correctness score to avoid inventing one.
           scores: {},
-          metadata: { characters: input.learnerText.length },
+          metadata: { characters: input.learnerText.length, spoken: Boolean(input.spoken) },
+        });
+      },
+      undefined,
+    );
+  }
+
+  /**
+   * Records a Quick Practice answer as study activity.
+   *
+   * Quick Practice updated an aggregate signal and, on a miss, queued a review
+   * item — but logged no evidence, so a full drill session moved no streak,
+   * goal or activity total.
+   */
+  async logQuickPracticeAttempt(input: {
+    languageCode: string;
+    prompt: string;
+    expectedAnswer: string;
+    correct: boolean;
+    exerciseType: string;
+  }): Promise<void> {
+    await this.withPersistence(
+      async (context) => {
+        const ids = await this.ensureLearnerAndLanguage(context, input.languageCode);
+        if (!ids) return;
+        const nodeId = await this.selectNodeId(context, input.languageCode, input.prompt);
+        if (!nodeId) return;
+
+        await context.repositories.evidence.logEvidence({
+          learnerId: ids.learnerId,
+          languageId: ids.languageId,
+          activityType: 'quick_practice_attempt',
+          nodeIds: [nodeId],
+          rawInputText: input.prompt,
+          rawOutputText: input.expectedAnswer,
+          scores: { correctness: input.correct ? 100 : 25 },
+          confidenceEstimate: input.correct ? 0.7 : 0.3,
+          analysisResult: { result: input.correct ? 'correct' : 'incorrect' },
+          metadata: { exerciseType: input.exerciseType },
         });
       },
       undefined,
@@ -1458,10 +1498,18 @@ export class IntegrationService {
         // Conversation practice is production time, but a chat turn is not a
         // recorded speaking attempt, so it does not inflate that count.
         entry.speakingMinutes += minutes;
+      } else if (item.activityType.includes('script_practice')) {
+        // Drawing characters is writing practice; it was falling through to
+        // the listening bucket.
+        entry.writingMinutes += minutes;
       } else if (item.activityType.includes('typing')) {
         // Time at the keyboard is writing time, but a speed run is not a piece
         // of writing, so it does not count toward writingPieces.
         entry.writingMinutes += minutes;
+      } else if (item.activityType.includes('quick_practice')) {
+        // Drill time is study time, but a drill item is not a lesson, so it
+        // does not inflate the lessons-completed count.
+        entry.readingMinutes += minutes;
       } else if (item.activityType.includes('learn')) {
         entry.readingMinutes += minutes;
         lessonsCompleted += 1;

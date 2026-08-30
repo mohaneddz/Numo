@@ -7,6 +7,7 @@ import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { synthesizeSpeech, transcribeSpeech } from '../../services/aiProvider';
 import { speechPlaybackRate } from '../../config/audioPlaybackSettings';
 import { applyPreferredOutput } from '../../services/audio/audioDevices';
+import { integrationService } from '../../services/integrationService';
 import { MOTION_REDUCED_EVENT, motionReducedBaseline } from '../../config/appearanceSettings';
 import { VoiceOrb, type VoiceOrbState } from '../../components/speak/VoiceOrb';
 import {
@@ -135,6 +136,15 @@ export default function SpeakConversation() {
         language: activeLanguage,
       });
       setLines((previous) => [...previous, turn.learnerLine, turn.companionLine]);
+
+      // Without this the mode is a closed loop: a long spoken conversation
+      // would move no streak, goal or activity total.
+      void integrationService.logChatTurn({
+        languageCode: activeLanguage.code,
+        learnerText: turn.learnerLine.targetText,
+        replyText: turn.companionLine.targetText,
+        spoken: true,
+      });
       await speak(turn.companionLine.targetText);
     } catch (replyError) {
       setStatus('idle');
