@@ -68,20 +68,11 @@ function GuardedShell() {
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        {/* Loading Image Placeholder */}
+        {/* The ring previously framed a /loading-placeholder.png that was never
+            added, so every boot fetched a 404 and then hid the empty box. */}
         <div className="relative w-28 h-28 mb-8 flex items-center justify-center">
-          {/* Animated background ring */}
           <div className="absolute inset-0 rounded-full border-4 border-current opacity-10 animate-ping"></div>
-          
-          {/* Actual image placeholder - replace src when you have the image */}
-          <div className="relative z-10 w-20 h-20 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center overflow-hidden backdrop-blur-sm">
-            <img 
-              src="/loading-placeholder.png" 
-              alt="Loading" 
-              className="w-full h-full object-contain"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-          </div>
+          <div className="relative z-10 w-20 h-20 rounded-full bg-white/5 backdrop-blur-sm"></div>
         </div>
         
         {/* Brand Text & Loading Dots */}
