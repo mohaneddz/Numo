@@ -350,6 +350,27 @@ Cross-checked against all of the above: tech-stack claims are accurate; the Engl
 
 ---
 
+### Every activity now feeds the learner model
+
+Several surfaces were closed loops: they did their own work and told the rest of
+the app nothing, so the streak, daily goal and activity charts only ever saw a
+fraction of what a learner actually did.
+
+- **Immersion** persisted position and saved phrases but logged no evidence, so
+  an hour of video or reading left minutes-today at zero. Time is now banked in
+  one-minute milestones, with the furthest counted position stored so a rewind
+  cannot double-count.
+- **Quick Practice** updated an aggregate signal and queued mistakes, but logged
+  no evidence — a full drill session counted for nothing.
+- **Chat** and the **live spoken conversation** logged nothing either.
+- **Typing** was added as a closed loop and then wired in.
+
+Two activities were also landing in the wrong bucket in the trend charts: Quick
+Practice counted as nothing, and script practice counted as listening time when
+drawing characters is writing. None of the additions inflate `lessonsCompleted`,
+`writingPieces` or `speakingSessions`, which mean something more specific than
+"time spent".
+
 ### Open question: CEFR levels on immersion video and audio
 
 The reading catalog (`realReadingSeeds`) is genuinely real — Don Quijote,
