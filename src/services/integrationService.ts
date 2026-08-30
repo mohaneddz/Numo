@@ -1550,7 +1550,10 @@ export class IntegrationService {
         entry.readingMinutes += minutes;
       } else if (item.activityType.includes('learn')) {
         entry.readingMinutes += minutes;
-        lessonsCompleted += 1;
+        // Only a completed lesson counts as one. Every answered exercise logs
+        // `learn_task_result`, so counting those too reported a ten-exercise
+        // lesson as eleven lessons completed.
+        if (item.activityType === 'learn_lesson') lessonsCompleted += 1;
       } else {
         entry.listeningMinutes += minutes;
       }
