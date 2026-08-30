@@ -115,6 +115,7 @@ pnpm build                # Type-check and build frontend assets
 pnpm preview               # Preview the production frontend build
 pnpm tauri dev              # Run the desktop app
 pnpm test                    # Run the Vitest suite
+pnpm lint                     # ESLint (hook-dependency and correctness rules)
 pnpm seed:curriculum          # Regenerate the offline curriculum seed pack
 pnpm seed:script-models        # Regenerate stroke-order data for script practice
 pnpm audit:buttons              # Audit UI buttons across the app
