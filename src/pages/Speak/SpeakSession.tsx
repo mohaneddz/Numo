@@ -10,6 +10,7 @@ import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { integrationService } from '../../services/integrationService';
+import { parseSpeakingFeedback } from '../../services/exercises/speakingFeedback';
 import { speakExerciseRegistry } from '../../components/exercises/speak/registry';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
 
@@ -164,42 +165,34 @@ export default function SpeakSession() {
       const response = await completeWithEcho([
         { id: '1', role: 'user', content: prompt, createdAt: Date.now() }
       ], 'analyst');
-      try {
-        const jsonPart = response.match(/\{.*\}/s)?.[0] || response;
-        const feedbackData = JSON.parse(jsonPart);
-        setFeedback(feedbackData);
-        saveSpeakingResult(session.id, {
-          transcript: text,
-          accuracy: Number(feedbackData.accuracy ?? 75),
-          fluency: Number(feedbackData.fluency ?? 75),
-          tip: String(feedbackData.tip ?? 'Keep speaking regularly.'),
-          feedbackSource: 'ai',
-        });
-        void integrationService.logSpeakAttempt({
-          languageCode: activeLanguage.code,
-          transcript: text,
-          accuracy: Number(feedbackData.accuracy ?? 75),
-          fluency: Number(feedbackData.fluency ?? 75),
-          tip: String(feedbackData.tip ?? 'Keep speaking regularly.'),
-        });
-      } catch {
-        console.error("Failed to parse feedback JSON", response);
-        setFeedback({ accuracy: 80, fluency: 75, tip: "Great job! Keep practicing your vowels." });
-        saveSpeakingResult(session.id, {
-          transcript: text,
-          accuracy: 80,
-          fluency: 75,
-          tip: 'Great job! Keep practicing your vowels.',
-          feedbackSource: 'fallback',
-        });
-        void integrationService.logSpeakAttempt({
-          languageCode: activeLanguage.code,
-          transcript: text,
-          accuracy: 80,
-          fluency: 75,
-          tip: 'Great job! Keep practicing your vowels.',
-        });
+      const feedbackData = parseSpeakingFeedback(response);
+      if (!feedbackData) {
+        // This path used to invent accuracy 80 / fluency 75 and "Great job!"
+        // whenever the reply could not be read, then save it as a real result.
+        console.error('Could not read the grading response', response);
+        setError(
+          "Recorded and transcribed, but the grader's response could not be read. Nothing was saved for this attempt — try again.",
+        );
+        return;
       }
+
+      setFeedback(feedbackData);
+      saveSpeakingResult(session.id, {
+        transcript: text,
+        accuracy: feedbackData.accuracy,
+        fluency: feedbackData.fluency,
+        tip: feedbackData.tip,
+        feedbackSource: 'ai',
+      });
+      // Distinct from saveSpeakingResult: this one applies the pronunciation
+      // mastery delta and weakness cluster.
+      void integrationService.logSpeakAttempt({
+        languageCode: activeLanguage.code,
+        transcript: text,
+        accuracy: feedbackData.accuracy,
+        fluency: feedbackData.fluency,
+        tip: feedbackData.tip,
+      });
 
     } catch (gradingError) {
       // We have a real transcript but couldn't grade it — say so rather than

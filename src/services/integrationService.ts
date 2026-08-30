@@ -1317,6 +1317,7 @@ export class IntegrationService {
           nodeIds: [nodeId],
           scores: { accuracy: clampPercent(input.accuracy) },
           confidenceEstimate: clampPercent(input.accuracy) / 100,
+          timeTakenMs: Math.round(input.elapsedSeconds * 1000),
           metadata: {
             wpm: input.wpm,
             elapsedSeconds: input.elapsedSeconds,
@@ -1379,6 +1380,7 @@ export class IntegrationService {
     expectedAnswer: string;
     correct: boolean;
     exerciseType: string;
+    durationMs?: number;
   }): Promise<void> {
     await this.withPersistence(
       async (context) => {
@@ -1397,6 +1399,7 @@ export class IntegrationService {
           scores: { correctness: input.correct ? 100 : 25 },
           confidenceEstimate: input.correct ? 0.7 : 0.3,
           analysisResult: { result: input.correct ? 'correct' : 'incorrect' },
+          timeTakenMs: input.durationMs ?? null,
           metadata: { exerciseType: input.exerciseType },
         });
       },
@@ -1431,8 +1434,10 @@ export class IntegrationService {
           activityType: 'immersion_progress',
           nodeIds: [nodeId],
           // Time spent listening or reading is not a graded answer, so it
-          // carries no correctness score.
+          // carries no correctness score. The real duration matters though:
+          // without it the trend query credits a flat three minutes per row.
           scores: { seconds: input.seconds },
+          timeTakenMs: input.seconds * 1000,
           metadata: { contentId: input.contentId, completed: input.completed },
         });
       },
@@ -1526,10 +1531,15 @@ export class IntegrationService {
         if (Number(item.scores.correctness ?? 0) >= 70) reviewCorrect += 1;
       } else if (item.activityType.includes('speak')) {
         entry.speakingMinutes += minutes;
-        speakingSessions += 1;
+        // One attempt writes two evidence rows through two paths
+        // (`speak_attempt` from the engine, `speaking_attempt` here), so only
+        // the canonical one counts or the total doubles.
+        if (item.activityType === 'speaking_attempt') speakingSessions += 1;
       } else if (item.activityType.includes('write')) {
         entry.writingMinutes += minutes;
-        writingPieces += 1;
+        // Same again: `write_attempt` is logged per draft save and per
+        // analysis, `writing_submission` once per reviewed piece.
+        if (item.activityType === 'writing_submission') writingPieces += 1;
       } else if (item.activityType.includes('chat')) {
         // Conversation practice is production time, but a chat turn is not a
         // recorded speaking attempt, so it does not inflate that count.

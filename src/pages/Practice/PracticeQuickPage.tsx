@@ -189,6 +189,7 @@ export default function PracticeQuickPage() {
       expectedAnswer: expected,
       correct: result.correct,
       exerciseType: currentItem.userKey ?? currentItem.type,
+      durationMs: Math.max(1000, Date.now() - startedAtMs),
     });
 
     // Learn queues every wrong answer for review; Quick Practice used to update
