@@ -1329,6 +1329,41 @@ export class IntegrationService {
     );
   }
 
+  /**
+   * Records a conversation turn as study activity.
+   *
+   * Chat was a closed loop like the typing trainer was: the learner could
+   * practise for twenty minutes and no streak, goal or activity total moved.
+   */
+  async logChatTurn(input: {
+    languageCode: string;
+    learnerText: string;
+    replyText: string;
+  }): Promise<void> {
+    await this.withPersistence(
+      async (context) => {
+        const ids = await this.ensureLearnerAndLanguage(context, input.languageCode);
+        if (!ids) return;
+        const nodeId = await this.selectNodeId(context, input.languageCode, input.learnerText);
+        if (!nodeId) return;
+
+        await context.repositories.evidence.logEvidence({
+          learnerId: ids.learnerId,
+          languageId: ids.languageId,
+          activityType: 'chat_turn',
+          nodeIds: [nodeId],
+          rawInputText: input.learnerText,
+          rawOutputText: input.replyText,
+          // A conversation turn is participation, not a graded answer, so it
+          // carries no correctness score to avoid inventing one.
+          scores: {},
+          metadata: { characters: input.learnerText.length },
+        });
+      },
+      undefined,
+    );
+  }
+
   private async queryLanguageMonitoring(
     context: NonNullable<Awaited<typeof this.persistedContext>>,
     input: { learnerId: string; languageId: string; languageCode: string; languageName: string; isActive: boolean; rangeDays: number },
@@ -1419,6 +1454,10 @@ export class IntegrationService {
       } else if (item.activityType.includes('write')) {
         entry.writingMinutes += minutes;
         writingPieces += 1;
+      } else if (item.activityType.includes('chat')) {
+        // Conversation practice is production time, but a chat turn is not a
+        // recorded speaking attempt, so it does not inflate that count.
+        entry.speakingMinutes += minutes;
       } else if (item.activityType.includes('typing')) {
         // Time at the keyboard is writing time, but a speed run is not a piece
         // of writing, so it does not count toward writingPieces.

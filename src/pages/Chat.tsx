@@ -17,6 +17,9 @@ import { DropdownSelect } from '../components/ui/DropdownSelect';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAppData } from '../contexts/AppDataContext';
 import { useLanguageJourney } from '../contexts/LanguageJourneyContext';
+import { useProfileSession } from '../contexts/ProfileSessionContext';
+import { clearChatHistory, loadChatHistory, saveChatHistory } from '../services/chat/chatHistory';
+import { integrationService } from '../services/integrationService';
 import { completeLanguageChat } from '../services/aiProvider';
 import {
   DEFAULT_CHAT_PREFERENCES,
@@ -203,10 +206,29 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { activeProfile } = useProfileSession();
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const conversationIdRef = useRef(0);
   const font = FONT_CLASSES[preferences.fontSize];
   const mode = preferences.assistantMode;
+
+  // The thread used to live only in component state, so navigating away and
+  // back threw the whole conversation out.
+  useEffect(() => {
+    if (!activeProfile?.id) return;
+    let cancelled = false;
+    void loadChatHistory(activeProfile.id, activeLanguage.code).then((stored) => {
+      if (!cancelled) setMessages(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile?.id, activeLanguage.code]);
+
+  useEffect(() => {
+    if (!activeProfile?.id || messages.length === 0) return;
+    void saveChatHistory(activeProfile.id, activeLanguage.code, messages);
+  }, [activeProfile?.id, activeLanguage.code, messages]);
 
   const updatePreferences = (patch: Partial<ChatPreferences>) => {
     setPreferences((previous) => {
@@ -219,6 +241,7 @@ export default function ChatPage() {
   const clearChat = () => {
     conversationIdRef.current += 1;
     setMessages([]);
+    if (activeProfile?.id) void clearChatHistory(activeProfile.id, activeLanguage.code);
     setInput('');
     setError(null);
     setSending(false);
@@ -268,6 +291,14 @@ export default function ChatPage() {
             reply,
           ),
         ]);
+
+        // Logged so conversation practice counts toward streaks and activity,
+        // rather than being a loop the rest of the app never hears about.
+        void integrationService.logChatTurn({
+          languageCode: activeLanguage.code,
+          learnerText: trimmed,
+          replyText: reply.targetText,
+        });
       })
       .catch((unknownError) => {
         if (conversationIdRef.current !== conversationId) return;
