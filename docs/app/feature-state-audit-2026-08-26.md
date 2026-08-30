@@ -371,6 +371,31 @@ drawing characters is writing. None of the additions inflate `lessonsCompleted`,
 `writingPieces` or `speakingSessions`, which mean something more specific than
 "time spent".
 
+### Study-time and activity counts were substantially wrong
+
+The trend query credits `timeTakenMs ?? 180000` per evidence row — a flat three
+minutes when no duration was recorded — and almost nothing recorded one. A
+twenty-card review session read as an hour of study; a forty-minute video and a
+two-second flashcard counted the same. That figure drives minutes-today, the
+daily goal, the streak and the weekly activity chart.
+
+Every activity now records a measured duration: review per card, learn per task
+(the attempt row already carried it, the evidence row did not), immersion per
+banked minute, typing, Quick Practice, speaking from record to feedback, writing
+from opening the editor to requesting review (capped at an hour), and script
+practice — which had been *estimating* its duration as `strokeCount * 420`
+rather than measuring it. Chat is the only one left on the default, since a turn
+has no meaningful length.
+
+Three counters were also inflated:
+
+- `lessonsCompleted` incremented for any activity type containing "learn", and
+  every answered exercise logs `learn_task_result`, so a ten-exercise lesson
+  reported eleven lessons completed.
+- `speakingSessions` and `writingPieces` double-counted, because one attempt
+  writes evidence through two paths that do genuinely different work and both
+  matched the same branch.
+
 ### Open question: CEFR levels on immersion video and audio
 
 The reading catalog (`realReadingSeeds`) is genuinely real — Don Quijote,
