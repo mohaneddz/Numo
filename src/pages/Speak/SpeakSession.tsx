@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { transcribeSpeech, completeWithEcho, synthesizeSpeech } from '../../services/aiProvider';
 import { speechPlaybackRate } from '../../config/audioPlaybackSettings';
+import { applyPreferredOutput } from '../../services/audio/audioDevices';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import { useAppData } from '../../contexts/AppDataContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -223,7 +224,7 @@ export default function SpeakSession() {
         const previous = audioRef.current.src;
         audioRef.current.src = url;
         audioRef.current.playbackRate = speechPlaybackRate();
-        void audioRef.current.play();
+        void applyPreferredOutput(audioRef.current).then(() => audioRef.current?.play());
         if (previous.startsWith('blob:')) URL.revokeObjectURL(previous);
       } else {
         URL.revokeObjectURL(url);

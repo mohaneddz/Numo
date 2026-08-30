@@ -6,6 +6,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { synthesizeSpeech, transcribeSpeech } from '../../services/aiProvider';
 import { speechPlaybackRate } from '../../config/audioPlaybackSettings';
+import { applyPreferredOutput } from '../../services/audio/audioDevices';
 import { MOTION_REDUCED_EVENT, motionReducedBaseline } from '../../config/appearanceSettings';
 import { VoiceOrb, type VoiceOrbState } from '../../components/speak/VoiceOrb';
 import {
@@ -86,6 +87,7 @@ export default function SpeakConversation() {
         URL.revokeObjectURL(url);
         if (audioRef.current === element) audioRef.current = null;
       };
+      await applyPreferredOutput(element);
       await element.play();
     } catch {
       // The reply is already on screen as a subtitle; losing the audio should
