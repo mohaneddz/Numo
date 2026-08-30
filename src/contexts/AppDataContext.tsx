@@ -858,6 +858,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
         activityType: 'learn_task_result',
         rawInputText: input.learnerAnswer,
         rawOutputText: input.expectedAnswer,
+        // The attempt record already carried this; the evidence row did not, so
+        // every task counted as the trend query's flat three-minute default.
+        timeTakenMs: input.durationMs ?? null,
         scores: {
           correctness: evaluation.score,
         },
