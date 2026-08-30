@@ -387,6 +387,21 @@ practice — which had been *estimating* its duration as `strokeCount * 420`
 rather than measuring it. Chat is the only one left on the default, since a turn
 has no meaningful length.
 
+There are two parallel time systems, and the second was worse. The progression
+store's `minutesByDate` drives the Home daily-goal card, minutes-today and the
+streak — and *only completing a Learn step* ever wrote to it. An hour of review,
+immersion, speaking, typing and chat showed as zero minutes for the day, and the
+streak broke. Every activity that logs evidence now banks its time there too,
+fractionally, since rounding a seconds-long review card to whole minutes banks
+nothing. Learn is excluded from the per-task path because step completion
+already records it.
+
+The language row's `total_xp`, `current_streak` and `today_minutes` columns are
+written only by the legacy migration and so read zero on every normal install.
+Nothing displays them; Chat was passing them to the model, which meant every
+conversation opened by telling it the learner had a zero-day streak and zero
+minutes today. Chat now reads the computed progression instead.
+
 Three counters were also inflated:
 
 - `lessonsCompleted` incremented for any activity type containing "learn", and
