@@ -76,7 +76,7 @@ export class ReviewService {
   async submitResult(
     reviewItemId: string,
     result: SubmitReviewResult,
-    extras?: { answer?: string; weakTags?: string[] },
+    extras?: { answer?: string; weakTags?: string[]; durationMs?: number },
   ): Promise<ReviewSubmissionResult | null> {
     const allItems = await this.engine.persistence.repositories.review.listItemsByLanguage(
       this.engine.learnerId,
@@ -110,6 +110,9 @@ export class ReviewService {
         correctness: result === 'correct' ? 92 : result === 'partial' ? 60 : 20,
       },
       analysisResult: { result },
+      // Without a real duration every card counts as the trend query's flat
+      // three-minute default, so a twenty-card session reads as an hour.
+      timeTakenMs: extras?.durationMs ?? null,
       weakTags: extras?.weakTags ?? (result === 'incorrect' ? ['review_accuracy'] : []),
       metadata: {
         reviewItemId: current.id,

@@ -48,7 +48,7 @@ interface AppDataContextValue {
   recentlySaved: NotebookEntry[];
   dueReviewPreview: ReviewItem[];
   startReviewSession: (mode: ReviewMode) => ReviewSessionSummary;
-  gradeReviewItem: (id: string, result: 'correct' | 'incorrect') => void;
+  gradeReviewItem: (id: string, result: 'correct' | 'incorrect', durationMs?: number) => void;
   saveSpeakingResult: (sessionId: string, run: Omit<SpeakingSessionRun, 'id' | 'sessionId' | 'recordedAt'>) => SpeakingSessionRun;
   saveImmersionPhrase: (contentId: string, phrase: string, translation?: string) => void;
   updateImmersionProgress: (contentId: string, positionSec: number, completed?: boolean, totalUnits?: number) => void;
@@ -371,11 +371,11 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [state.reviewItems]);
 
-  const gradeReviewItem = useCallback((id: string, result: 'correct' | 'incorrect') => {
+  const gradeReviewItem = useCallback((id: string, result: 'correct' | 'incorrect', durationMs?: number) => {
     if (!engine) return;
     void (async () => {
       try {
-        await engine.reviewService.submitResult(id, result);
+        await engine.reviewService.submitResult(id, result, { durationMs });
         await refreshFromPersistence(engine);
       } catch (error) {
         console.error('Failed to submit review result via engine', error);

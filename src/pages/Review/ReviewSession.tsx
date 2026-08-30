@@ -287,6 +287,8 @@ export default function ReviewSession() {
   const [ans, setAns] = useState<Record<string, Result>>({});
   const [fb, setFb] = useState<Record<string, string>>({});
   const [rev, setRev] = useState(false);
+  // Per-card, so a session of quick flashcards is not credited as hours.
+  const cardStartedAtRef = useRef(Date.now());
   const [hint, setHint] = useState(false);
   const [pick, setPick] = useState<number | null>(null);
   const [txt, setTxt] = useState('');
@@ -298,6 +300,7 @@ export default function ReviewSession() {
   const cur = cards[i];
 
   useEffect(() => {
+    cardStartedAtRef.current = Date.now();
     setRev(false);
     setHint(false);
     setPick(null);
@@ -339,7 +342,7 @@ export default function ReviewSession() {
     setAns((p) => ({ ...p, [cur.id]: r }));
     if (message) setFb((p) => ({ ...p, [cur.id]: message }));
     if (cur.sourceId && !graded.current.has(cur.sourceId)) {
-      gradeReviewItem(cur.sourceId, r);
+      gradeReviewItem(cur.sourceId, r, Math.max(1000, Date.now() - cardStartedAtRef.current));
       graded.current.add(cur.sourceId);
     }
 
