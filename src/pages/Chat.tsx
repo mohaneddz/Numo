@@ -18,6 +18,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAppData } from '../contexts/AppDataContext';
 import { useLanguageJourney } from '../contexts/LanguageJourneyContext';
 import { useProfileSession } from '../contexts/ProfileSessionContext';
+import { useCurriculumState } from '../hooks/useCurriculumState';
 import { clearChatHistory, loadChatHistory, saveChatHistory } from '../services/chat/chatHistory';
 import { integrationService } from '../services/integrationService';
 import { completeLanguageChat } from '../services/aiProvider';
@@ -207,6 +208,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { activeProfile } = useProfileSession();
+  const { minutesToday, currentStreak } = useCurriculumState();
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const conversationIdRef = useRef(0);
   const font = FONT_CLASSES[preferences.fontSize];
@@ -267,7 +269,12 @@ export default function ChatPage() {
           `Level: ${journey.level}.`,
           `Primary goal: ${journey.primaryGoal}; focus: ${journey.focus}; preferred difficulty: ${journey.difficulty}.`,
           `Study plan: ${journey.sessionsPerWeek} sessions/week, ${journey.sessionMinutes} minutes/session.`,
-          `Progress: ${activeLanguage.progress.totalXP} XP, ${activeLanguage.progress.currentStreak}-day streak, ${activeLanguage.progress.todayMinutes}/${activeLanguage.progress.dailyGoalMinutes} minutes today.`,
+          // Read from the computed progression rather than the language row's
+          // total_xp / current_streak / today_minutes columns, which are only
+          // ever written by the legacy migration and so report zero for every
+          // normal install — the model was being told the learner had done
+          // nothing, always.
+          `Progress: ${currentStreak}-day streak, ${minutesToday}/${activeLanguage.progress.dailyGoalMinutes} minutes today.`,
           `Learning evidence: ${flashCardCount} review items, ${dueCount} due, ${appDataState.speakingRuns.length} speaking attempts, ${appDataState.writingDrafts.length} writing drafts.`,
           notebookMemory ? `Retrieved Notebook memory: ${notebookMemory}` : '',
         ].filter(Boolean).join(' ')
