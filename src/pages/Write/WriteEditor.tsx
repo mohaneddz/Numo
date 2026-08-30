@@ -8,6 +8,10 @@ import { useAppData } from '../../contexts/AppDataContext';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { integrationService } from '../../services/integrationService';
+import {
+    countRealCorrections,
+    parseWritingCorrections,
+} from '../../services/exercises/writingCorrections';
 import { writeExerciseRegistry } from '../../components/exercises/write/registry';
 import type { WriteCorrectionItem } from '../../components/exercises/write/types';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
@@ -76,6 +80,17 @@ export default function WriteEditor() {
     const handleReview = async () => {
         setIsAnalyzing(true);
         setError(null);
+
+        // Saved before the analysis runs, not after it succeeds. The draft used
+        // to be persisted only on the success path, so a failed review threw
+        // away everything the learner had written.
+        const saved = saveDraft({
+            id: activeDraft?.id,
+            promptId: activeDraft?.promptId,
+            title: activeDraft?.title ?? 'Writing Editor Draft',
+            content: text,
+        });
+
         try {
             const prompt = `
                 Analyze the following ${activeLanguage.name} text for grammar, spelling, and style errors.
@@ -95,27 +110,27 @@ export default function WriteEditor() {
                 { id: '1', role: 'user', content: prompt, createdAt: Date.now() }
             ], 'analyst');
 
-            const jsonPart = response.match(/\[.*\]/s)?.[0] || response;
-            const data = JSON.parse(jsonPart);
+            const data = parseWritingCorrections(response);
+            if (data.length === 0) {
+                setCorrections([]);
+                setShowCorrections(true);
+                setError('The review came back with nothing usable. Your draft is saved — try again.');
+                return;
+            }
+
             setCorrections(data);
             setShowCorrections(true);
-            const saved = saveDraft({
-                id: activeDraft?.id,
-                promptId: activeDraft?.promptId,
-                title: activeDraft?.title ?? 'Writing Editor Draft',
-                content: text,
-            });
-                analyzeDraft(saved.id, data);
-                void integrationService.logWriteAttempt({
+            analyzeDraft(saved.id, data);
+            void integrationService.logWriteAttempt({
                 languageCode: activeLanguage.code,
                 text,
-                corrections: Array.isArray(data) ? data.filter((item: WriteCorrectionItem) => item.type !== 'correct').length : 0,
+                corrections: countRealCorrections(data),
                 hasAnalysis: true,
             });
         } catch {
             setCorrections([]);
             setShowCorrections(true);
-            setError('Analysis failed. No fallback corrections were generated.');
+            setError('Could not reach the review service. Your draft is saved — check your AI provider settings and try again.');
         } finally {
             setIsAnalyzing(false);
         }
