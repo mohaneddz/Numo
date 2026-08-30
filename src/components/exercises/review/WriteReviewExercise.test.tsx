@@ -80,3 +80,47 @@ describe('WriteReviewExercise', () => {
     expect(onSkip).toHaveBeenCalled();
   });
 });
+
+describe('every review card shows what is being asked about', () => {
+  it('renders the term on the choice card', async () => {
+    const { MultipleReviewExercise } = await import('./MultipleReviewExercise');
+    render(
+      <MultipleReviewExercise
+        question={{ ...question, type: 'multiple', options: ['although', 'because'], correctIndex: 0 }}
+        done={false}
+        checking={false}
+        onGrade={vi.fn()}
+        onSkip={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('aunque')).toBeTruthy();
+  });
+
+  it('renders the term on the build card', async () => {
+    const { BuildReviewExercise } = await import('./BuildReviewExercise');
+    render(
+      <BuildReviewExercise
+        question={{ ...question, type: 'build', bank: ['al', 'though'] }}
+        done={false}
+        checking={false}
+        onGrade={vi.fn()}
+        onSkip={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('aunque')).toBeTruthy();
+  });
+
+  it('renders the statement on the true/false card', async () => {
+    const { TrueFalseReviewExercise } = await import('./TrueFalseReviewExercise');
+    render(
+      <TrueFalseReviewExercise
+        question={{ ...question, type: 'tf', statement: '"aunque" means "although".', correctBool: true }}
+        done={false}
+        checking={false}
+        onGrade={vi.fn()}
+        onSkip={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('"aunque" means "although".')).toBeTruthy();
+  });
+});

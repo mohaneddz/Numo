@@ -9,6 +9,11 @@ export function BuildReviewExercise({ question, build = [], onSetBuild, onGrade,
 
   return (
     <div className="grid gap-2">
+      {/* The term was never shown, so the learner had a word bank and nothing
+          to translate. */}
+      <h2 className="text-center" style={{ fontSize: 30, marginBottom: 4 }}>
+        <InteractiveText text={question.term} className="text-[30px]" />
+      </h2>
       <div className="card" style={{ padding: 10, minHeight: 44 }}>
         {build.length ? <InteractiveText text={build.join(' ')} /> : 'Build answer...'}
       </div>

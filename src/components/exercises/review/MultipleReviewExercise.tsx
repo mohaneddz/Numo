@@ -1,9 +1,18 @@
 import type { ReviewExerciseProps } from './types';
 import { InteractiveText } from '../shared/InteractiveText';
 
+/**
+ * Meaning-choice card.
+ *
+ * The term was never rendered: the learner saw four meanings and the prompt
+ * "Pick the closest meaning", with no word on screen to pick a meaning for.
+ */
 export function MultipleReviewExercise({ question, done, pick, onSetPick, onGrade, onSkip }: ReviewExerciseProps) {
   return (
     <div className="grid gap-2">
+      <h2 className="text-center" style={{ fontSize: 30, marginBottom: 4 }}>
+        <InteractiveText text={question.term} className="text-[30px]" />
+      </h2>
       {(question.options ?? []).map((option, index) => (
         <button
           key={option}
