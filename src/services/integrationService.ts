@@ -1276,6 +1276,9 @@ export class IntegrationService {
           activityType: 'script_practice_attempt',
           nodeIds: [nodeId],
           scores: { completion: nextCompletion },
+          // The attempt row already stored this; the evidence row did not, so
+          // each drawing counted as the flat three-minute default.
+          timeTakenMs: input.durationMs,
           confidenceEstimate: nextCompletion / 100,
           metadata: {
             mode: input.mode,

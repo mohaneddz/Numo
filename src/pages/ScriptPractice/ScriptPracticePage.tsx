@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageContent } from '../../components/layout/PageLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -45,6 +45,13 @@ export default function ScriptPracticePage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [confusedUsed, setConfusedUsed] = useState(false);
+  // Measured rather than estimated from stroke count, which is what the saved
+  // duration used to be.
+  const attemptStartedAtRef = useRef(Date.now());
+
+  useEffect(() => {
+    attemptStartedAtRef.current = Date.now();
+  }, [scriptKey, mode]);
 
   const activeExercise = scriptExerciseRegistry[mode];
 
@@ -61,7 +68,7 @@ export default function ScriptPracticePage() {
         scriptKey: scriptKey.trim() || defaultModelKey,
         mode,
         completionRatio: completion,
-        durationMs: Math.max(15000, strokeCount * 420),
+        durationMs: Math.max(1000, Date.now() - attemptStartedAtRef.current),
         success: completion >= 60,
         strokeData: {
           mode,
