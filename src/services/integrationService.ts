@@ -2,6 +2,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { initializePersistence } from '../persistence';
 import { makeId, nowIso, stringifyJson, toSqlBool } from '../persistence/utils';
+import { recordStudyMinutes } from './curriculum/progressionStore';
 import type {
   ContentRevisionRecord,
   CreateEvidenceInput,
@@ -379,6 +380,23 @@ export class IntegrationService {
     const learner = await context.repositories.learner.getActiveProfile();
     if (!learner) return null;
     return { learnerId: learner.id, languageId: language.id };
+  }
+
+  /**
+   * Banks an activity's time toward the daily goal and streak.
+   *
+   * Those are driven by the progression store's `minutesByDate`, which only
+   * Learn step completions ever wrote — so every other activity counted as
+   * zero minutes and could not hold a streak.
+   */
+  private async bankStudyTime(languageCode: string, learnerId: string, ms: number | null | undefined): Promise<void> {
+    const minutes = (ms ?? 0) / 60000;
+    if (minutes <= 0) return;
+    try {
+      await recordStudyMinutes(learnerId, languageCode, minutes);
+    } catch {
+      // Progress tracking must never break the activity that produced it.
+    }
   }
 
   private async selectNodeId(context: NonNullable<Awaited<typeof this.persistedContext>>, languageCode: string, seed = ''): Promise<string | null> {
@@ -1014,6 +1032,8 @@ export class IntegrationService {
           success,
         });
 
+        await this.bankStudyTime(input.languageCode, ids.learnerId, input.durationMs ?? null);
+
         if (!success) {
           await this.upsertWeaknessCluster(context, {
             learnerId: ids.learnerId,
@@ -1061,6 +1081,8 @@ export class IntegrationService {
           confidenceEstimate: clampPercent((input.accuracy + input.fluency) / 2) / 100,
           metadata: { source: 'speak_session' },
         });
+
+        await this.bankStudyTime(input.languageCode, ids.learnerId, input.durationMs ?? null);
 
         const success = (input.accuracy + input.fluency) / 2 >= 68;
         await this.applyLearnerDelta(context, {
@@ -1288,6 +1310,8 @@ export class IntegrationService {
             scriptAttemptId: attemptId,
           },
         });
+
+        await this.bankStudyTime(input.languageCode, ids.learnerId, input.durationMs);
       },
       undefined,
     );
@@ -1330,6 +1354,8 @@ export class IntegrationService {
             charactersTyped: input.charactersTyped,
           },
         });
+
+        await this.bankStudyTime(input.languageCode, ids.learnerId, Math.round(input.elapsedSeconds * 1000));
       },
       undefined,
     );
@@ -1407,6 +1433,8 @@ export class IntegrationService {
           timeTakenMs: input.durationMs ?? null,
           metadata: { exerciseType: input.exerciseType },
         });
+
+        await this.bankStudyTime(input.languageCode, ids.learnerId, input.durationMs ?? null);
       },
       undefined,
     );
@@ -1445,6 +1473,8 @@ export class IntegrationService {
           timeTakenMs: input.seconds * 1000,
           metadata: { contentId: input.contentId, completed: input.completed },
         });
+
+        await this.bankStudyTime(input.languageCode, ids.learnerId, input.seconds * 1000);
       },
       undefined,
     );

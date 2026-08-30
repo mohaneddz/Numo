@@ -128,6 +128,37 @@ export function isCheckpointCompleted(state: ProgressionState, checkpointId: str
 }
 
 /** Records a finished step and the study time it took. */
+/**
+ * Banks study time from any activity.
+ *
+ * `minutesByDate` drives the daily goal and the streak, and it was only ever
+ * written by completing a Learn step — so an hour of review, immersion,
+ * speaking or typing counted as zero minutes and broke the streak. This lets
+ * every activity contribute without also claiming to have finished a step.
+ */
+export async function recordStudyMinutes(
+  learnerId: string,
+  languageCode: string,
+  minutes: number,
+): Promise<void> {
+  // Deliberately not rounded: a review card takes seconds, and rounding each
+  // one to a whole minute would bank nothing at all. Totals are rounded where
+  // they are read instead.
+  if (!Number.isFinite(minutes) || minutes <= 0) return;
+
+  await updateProgression(learnerId, languageCode, (state) => {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    return {
+      ...state,
+      totalMinutes: state.totalMinutes + minutes,
+      minutesByDate: {
+        ...state.minutesByDate,
+        [dateKey]: (state.minutesByDate[dateKey] ?? 0) + minutes,
+      },
+    };
+  });
+}
+
 export async function recordStepCompletion(
   learnerId: string,
   languageCode: string,
@@ -215,7 +246,8 @@ export function unlockedEverdarkLevel(state: ProgressionState, themeId: string):
 }
 
 export function minutesToday(state: ProgressionState): number {
-  return state.minutesByDate[new Date().toISOString().slice(0, 10)] ?? 0;
+  // Stored fractionally so short activities accumulate; rounded here.
+  return Math.round(state.minutesByDate[new Date().toISOString().slice(0, 10)] ?? 0);
 }
 
 /** Consecutive days with any study time, counting back from today. */

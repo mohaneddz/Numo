@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { nextReviewPatch } from './reviewRules';
 import { EvidenceService } from './evidenceService';
+import { recordStudyMinutes } from '../curriculum/progressionStore';
 import { LearnerStateService } from './learnerStateService';
 
 function metadataView(record: ReviewItemRecord): {
@@ -122,6 +123,19 @@ export class ReviewService {
     };
 
     const { evidence } = await this.evidenceService.ingest(evidenceInput);
+
+    // Banked toward the daily goal and streak, which only Learn step
+    // completions used to feed — a long review session counted as zero
+    // minutes and could not hold a streak.
+    const minutes = (extras?.durationMs ?? 0) / 60000;
+    if (minutes > 0) {
+      await recordStudyMinutes(this.engine.learnerId, this.engine.languageCode, minutes).catch(
+        () => {
+          // Progress tracking must not break the review submission.
+        },
+      );
+    }
+
     const learnerUpdate = await this.learnerStateService.applyEvidence(evidence);
 
     return {
