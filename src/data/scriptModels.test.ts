@@ -133,3 +133,49 @@ describe('stroke geometry matches how the characters are actually written', () =
     expect(top.from.y).toBeLessThan(bottom.from.y);
   });
 });
+
+describe('coverage of the characters the app actually teaches', () => {
+  /**
+   * Every Han character the app puts in front of a learner needs a stroke
+   * model. Without one it cannot be practised, and the reference hub shows it
+   * with no route through to writing practice.
+   *
+   * Reads the source tree so adding a character to a word list, a speaking
+   * prompt or a curriculum seed without regenerating the models fails here
+   * rather than silently degrading.
+   */
+  it('has a model for every Han character used in the app content', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const { join, resolve } = await import('node:path');
+
+    const root = resolve(__dirname, '..');
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) return entry.name === 'scriptModels' ? [] : walk(path);
+        return /\.(ts|tsx|json)$/.test(entry.name) && !entry.name.includes('.test.')
+          ? [path]
+          : [];
+      });
+
+    const modelled = new Set([
+      ...getScriptModels('zh').map((model) => model.character),
+      ...getScriptModels('ja').map((model) => model.character),
+    ]);
+
+    const missing = new Map<string, string>();
+    for (const file of walk(root)) {
+      // Script-detection regexes carry Han characters as range bounds, which
+      // are not content and correctly have no model.
+      const source = readFileSync(file, 'utf8').replace(/[\u4e00-\u9fff]-[\u4e00-\u9fff]/g, '');
+      for (const character of source.match(/[\u4e00-\u9fff]/g) ?? []) {
+        if (!modelled.has(character) && !missing.has(character)) missing.set(character, file);
+      }
+    }
+
+    expect(
+      [...missing].map(([character, file]) => `${character} (${file})`),
+      'Characters used in app content with no stroke model. Add them to scripts/characterSets.mjs and run: pnpm seed:script-models',
+    ).toEqual([]);
+  });
+});

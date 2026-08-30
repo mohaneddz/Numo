@@ -5,6 +5,12 @@
  * bundle is trimmed from the end when it needs to be smaller, so the most
  * useful characters survive. Any character missing from the source dataset is
  * reported and skipped by the generator rather than silently dropped.
+ *
+ * These must cover every character the app actually puts in front of a learner
+ * — curriculum seeds, word lists, speaking prompts, reference content. A
+ * character with no model cannot be practised and shows in the reference hub
+ * with no way through to writing practice. `scriptModels.test.ts` enforces
+ * that.
  */
 
 /** Most frequent simplified Chinese characters. */
@@ -30,6 +36,7 @@ export const CHINESE_CHARACTERS = `
 治 卡 幸 兰 念 举 仅 钟 怕 共 毛 句 息 功 官 究 跟 穿 室 易 游 程 号 居 考 突 皮
 良 阳 参 商 群 亮 团 拍 剧 权 般 局 谢 效 密 富 阶 楼 讨 呀 睡 累 忙 舒 服 饭
 二 六 七 八 九 零 左 右 木 土 川 田 兄 弟 哪 耳 校 错 旧 低 短 慢 冷 卖 喝 跑 借 睡 站 躺 洗 穿 脱 唱 跳 笑 哭 累 饿 渴 疼 甜 苦 辣 咸 酸 香 臭 轻 慢
+麻 码 豪 耗 否 菜 骂 习 展 济 庭 束 虽 验 响 政 府 注 革 狗 咪 桌 遍 席
 `
   .split(/\s+/)
   .filter(Boolean);
@@ -75,6 +82,7 @@ export const JAPANESE_KANJI = `
 山 川 田 石 花 草 空 天 雨 雪 風 海 森 林 犬 猫 鳥 魚 虫 車 電 気
 行 来 見 聞 言 話 読 書 食 飲 買 立 休 出 入 帰 会 作 使 待 持 知 思
 国 語 文 字 数 半 事 物 者 所 店 駅 道 米 肉 茶 酒 味 屋 町 村 市
+関 対 間 仕 勉 問 題 達 親 供 場 開 終 簡 単 難 願
 `
   .split(/\s+/)
   .filter(Boolean);
