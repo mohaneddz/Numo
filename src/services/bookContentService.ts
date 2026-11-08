@@ -1,5 +1,6 @@
 import type { ImmersionResource, ReadingLine } from '../pages/Immerse/immersionCatalog';
 import { requireOnline } from './localRuntimeSettings';
+import { fetch_json_with_fallback, fetch_text_with_fallback } from '../utils/tauriNet';
 
 const CACHE_KEY = 'numo_public_domain_books_v2';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -169,9 +170,7 @@ async function resolveGutenberg(resource: ImmersionResource): Promise<Pick<Resol
   const endpoint = new URL('https://gutendex.com/books');
   endpoint.searchParams.set('search', `${resource.searchTitle ?? resource.title} ${resource.author ?? ''}`);
   endpoint.searchParams.set('languages', language);
-  const response = await fetch(endpoint.toString());
-  if (!response.ok) throw new Error(`Gutenberg catalog returned HTTP ${response.status}`);
-  const payload = await response.json() as GutendexResponse;
+  const payload = await fetch_json_with_fallback<GutendexResponse>(endpoint.toString());
   const match =
     payload.results?.find((book) => book.languages.includes(language) && pickPlainTextUrl(book.formats)) ??
     payload.results?.find((book) => pickPlainTextUrl(book.formats));
@@ -239,9 +238,9 @@ export async function loadBookText(resource: ImmersionResource): Promise<Resolve
   if (!resolved.textUrl) return resolved;
   requireOnline('Online book download');
 
-  const response = await fetch(resolved.textUrl);
-  if (!response.ok) throw new Error(`Book text returned HTTP ${response.status}`);
-  const raw = await response.text();
+  // Through the desktop proxy: gutenberg.org sends no CORS header, so a direct
+  // fetch from the webview is blocked and no book text ever loaded in the app.
+  const raw = await fetch_text_with_fallback(resolved.textUrl);
   const lines = extractReadingLines(raw, resource.languageCode);
   const next = { ...resolved, lines };
   const cache = readCache();
