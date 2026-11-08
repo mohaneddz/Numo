@@ -78,6 +78,33 @@ describe('immersion media resolution', () => {
     expect(resolved['video-drama']).toBeUndefined();
   });
 
+  it('searches YouTube in each resource language, even when categories share a name', async () => {
+    localStorage.setItem(
+      'numo_settings_state_v1',
+      JSON.stringify({ integrations: { 'YouTube API Key': 'test-key', 'YouTube Region': 'US' } }),
+    );
+    const searchUrls: URL[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/search')) searchUrls.push(url);
+      return { ok: true, json: async () => ({ items: [] }) } as unknown as Response;
+    }));
+
+    await loadYouTubeMetadata(
+      [
+        resource({ id: 'es-interviews', kind: 'audio', category: 'Conversations', languageCode: 'es' }),
+        resource({ id: 'zh-interviews', kind: 'audio', category: 'Conversations', languageCode: 'zh' }),
+      ],
+      true,
+    ).catch(() => undefined);
+
+    const languages = searchUrls.map((url) => url.searchParams.get('relevanceLanguage')).sort();
+    expect(languages).toEqual(['es', 'zh-Hans']);
+    const chineseQuery = searchUrls.find((url) => url.searchParams.get('relevanceLanguage') === 'zh-Hans');
+    expect(chineseQuery?.searchParams.get('q')).toContain('中文');
+    expect(chineseQuery?.searchParams.get('q')).not.toMatch(/spanish|español/i);
+  });
+
   it('keeps successful book covers when another Open Library lookup fails', async () => {
     const resources = [
       resource({ id: 'book-one', kind: 'reading', title: 'Book One', author: 'Author One' }),
