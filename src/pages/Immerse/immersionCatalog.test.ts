@@ -23,6 +23,28 @@ describe('immersion catalog', () => {
     expect(getImmersionResourcesForLanguage('ru')).toHaveLength(0);
   });
 
+  it('serves a Chinese catalog that covers every kind', () => {
+    const chinese = getImmersionResourcesForLanguage('zh');
+    expect(new Set(chinese.map((resource) => resource.kind))).toEqual(new Set(['video', 'reading', 'audio']));
+    expect(chinese.every((resource) => resource.languageCode === 'zh')).toBe(true);
+    expect(getImmersionResourcesForLanguage('zh-CN')).toHaveLength(chinese.length);
+  });
+
+  it('pins every Chinese reading to a Gutenberg ebook', () => {
+    const readings = getImmersionResourcesForLanguage('zh').filter((resource) => resource.kind === 'reading');
+    for (const reading of readings) {
+      expect(reading.gutenbergId).toBeGreaterThan(0);
+      expect(reading.searchTitle).toBeTruthy();
+    }
+  });
+
+  it('keeps resource ids unique across languages', () => {
+    // Ids key the progress, cover and YouTube caches, so a collision would show
+    // one language's media on another language's card.
+    const ids = immersionResources.map((resource) => resource.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('ignores region subtags when matching', () => {
     expect(getImmersionResourcesForLanguage('es-MX').length).toBe(
       getImmersionResourcesForLanguage('es').length,

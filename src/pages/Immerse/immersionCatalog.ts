@@ -1,3 +1,5 @@
+import { chineseImmersionResources } from './chineseImmersionCatalog';
+
 export type ImmersionKind = 'video' | 'reading' | 'audio';
 
 export interface TranscriptLine {
@@ -38,11 +40,16 @@ export interface ImmersionResource {
   sourceUrl?: string;
   localPath?: string;
   localFormat?: 'epub' | 'txt';
+  /** Title to send to cover and artwork lookups when the display title is bilingual. */
+  searchTitle?: string;
+  /** Project Gutenberg ebook id, for books whose title search is unreliable. */
+  gutenbergId?: number;
 }
 
 /**
- * Every bundled resource below is Spanish. It is declared once here so that adding
- * another language's catalog is an explicit act rather than an accident.
+ * Language of the resources declared in this file. Other languages' catalogs live
+ * in their own modules (see `chineseImmersionCatalog.ts`) so that adding one is an
+ * explicit act rather than an accident.
  */
 export const CATALOG_LANGUAGE = 'es';
 
@@ -192,6 +199,7 @@ export const immersionResources: ImmersionResource[] = [
   ]),
   ...realReadingResources,
   ...realAudioResources,
+  ...chineseImmersionResources,
 ];
 
 /**
