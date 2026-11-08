@@ -12,11 +12,29 @@ function parseVoice(value: string | undefined, fallback: VoicePersona): VoicePer
 
 const apiKey = (import.meta.env.VITE_GROQ_API_KEY ?? "").trim();
 
+export const DEFAULT_CHAT_MODEL = "openai/gpt-oss-120b";
+
+/**
+ * Chat models Groq no longer serves, mapped to their replacement.
+ *
+ * The old default is still saved in existing settings and `.env` files; without
+ * this, Chat fails with "model does not exist" until someone edits the setting by hand.
+ */
+const RETIRED_CHAT_MODELS: Record<string, string> = {
+  "llama-3.3-70b-versatile": DEFAULT_CHAT_MODEL,
+};
+
+export function resolveChatModel(model: string | undefined): string {
+  const trimmed = model?.trim();
+  if (!trimmed) return DEFAULT_CHAT_MODEL;
+  return RETIRED_CHAT_MODELS[trimmed] ?? trimmed;
+}
+
 export const aiConfig: RuntimeConfig = {
   apiKey,
   baseUrl: (import.meta.env.VITE_GROQ_BASE_URL ?? "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
   models: {
-    chat: (import.meta.env.VITE_GROQ_CHAT_MODEL ?? "llama-3.3-70b-versatile").trim(),
+    chat: resolveChatModel(import.meta.env.VITE_GROQ_CHAT_MODEL),
     stt: (import.meta.env.VITE_GROQ_STT_MODEL ?? "whisper-large-v3-turbo").trim(),
     tts: (import.meta.env.VITE_GROQ_TTS_MODEL ?? "canopylabs/orpheus-v1-english").trim(),
     ttsVoice: parseVoice(import.meta.env.VITE_GROQ_TTS_VOICE, "troy"),
@@ -51,7 +69,9 @@ export function getEffectiveAiConfig(): RuntimeConfig {
     apiKey: getActiveGroqApiKey(),
     baseUrl: safeBaseUrl,
     models: {
-      chat: settings['Online Chat Model']?.trim() || aiConfig.models.chat,
+      chat: settings['Online Chat Model']?.trim()
+        ? resolveChatModel(settings['Online Chat Model'])
+        : aiConfig.models.chat,
       stt: settings['Online Speech Model']?.trim() || aiConfig.models.stt,
       tts: settings['Online Voice Model']?.trim() || aiConfig.models.tts,
       ttsVoice: parseVoice(settings['Online Voice'], aiConfig.models.ttsVoice),
