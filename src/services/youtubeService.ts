@@ -115,13 +115,60 @@ export function getCachedYouTubeMetadata(resourceId: string): YouTubeResourceMet
   return readCache(apiKey)?.resources[resourceId] ?? null;
 }
 
+interface SearchProfile {
+  relevanceLanguage: string;
+  query: (kind: ImmersionResource['kind'], category: string) => string;
+}
+
+/** Chinese search terms for the Chinese catalog's categories. */
+const CHINESE_CATEGORY_TERMS: Record<string, string> = {
+  'Food & Culture': '中国美食 街头小吃',
+  'City Life': '中国城市生活',
+  'Learner Podcasts': '学中文',
+  Conversations: '中文对话',
+};
+
+/**
+ * How to search YouTube for each catalog language.
+ *
+ * Search used to be hardcoded to Spanish, so once a second catalog existed its
+ * cards were filled with Spanish videos under a Chinese flag.
+ */
+const SEARCH_PROFILES: Record<string, SearchProfile> = {
+  es: {
+    relevanceLanguage: 'es',
+    query: (kind, category) => (kind === 'audio'
+      ? category === 'Public-Domain Audiobooks'
+        ? 'audiolibro completo español dominio público'
+        : `podcast español ${category} episodio`
+      : `Spanish ${category} authentic language`),
+  },
+  zh: {
+    relevanceLanguage: 'zh-Hans',
+    query: (kind, category) => {
+      const topic = CHINESE_CATEGORY_TERMS[category] ?? category;
+      return kind === 'audio' ? `中文播客 ${topic}` : `${topic} vlog 中文`;
+    },
+  },
+};
+
+function searchProfileFor(languageCode: string): SearchProfile {
+  const language = languageCode.split('-')[0].toLowerCase();
+  return SEARCH_PROFILES[language] ?? {
+    relevanceLanguage: language,
+    query: (kind, category) => (kind === 'audio' ? `podcast ${category}` : category),
+  };
+}
+
 async function searchCategory(
   apiKey: string,
   region: string,
+  languageCode: string,
   category: string,
   kind: ImmersionResource['kind'],
   count: number,
 ): Promise<YouTubeSearchItem[]> {
+  const profile = searchProfileFor(languageCode);
   const endpoint = new URL('https://www.googleapis.com/youtube/v3/search');
   endpoint.searchParams.set('part', 'snippet');
   endpoint.searchParams.set('type', 'video');
@@ -129,13 +176,8 @@ async function searchCategory(
   endpoint.searchParams.set('videoEmbeddable', 'true');
   endpoint.searchParams.set('maxResults', String(Math.min(10, count)));
   endpoint.searchParams.set('regionCode', region);
-  endpoint.searchParams.set('relevanceLanguage', 'es');
-  const query = kind === 'audio'
-    ? category === 'Public-Domain Audiobooks'
-      ? 'audiolibro completo español dominio público'
-      : `podcast español ${category} episodio`
-    : `Spanish ${category} authentic language`;
-  endpoint.searchParams.set('q', query);
+  endpoint.searchParams.set('relevanceLanguage', profile.relevanceLanguage);
+  endpoint.searchParams.set('q', profile.query(kind, category));
   endpoint.searchParams.set('key', apiKey);
 
   const response = await fetch(endpoint.toString());
@@ -193,17 +235,18 @@ export async function loadYouTubeMetadata(
   const categoryGroups = [
     ...new Map(
       missingResources.map((resource) => [
-        `${resource.kind}:${resource.category}`,
-        { kind: resource.kind, category: resource.category },
+        `${resource.languageCode}:${resource.kind}:${resource.category}`,
+        { languageCode: resource.languageCode, kind: resource.kind, category: resource.category },
       ]),
     ).values(),
   ];
   const groupedResults = await Promise.allSettled(
-    categoryGroups.map(async ({ kind, category }) => {
+    categoryGroups.map(async ({ languageCode, kind, category }) => {
       const resources = missingResources.filter(
-        (resource) => resource.kind === kind && resource.category === category,
+        (resource) =>
+          resource.languageCode === languageCode && resource.kind === kind && resource.category === category,
       );
-      const results = await searchCategory(apiKey, region, category, kind, resources.length);
+      const results = await searchCategory(apiKey, region, languageCode, category, kind, resources.length);
       const durations = await loadVideoDurations(
         apiKey,
         results.flatMap((item) => item.id?.videoId ? [item.id.videoId] : []),

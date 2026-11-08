@@ -1,5 +1,6 @@
 import type { ImmersionResource, ReadingLine } from '../pages/Immerse/immersionCatalog';
 import { requireOnline } from './localRuntimeSettings';
+import { fetch_json_with_fallback, fetch_text_with_fallback } from '../utils/tauriNet';
 
 const CACHE_KEY = 'numo_public_domain_books_v2';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -66,10 +67,57 @@ function pickPlainTextUrl(formats: Record<string, string>): string | undefined {
   return url ? normalizeTextUrl(url) : undefined;
 }
 
-function cleanGutenbergText(raw: string): ReadingLine[] {
+const MAX_READING_LINES = 36;
+
+/** Languages written without spaces, whose text has to be split on sentence punctuation. */
+const SPACELESS_LANGUAGES = new Set(['zh', 'ja']);
+
+function baseLanguage(languageCode: string): string {
+  return languageCode.split('-')[0].toLowerCase();
+}
+
+/**
+ * Splits spaceless text into passages of a few sentences.
+ *
+ * Paragraph breaks cannot be trusted here: some Gutenberg Chinese texts put a blank
+ * line after every hard-wrapped line, so a "paragraph" is half a sentence. Joining
+ * everything and regrouping by sentence handles both layouts, and joins wrapped lines
+ * without the space a Latin-script join would insert.
+ */
+function spacelessPassages(body: string): string[] {
+  const text = body.replace(/[\s\u3000]+/g, '');
+  const sentences = text.match(/[^。！？!?]+[。！？!?]+[」』”’）)]*/g) ?? [];
+  const passages: string[] = [];
+  let current = '';
+  for (const sentence of sentences) {
+    current += sentence;
+    if (current.length >= 60) {
+      passages.push(current);
+      current = '';
+    }
+  }
+  return passages.filter((passage) => {
+    if (passage.length > 400) return false;
+    if (/project gutenberg|gutenberg|ebook|copyright/i.test(passage)) return false;
+    const latin = passage.replace(/[^A-Za-z]/g, '').length;
+    return latin / passage.length < 0.1;
+  });
+}
+
+export function extractReadingLines(raw: string, languageCode: string): ReadingLine[] {
   const startMarker = raw.search(/\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK/i);
   const endMarker = raw.search(/\*\*\*\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK/i);
-  const body = raw.slice(startMarker >= 0 ? startMarker : 0, endMarker > 0 ? endMarker : raw.length);
+  const bodyStart = startMarker >= 0 ? raw.indexOf('\n', startMarker) + 1 : 0;
+  const body = raw.slice(bodyStart, endMarker > 0 ? endMarker : raw.length);
+
+  if (SPACELESS_LANGUAGES.has(baseLanguage(languageCode))) {
+    return spacelessPassages(body).slice(0, MAX_READING_LINES).map((source, index) => ({
+      id: `gutenberg-${index + 1}`,
+      source,
+      translation: '',
+    }));
+  }
+
   const paragraphs = body
     .replace(/\r/g, '')
     .split(/\n\s*\n/)
@@ -80,7 +128,7 @@ function cleanGutenbergText(raw: string): ReadingLine[] {
       const letters = paragraph.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
       return letters.length > 80;
     })
-    .slice(0, 36);
+    .slice(0, MAX_READING_LINES);
 
   return paragraphs.map((source, index) => ({
     id: `gutenberg-${index + 1}`,
@@ -91,7 +139,7 @@ function cleanGutenbergText(raw: string): ReadingLine[] {
 
 async function resolveCover(resource: ImmersionResource): Promise<Pick<ResolvedBook, 'coverUrl' | 'openLibraryUrl'>> {
   const endpoint = new URL('https://openlibrary.org/search.json');
-  endpoint.searchParams.set('title', resource.title);
+  endpoint.searchParams.set('title', resource.searchTitle ?? resource.title);
   if (resource.author && resource.author !== 'Anonymous') {
     endpoint.searchParams.set('author', resource.author);
   }
@@ -112,14 +160,19 @@ async function resolveCover(resource: ImmersionResource): Promise<Pick<ResolvedB
 }
 
 async function resolveGutenberg(resource: ImmersionResource): Promise<Pick<ResolvedBook, 'gutenbergBookId' | 'textUrl'>> {
+  if (resource.gutenbergId) {
+    return {
+      gutenbergBookId: resource.gutenbergId,
+      textUrl: `https://www.gutenberg.org/cache/epub/${resource.gutenbergId}/pg${resource.gutenbergId}.txt`,
+    };
+  }
+  const language = baseLanguage(resource.languageCode);
   const endpoint = new URL('https://gutendex.com/books');
-  endpoint.searchParams.set('search', `${resource.title} ${resource.author ?? ''}`);
-  endpoint.searchParams.set('languages', 'es');
-  const response = await fetch(endpoint.toString());
-  if (!response.ok) throw new Error(`Gutenberg catalog returned HTTP ${response.status}`);
-  const payload = await response.json() as GutendexResponse;
+  endpoint.searchParams.set('search', `${resource.searchTitle ?? resource.title} ${resource.author ?? ''}`);
+  endpoint.searchParams.set('languages', language);
+  const payload = await fetch_json_with_fallback<GutendexResponse>(endpoint.toString());
   const match =
-    payload.results?.find((book) => book.languages.includes('es') && pickPlainTextUrl(book.formats)) ??
+    payload.results?.find((book) => book.languages.includes(language) && pickPlainTextUrl(book.formats)) ??
     payload.results?.find((book) => pickPlainTextUrl(book.formats));
   return {
     gutenbergBookId: match?.id,
@@ -185,10 +238,10 @@ export async function loadBookText(resource: ImmersionResource): Promise<Resolve
   if (!resolved.textUrl) return resolved;
   requireOnline('Online book download');
 
-  const response = await fetch(resolved.textUrl);
-  if (!response.ok) throw new Error(`Book text returned HTTP ${response.status}`);
-  const raw = await response.text();
-  const lines = cleanGutenbergText(raw);
+  // Through the desktop proxy: gutenberg.org sends no CORS header, so a direct
+  // fetch from the webview is blocked and no book text ever loaded in the app.
+  const raw = await fetch_text_with_fallback(resolved.textUrl);
+  const lines = extractReadingLines(raw, resource.languageCode);
   const next = { ...resolved, lines };
   const cache = readCache();
   cache.books[resource.id] = next;

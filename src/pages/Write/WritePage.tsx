@@ -6,6 +6,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { buildTemplateUrl } from '../../navigation/actionTemplates';
 import { LockedPageState } from '../../components/ui/LockedPageState';
 import { useLanguageProgression } from '../../hooks/useLanguageProgression';
+import { formatWritingLength } from '../../utils/textLength';
 
 export default function WritePage() {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ export default function WritePage() {
               <div style={{ minWidth: 0 }}>
                 <p style={{ margin: 0, fontWeight: 600 }}>{draft.title}</p>
                 <p style={{ margin: '2px 0 0', color: 'var(--color-dim)', fontSize: 13 }}>
-                  {draft.wordCount} words • updated {draft.updatedAt}
+                  {formatWritingLength(draft.content || '', draft.wordCount)} • updated {draft.updatedAt}
                 </p>
                 <p style={{ margin: '6px 0 0', color: 'var(--color-dim)', fontSize: 13 }}>
                   {(draft.content || '').trim().slice(0, 120) || 'No preview available.'}

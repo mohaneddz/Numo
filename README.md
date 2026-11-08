@@ -67,7 +67,9 @@ Pinyin-aware prompts, vocabulary pairs).
 - **Notebook** — saves words, phrases, and notes for later review, plus internal Library
   (content approval) and Exercises (generator) workspaces
 - **Immersion** — authentic content (stories, dialogues, clips, e-books via `epubjs`) with language
-  mining from context, and progress persistence
+  mining from context, and progress persistence. Bundled catalogs for Spanish and Chinese: YouTube
+  videos with captions in the target language, public-domain Gutenberg books (Chinese classics and
+  Lu Xun, in traditional characters), and learner podcasts
 - **Offline curriculum seed generator** — a bundled fallback content pack so lessons work without a
   live connection before falling back to AI generation; Chinese vocabulary seeding is in progress
   (partial coverage as of the last content commit)
@@ -76,7 +78,7 @@ Pinyin-aware prompts, vocabulary pairs).
 - **Typing trainer** — a monkeytype-style speed test for the target language, drawing on the
   learner's own saved vocabulary, with IME support for Chinese/Japanese/Korean, RTL for Arabic,
   and per-script speed units (`src/services/typing`)
-- **Script practice** — real stroke-order data for 596 Chinese characters and 248 Japanese
+- **Script practice** — real stroke-order data for 642 Chinese characters and 265 Japanese
   characters (both kana syllabaries in full), generated from Make Me a Hanzi and KanjiVG, with
   stroke-by-stroke animation and geometric scoring of the learner's drawing
 - **Text-to-speech** — target-language-aware speech synthesis for prompts and content

@@ -96,10 +96,35 @@ function formatTime(seconds: number): string {
   return `${minutes}:${String(rounded % 60).padStart(2, '0')}`;
 }
 
-function buildTranscript(tracks: CaptionTrack[]): TranscriptLine[] {
-  const sourceTrack = tracks.find((track) => track.language.startsWith('es')) ?? tracks[0];
-  const translationTrack = tracks.find((track) => track.language.startsWith('en'));
-  const sourceCues = parseTrack(sourceTrack);
+function baseLanguage(languageCode: string): string {
+  return languageCode.split('-')[0].toLowerCase();
+}
+
+/**
+ * Caption tracks to ask for, most specific first. `-orig` marks the track in the
+ * video's own language rather than YouTube's machine translation of it, and Chinese
+ * prefers simplified script.
+ */
+export function captionLanguagePreferences(languageCode: string): string[] {
+  const language = baseLanguage(languageCode);
+  if (language === 'zh') return ['zh-Hans-orig', 'zh-orig', 'zh-Hans', 'zh-CN', 'zh'];
+  return [`${language}-orig`, language];
+}
+
+const SPACELESS_LANGUAGES = new Set(['zh', 'ja']);
+const CJK_BETWEEN = /(?<=[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef])\s+(?=[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef])/g;
+
+function buildTranscript(tracks: CaptionTrack[], languageCode: string): TranscriptLine[] {
+  const language = baseLanguage(languageCode);
+  const sourceTrack = tracks.find((track) => baseLanguage(track.language) === language) ?? tracks[0];
+  const translationTrack = sourceTrack && baseLanguage(sourceTrack.language) === 'en'
+    ? undefined
+    : tracks.find((track) => track.language.startsWith('en'));
+  // Line breaks inside a caption are joined with spaces, which is wrong between
+  // Chinese or Japanese characters.
+  const sourceCues = SPACELESS_LANGUAGES.has(language)
+    ? parseTrack(sourceTrack).map((cue) => ({ ...cue, text: cue.text.replace(CJK_BETWEEN, '') }))
+    : parseTrack(sourceTrack);
   const translationCues = parseTrack(translationTrack);
   let translationIndex = 0;
 
@@ -158,14 +183,17 @@ async function writeCache(videoId: string, lines: TranscriptLine[]) {
   );
 }
 
-export async function loadYouTubeTranscript(videoId: string): Promise<TranscriptLine[]> {
+export async function loadYouTubeTranscript(videoId: string, languageCode: string): Promise<TranscriptLine[]> {
   const cached = await readCache(videoId);
   if (cached) return cached;
   requireOnline('YouTube transcripts');
   if (!isTauri()) return [];
 
-  const tracks = await invoke<CaptionTrack[]>('fetch_youtube_captions', { videoId });
-  const lines = buildTranscript(tracks);
+  const tracks = await invoke<CaptionTrack[]>('fetch_youtube_captions', {
+    videoId,
+    languages: captionLanguagePreferences(languageCode),
+  });
+  const lines = buildTranscript(tracks, languageCode);
   await writeCache(videoId, lines);
   return lines;
 }

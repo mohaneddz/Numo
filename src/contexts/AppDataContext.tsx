@@ -15,6 +15,7 @@ import { integrationService } from '../services/integrationService';
 import { evaluateLearnTaskSubmission, type LearnGradingMode } from '../services/learningPlanService';
 import { mirrorNotebookEntry } from '../services/noteMirrorService';
 import type { TaskType } from '../types/learningPlan';
+import { countWritingUnits } from '../utils/textLength';
 
 export type ReviewMode = 'due-now' | 'weak' | 'mistakes' | 'cram';
 
@@ -227,7 +228,7 @@ function mapWritingDraftsFromEvidence(evidence: EvidenceRecord[]): WritingDraft[
     .map((entry) => {
       const metadata = entry.metadata as Record<string, unknown>;
       const content = String(entry.rawInputText ?? '');
-      const words = content.trim().split(/\s+/).filter(Boolean).length;
+      const words = countWritingUnits(content);
       return {
         id: String(entry.attemptId ?? entry.id),
         title: String(metadata.draftTitle ?? 'Writing Draft'),
@@ -609,7 +610,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const saveDraft = useCallback<AppDataContextValue['saveDraft']>((draft) => {
     const now = dateOnly(todayIso());
-    const wordCount = draft.content.trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = countWritingUnits(draft.content);
     const existing = draft.id ? state.writingDrafts.find((item) => item.id === draft.id) : undefined;
     const saved: WritingDraft = existing
       ? {

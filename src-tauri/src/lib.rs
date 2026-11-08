@@ -540,14 +540,29 @@ fn find_caption_url(metadata: &Value, language_prefix: &str) -> Option<(String, 
     None
 }
 
+fn valid_caption_language(language: &str) -> bool {
+    !language.is_empty()
+        && language.len() <= 16
+        && language
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+}
+
 #[tauri::command]
 async fn fetch_youtube_captions(
     video_id: String,
+    languages: Option<Vec<String>>,
     state: State<'_, ConnectivityState>,
 ) -> Result<Vec<YoutubeCaptionTrack>, String> {
     state.require_online()?;
     if !valid_youtube_video_id(&video_id) {
         return Err("Invalid YouTube video ID.".to_string());
+    }
+    // Preferred source-caption languages, most specific first. Callers that pass
+    // nothing get the original Spanish behaviour.
+    let languages = languages.unwrap_or_else(|| vec!["es-orig".to_string(), "es".to_string()]);
+    if languages.is_empty() || !languages.iter().all(|language| valid_caption_language(language)) {
+        return Err("Invalid caption language.".to_string());
     }
 
     let watch_url = format!("https://www.youtube.com/watch?v={}", video_id);
@@ -573,13 +588,19 @@ async fn fetch_youtube_captions(
     let metadata: Value =
         serde_json::from_slice(&output.stdout).map_err(|error| error.to_string())?;
     let mut candidates = Vec::new();
-    if let Some(track) =
-        find_caption_url(&metadata, "es-orig").or_else(|| find_caption_url(&metadata, "es"))
+    if let Some(track) = languages
+        .iter()
+        .find_map(|language| find_caption_url(&metadata, language))
     {
         candidates.push(track);
     }
-    if let Some(track) = find_caption_url(&metadata, "en") {
-        candidates.push(track);
+    let source_is_english = candidates
+        .first()
+        .is_some_and(|(language, _, _)| language.starts_with("en"));
+    if !source_is_english {
+        if let Some(track) = find_caption_url(&metadata, "en") {
+            candidates.push(track);
+        }
     }
     if candidates.is_empty() {
         return Ok(Vec::new());
@@ -719,6 +740,33 @@ mod tests {
         assert!(validate_remote_url("http://example.com").is_ok());
         assert!(validate_remote_url("file:///secret.txt").is_err());
         assert!(validate_remote_url("javascript:alert(1)").is_err());
+    }
+
+    #[test]
+    fn caption_lookup_follows_the_requested_language_order() {
+        let metadata = serde_json::json!({
+            "automatic_captions": {
+                "en": [{ "ext": "json3", "url": "https://captions.example/en" }],
+                "zh-Hant": [{ "ext": "json3", "url": "https://captions.example/zh-Hant" }],
+                "zh-Hans": [{ "ext": "json3", "url": "https://captions.example/zh-Hans" }]
+            }
+        });
+        let preferred = ["zh-Hans-orig", "zh-orig", "zh-Hans", "zh-CN", "zh"];
+        let (language, _, url) = preferred
+            .iter()
+            .find_map(|language| find_caption_url(&metadata, language))
+            .expect("a Chinese track");
+        assert_eq!(language, "zh-Hans");
+        assert_eq!(url, "https://captions.example/zh-Hans");
+    }
+
+    #[test]
+    fn caption_language_validation_rejects_unexpected_characters() {
+        assert!(valid_caption_language("zh-Hans-orig"));
+        assert!(valid_caption_language("es"));
+        assert!(!valid_caption_language(""));
+        assert!(!valid_caption_language("zh;rm -rf"));
+        assert!(!valid_caption_language("a-very-long-language-tag"));
     }
 
     #[test]

@@ -350,14 +350,14 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
     setTranscriptStatus('Loading public YouTube captions…');
     setTranscriptLines([]);
     setActiveIndex(0);
-    void loadYouTubeTranscript(youtube.videoId)
+    void loadYouTubeTranscript(youtube.videoId, resource.languageCode)
       .then((lines) => {
         if (cancelled) return;
         setTranscriptLines(lines);
         setTranscriptStatus(
           lines.length > 0
             ? `${lines.length} real caption lines loaded.`
-            : 'This source does not expose a public Spanish or English caption track.',
+            : 'This source does not expose a public caption track in its language or in English.',
         );
       })
       .catch((error) => {
@@ -368,7 +368,7 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
     return () => {
       cancelled = true;
     };
-  }, [youtube]);
+  }, [resource.languageCode, youtube]);
 
   useEffect(() => {
     const minutes = Number.parseInt(sleepTimer, 10);
