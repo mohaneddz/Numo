@@ -29,6 +29,33 @@ Pinyin-aware prompts, vocabulary pairs).
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/01_home.png" width="280"/><br/>Home: today's checkpoint and streak</td>
+    <td align="center"><img src="screenshots/02_learning.png" width="280"/><br/>Learning path and checkpoints</td>
+    <td align="center"><img src="screenshots/03_review.png" width="280"/><br/>Review queue health</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/04_immersion.png" width="280"/><br/>Immersion: videos, readings, audio</td>
+    <td align="center"><img src="screenshots/05_speaking.png" width="280"/><br/>Speaking practice</td>
+    <td align="center"><img src="screenshots/06_writing.png" width="280"/><br/>Writing drafts</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/07_notebook.png" width="280"/><br/>Notebook and collections</td>
+    <td align="center"><img src="screenshots/08_insights.png" width="280"/><br/>Insights: weekly activity</td>
+    <td align="center"><img src="screenshots/09_typing.png" width="280"/><br/>Typing trainer</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/10_text_miner.png" width="280"/><br/>Text miner: reading coverage</td>
+    <td align="center"><img src="screenshots/11_script_practice.png" width="280"/><br/>Script practice: stroke order</td>
+    <td align="center"><img src="screenshots/12_chat.png" width="280"/><br/>Chat with pinyin and meaning</td>
+  </tr>
+</table>
+
+---
+
 ## Features
 
 - **Curriculum engine** — a skill graph with a per-skill mastery model, a persisted learner
