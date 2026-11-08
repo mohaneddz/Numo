@@ -1,5 +1,10 @@
 # Numo — Feature State Audit (2026-08-26)
 
+> **Superseded 2026-10-21 by `feature-state-audit-2026-10-21.md`**, which
+> re-verified this document's punch list against the code and re-ran the test,
+> type-check and lint gates. Read that file for current state; Part 6's table
+> and Part 7's punch list below are now historical.
+>
 > **Updated 2026-08-30.** A later working session closed most of the punch list
 > below. The master status table in Part 6 reflects the current state; the
 > narrative in Parts 1-5 describes the app as it was on 2026-08-26 and is kept
