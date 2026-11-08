@@ -57,7 +57,7 @@ function largestArtwork(result: ITunesResult): string {
 async function resolveFromITunes(resource: ImmersionResource): Promise<ResolvedAudioArtwork | null> {
   const isAudiobook = resource.category === 'Public-Domain Audiobooks';
   const endpoint = new URL('https://itunes.apple.com/search');
-  endpoint.searchParams.set('term', `${resource.title} ${resource.author ?? ''}`);
+  endpoint.searchParams.set('term', `${resource.searchTitle ?? resource.title} ${resource.author ?? ''}`);
   endpoint.searchParams.set('country', 'US');
   endpoint.searchParams.set('lang', 'es_es');
   endpoint.searchParams.set('limit', '5');
