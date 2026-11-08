@@ -84,7 +84,7 @@ function baseLanguage(languageCode: string): string {
  * without the space a Latin-script join would insert.
  */
 function spacelessPassages(body: string): string[] {
-  const text = body.replace(/[\s　]+/g, '');
+  const text = body.replace(/[\s\u3000]+/g, '');
   const sentences = text.match(/[^。！？!?]+[。！？!?]+[」』”’）)]*/g) ?? [];
   const passages: string[] = [];
   let current = '';

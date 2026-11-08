@@ -112,7 +112,7 @@ export function captionLanguagePreferences(languageCode: string): string[] {
 }
 
 const SPACELESS_LANGUAGES = new Set(['zh', 'ja']);
-const CJK_BETWEEN = /(?<=[぀-ヿ㐀-鿿＀-￯])\s+(?=[぀-ヿ㐀-鿿＀-￯])/g;
+const CJK_BETWEEN = /(?<=[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef])\s+(?=[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef])/g;
 
 function buildTranscript(tracks: CaptionTrack[], languageCode: string): TranscriptLine[] {
   const language = baseLanguage(languageCode);
