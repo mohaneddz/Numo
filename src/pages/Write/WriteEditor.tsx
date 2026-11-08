@@ -15,6 +15,7 @@ import {
 import { writeExerciseRegistry } from '../../components/exercises/write/registry';
 import type { WriteCorrectionItem } from '../../components/exercises/write/types';
 import { UnsupportedExerciseCard } from '../../components/exercises/shared/UnsupportedExerciseCard';
+import { countWritingUnits } from '../../utils/textLength';
 
 /** Upper bound on a single composing session, so an idle editor cannot credit hours. */
 const MAX_COMPOSING_MS = 60 * 60 * 1000;
@@ -146,7 +147,7 @@ export default function WriteEditor() {
         }
     };
 
-    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = countWritingUnits(text);
     const DraftComponent = writeExerciseRegistry.draft_composition.component;
     const CorrectionsComponent = writeExerciseRegistry.correction_review.component;
     const draftValid = writeExerciseRegistry.draft_composition.validate({ text });

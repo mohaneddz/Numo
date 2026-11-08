@@ -1,5 +1,6 @@
 import { Loader2, Send } from 'lucide-react';
 import type { DraftCompositionProps } from './types';
+import { formatWritingLength } from '../../../utils/textLength';
 
 export function DraftCompositionExercise({
   text,
@@ -32,7 +33,7 @@ export function DraftCompositionExercise({
         }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-        <span style={{ fontSize: 12, color: 'var(--color-dim)' }}>{wordCount} words</span>
+        <span style={{ fontSize: 12, color: 'var(--color-dim)' }}>{formatWritingLength(text, wordCount)}</span>
         {error ? <span style={{ fontSize: 12, color: '#F87171', marginLeft: 12 }}>{error}</span> : null}
         <div style={{ display: 'flex', gap: 8 }}>
           <button
