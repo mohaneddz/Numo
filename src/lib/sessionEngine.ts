@@ -74,11 +74,6 @@ interface RegenerateExerciseInput extends GenerateSessionInput {
   currentItem: PracticeItem;
 }
 
-interface GenerateInfiniteExerciseInput extends GenerateSessionInput {
-  concept?: string;
-  forceType?: PracticeItemType;
-}
-
 export type ExerciseDomain = 'learn' | 'quick' | 'review' | 'script' | 'speak' | 'write';
 
 export interface GenerateExerciseDraftInput extends GenerateSessionInput {
@@ -1209,35 +1204,6 @@ Rules:
   throw (lastError instanceof Error ? lastError : new Error('Failed to generate valid practice items'));
 }
 
-function fallbackInfiniteExercise(input: GenerateInfiniteExerciseInput): PracticeItem {
-  const base: PracticeItem = {
-    id: 'fallback-single',
-    type: input.forceType ?? 'context_meaning',
-    prompt: englishFallbackPrompt(input, input.forceType ?? 'context_meaning', input.concept),
-    answer: 'Sample answer',
-    options: ['Sample answer', 'Distractor A', 'Distractor B', 'Distractor C'],
-    languageCode: input.languageCode,
-  };
-
-  if (base.type === 'phrase_assembly') {
-    return withTargetMarkers(withCatalogKey({ ...base, answer: 'I like tea', tokens: ['I', 'like', 'tea'] }));
-  }
-  if (base.type === 'match') {
-    return withTargetMarkers(withCatalogKey({
-      ...base,
-      answer: 'Pair matching',
-      pairs: [
-        { left: 'hello', right: 'greeting' },
-        { left: 'thanks', right: 'gratitude' },
-      ],
-    }));
-  }
-  if (base.type === 'single_cloze') {
-    return withTargetMarkers(withCatalogKey({ ...base, prompt: 'Complete: I ___ water.', answer: 'drink', options: undefined }));
-  }
-  return withTargetMarkers(withCatalogKey(base));
-}
-
 function buildExerciseTemplate(
   domain: ExerciseDomain,
   exerciseType: string,
@@ -1662,27 +1628,3 @@ export async function regenerateExercise(input: RegenerateExerciseInput): Promis
   }
 }
 
-export async function generateInfiniteExercise(input: GenerateInfiniteExerciseInput): Promise<PracticeItem> {
-  try {
-    const generated = await aiGenerateItems(input, {
-      count: 1,
-      forceType: input.forceType,
-      concept: input.concept,
-    });
-    const policyItems = applyQuickPolicy(
-      enforceEnglishPrompts(input, generated, input.concept),
-      getPolicyContext(input),
-    );
-    const candidate = input.forceType
-      ? policyItems.find((item) => item.type === input.forceType) ?? policyItems[0]
-      : policyItems[0];
-    if (!candidate) {
-      return fallbackInfiniteExercise(input);
-    }
-    const hydrated = await hydrateImageItems([withAudioFallback(candidate)], input);
-    return withTargetMarkers(withCatalogKey(hydrated[0]));
-  } catch (error) {
-    console.error('Failed to generate infinite exercise', error);
-    return fallbackInfiniteExercise(input);
-  }
-}
