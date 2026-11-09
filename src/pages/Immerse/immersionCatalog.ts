@@ -222,44 +222,6 @@ export function immersionCatalogLanguages(): string[] {
   return [...new Set(immersionResources.map((resource) => resource.languageCode))];
 }
 
-export const demoReading: ReadingLine[] = [
-  {
-    id: 'reading-1',
-    source: 'Diecinueve años antes de decidir morir, Nora Seed llegó a la pequeña biblioteca de su barrio. Afuera llovía con una paciencia casi humana.',
-    translation: 'Nineteen years before she decided to die, Nora Seed arrived at the small library in her neighborhood. Outside, the rain fell with an almost human patience.',
-  },
-  {
-    id: 'reading-2',
-    source: 'La señora Elm levantó la mirada del tablero de ajedrez y sonrió como si hubiera estado esperando exactamente ese momento.',
-    translation: 'Mrs. Elm looked up from the chessboard and smiled as though she had been waiting for exactly that moment.',
-  },
-  {
-    id: 'reading-3',
-    source: '—Llegas tarde —dijo—, aunque quizá todavía estés a tiempo para descubrir algo importante.',
-    translation: '“You are late,” she said, “although perhaps you still have time to discover something important.”',
-  },
-  {
-    id: 'reading-4',
-    source: 'Nora dejó la mochila junto a la puerta. No sabía qué responder, así que observó las estanterías interminables.',
-    translation: 'Nora left her backpack beside the door. She did not know how to respond, so she studied the endless shelves.',
-  },
-  {
-    id: 'reading-5',
-    source: 'Cada libro parecía emitir una luz tenue. Algunos eran gruesos y solemnes; otros, pequeños como cartas que nunca habían sido enviadas.',
-    translation: 'Each book seemed to give off a faint light. Some were thick and solemn; others were small like letters that had never been sent.',
-  },
-  {
-    id: 'reading-6',
-    source: '—Aquí guardamos las vidas que pudiste haber vivido —explicó la bibliotecaria con absoluta calma.',
-    translation: '“Here we keep the lives you might have lived,” the librarian explained with complete calm.',
-  },
-  {
-    id: 'reading-7',
-    source: 'Por primera vez aquella noche, Nora olvidó el sonido de la lluvia y dio un paso hacia los libros.',
-    translation: 'For the first time that night, Nora forgot the sound of the rain and took a step toward the books.',
-  },
-];
-
 export function getImmersionResource(resourceId?: string): ImmersionResource {
   return (
     immersionResources.find((resource) => resource.id === resourceId) ??

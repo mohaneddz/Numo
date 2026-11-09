@@ -710,7 +710,7 @@ export default function ContentDetail() {
   }, [contentId]);
 
   if (resource.kind === 'reading') {
-    return <NaturalReadingExperience resource={resource} />;
+    return <NaturalReadingExperience key={resource.id} resource={resource} />;
   }
 
   return <MediaExperience resource={resource} />;

@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ImmersionResource, ReadingLine } from './immersionCatalog';
-import { demoReading } from './immersionCatalog';
 import { loadBookText, type ResolvedBook } from '../../services/bookContentService';
 import { readLocalBookBytes } from '../../services/localBookService';
 import { runtimeKernel } from '../../runtime/runtimeKernel';
@@ -256,11 +255,11 @@ function EpubCanvas({
 
 export default function ReadingExperience({ resource }: { resource: ImmersionResource }) {
   const stored = useMemo(() => readBookState(resource.id), [resource.id]);
-  const [readingLines, setReadingLines] = useState<ReadingLine[]>(demoReading);
+  const [readingLines, setReadingLines] = useState<ReadingLine[]>([]);
   const [resolvedBook, setResolvedBook] = useState<ResolvedBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedLineId, setSelectedLineId] = useState(stored.position || demoReading[0].id);
+  const [selectedLineId, setSelectedLineId] = useState(stored.position || '');
   const [showTranslation, setShowTranslation] = useState(true);
   const [fontSize, setFontSize] = useState(stored.fontSize ?? 18);
   const [lineHeight, setLineHeight] = useState(stored.lineHeight ?? 1.8);
@@ -287,7 +286,8 @@ export default function ReadingExperience({ resource }: { resource: ImmersionRes
   const readerRef = useRef<HTMLDivElement | null>(null);
   const isEpub = resource.localFormat === 'epub';
 
-  const selectedLine = readingLines.find((line) => line.id === selectedLineId) ?? readingLines[0];
+  const selectedLine: ReadingLine | undefined =
+    readingLines.find((line) => line.id === selectedLineId) ?? readingLines[0];
   const widthClass = pageWidth === 'focused' ? 'max-w-[720px]' : pageWidth === 'comfortable' ? 'max-w-[980px]' : 'max-w-[1320px]';
   const showOriginal = layout !== 'translation';
   const showTranslated = layout !== 'original' && showTranslation;
@@ -395,7 +395,7 @@ export default function ReadingExperience({ resource }: { resource: ImmersionRes
     }
     const label = isEpub
       ? `Page ${epubLocation?.start.displayed.page ?? bookmarks.length + 1}`
-      : selectedLine.source.slice(0, 72);
+      : selectedLine?.source.slice(0, 72) ?? '';
     const next = [
       ...bookmarks,
       { id: crypto.randomUUID(), location, label, createdAt: new Date().toISOString() },
@@ -858,6 +858,19 @@ export default function ReadingExperience({ resource }: { resource: ImmersionRes
                     </article>
                   )}
                   {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/90 text-sm font-semibold text-slate-500">Loading book…</div>}
+                  {!loading && readingLines.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white px-8 text-center">
+                      <p className="text-sm font-semibold text-slate-600">
+                        {error ? 'This book could not be loaded.' : 'No readable text is available for this book.'}
+                      </p>
+                      {error && <p className="max-w-md text-xs text-slate-400">{error}</p>}
+                      {resource.sourceUrl && (
+                        <a href={resource.sourceUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-violet-600 hover:underline">
+                          Open it on {resource.sourceLabel ?? 'the source site'}
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
