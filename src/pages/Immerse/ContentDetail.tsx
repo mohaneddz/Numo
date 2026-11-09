@@ -8,21 +8,15 @@ import {
   Bookmark,
   BookmarkPlus,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Gauge,
   Headphones,
-  Highlighter,
   Languages,
   ListMusic,
   Maximize2,
   MessageSquareText,
-  Minus,
   Pause,
   Play,
-  Plus,
   Repeat2,
-  RotateCcw,
   Search,
   SkipBack,
   SkipForward,
@@ -35,7 +29,6 @@ import {
 } from 'lucide-react';
 import { PageActions, PageContent } from '../../components/layout/PageLayout';
 import {
-  demoReading,
   getImmersionResource,
   getImmersionResourcesForLanguage,
   type ImmersionResource,
@@ -46,8 +39,6 @@ import {
   loadYouTubeMetadata,
   type YouTubeResourceMetadata,
 } from '../../services/youtubeService';
-import { loadBookText, type ResolvedBook } from '../../services/bookContentService';
-import { runtimeKernel } from '../../runtime/runtimeKernel';
 import {
   getCachedAudioArtwork,
   loadAudioArtwork,
@@ -61,24 +52,6 @@ import YouTubePlayer, {
   type YouTubePlayerHandle,
 } from '../../components/media/YouTubePlayer';
 import { loadYouTubeTranscript } from '../../services/youtubeTranscriptService';
-
-const highlightStyles = {
-  violet: 'border-[#8B5CF6]/45 bg-[#8B5CF6]/15',
-  cyan: 'border-cyan-400/40 bg-cyan-400/10',
-  amber: 'border-amber-300/40 bg-amber-300/10',
-};
-
-const readerThemes = {
-  midnight: { background: '#090D18', source: '#E7E9F3', translation: '#B9C4D8', border: 'rgba(255,255,255,0.08)' },
-  paper: { background: '#E9E1CF', source: '#27231D', translation: '#4D493F', border: 'rgba(39,35,29,0.14)' },
-  sepia: { background: '#2A2118', source: '#F2D9B1', translation: '#CDBB9D', border: 'rgba(242,217,177,0.12)' },
-};
-
-const readerFonts = {
-  literary: 'Georgia, Cambria, "Times New Roman", serif',
-  clean: 'Inter, ui-sans-serif, system-ui, sans-serif',
-  mono: '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
-};
 
 const unavailableCaptionLine: TranscriptLine = {
   id: 'captions-unavailable',
@@ -725,365 +698,6 @@ function MediaExperience({ resource }: { resource: ImmersionResource }) {
           </div>
         </section>
       )}
-    </PageContent>
-  );
-}
-
-export function ReadingExperience({ resource }: { resource: ImmersionResource }) {
-  const [readingLines, setReadingLines] = useState(demoReading);
-  const [selectedLineId, setSelectedLineId] = useState(demoReading[0].id);
-  const [resolvedBook, setResolvedBook] = useState<ResolvedBook | null>(null);
-  const [bookLoading, setBookLoading] = useState(true);
-  const [bookError, setBookError] = useState('');
-  const [showTranslation, setShowTranslation] = useState(true);
-  const [fontSize, setFontSize] = useState(16);
-  const [highlightColor, setHighlightColor] = useState<keyof typeof highlightStyles>('violet');
-  const immersion = useImmersionSession(resource);
-  const [readerTheme, setReaderTheme] = useState<keyof typeof readerThemes>('midnight');
-  const [readerFont, setReaderFont] = useState<keyof typeof readerFonts>('literary');
-  const [lineHeight, setLineHeight] = useState(1.9);
-  const [pageWidth, setPageWidth] = useState<'focused' | 'comfortable' | 'wide'>('comfortable');
-  const [readerLayout, setReaderLayout] = useState<'parallel' | 'stacked' | 'original' | 'translation'>('parallel');
-  const [focusMode, setFocusMode] = useState(false);
-  const [generatedTranslations, setGeneratedTranslations] = useState<Record<string, string>>({});
-  const [translationBusy, setTranslationBusy] = useState(false);
-  const selectedLine = readingLines.find((line) => line.id === selectedLineId) ?? readingLines[0];
-  const selectedIndex = readingLines.findIndex((line) => line.id === selectedLine.id);
-  const theme = readerThemes[readerTheme];
-  const contentWidthClass =
-    pageWidth === 'focused' ? 'max-w-[620px]' : pageWidth === 'comfortable' ? 'max-w-[820px]' : 'max-w-none';
-  const showOriginalPage = readerLayout !== 'translation';
-  const showTranslationPage = readerLayout !== 'original';
-  const parallelLayout = readerLayout === 'parallel';
-
-  useEffect(() => {
-    let cancelled = false;
-    setBookLoading(true);
-    setBookError('');
-    void loadBookText(resource)
-      .then((book) => {
-        if (cancelled) return;
-        setResolvedBook(book);
-        if (book.lines?.length) {
-          setReadingLines(book.lines);
-          setSelectedLineId(book.lines[0].id);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setBookError(error instanceof Error ? error.message : 'Could not load the public-domain text.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setBookLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [resource]);
-
-  // Highlights previously lived in component state and disappeared on navigation.
-  // Saving now mines the line into the notebook and the review queue.
-  // Reading position is stored as the line index, which is what "how far in" means
-  // for a text. Without this the library showed 0% for a half-read book.
-  useEffect(() => {
-    if (readingLines.length === 0 || selectedIndex < 0) return;
-    immersion.recordPosition(selectedIndex, selectedIndex >= readingLines.length - 1, readingLines.length - 1);
-  }, [immersion, readingLines.length, selectedIndex]);
-
-  const toggleSaved = () => {
-    immersion.savePhrase(
-      selectedLine.source,
-      selectedLine.translation || generatedTranslations[selectedLine.id],
-    );
-  };
-
-  const translateSelection = async () => {
-    setShowTranslation(true);
-    if (selectedLine.translation || generatedTranslations[selectedLine.id]) return;
-    setTranslationBusy(true);
-    try {
-      const response = await runtimeKernel.completeWithForegroundTracking({
-        temperature: 0,
-        maxTokens: 700,
-        messages: [
-          {
-            role: 'system',
-            content: 'Translate the literary passage into natural, faithful English. Return only the translation.',
-          },
-          { role: 'user', content: selectedLine.source },
-        ],
-      });
-      const translation = response.text.trim();
-      if (!translation) throw new Error('Translation provider returned no text.');
-      setGeneratedTranslations((current) => ({ ...current, [selectedLine.id]: translation }));
-    } catch (error) {
-      setGeneratedTranslations((current) => ({
-        ...current,
-        [selectedLine.id]: error instanceof Error ? error.message : 'Translation failed.',
-      }));
-    } finally {
-      setTranslationBusy(false);
-    }
-  };
-
-  return (
-    <PageContent width="wide" className="pb-16">
-      <DetailActions />
-
-      <section className="rounded-[24px] border border-white/10 bg-[#0B1020]/82 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-          <div>
-            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.17em] text-[#A78BFA]">
-              <BookMarked size={13} /> {resource.category} · {resource.level}
-            </div>
-            <h1 className="mt-1 text-[22px] font-black text-white">{resource.title}</h1>
-            <p className="mt-1 text-[11px] text-dim">
-              {resource.author} · {resource.publicationYear} · {resource.subtitle}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowTranslation((current) => !current)}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-bold ${
-                showTranslation
-                  ? 'border-cyan-400/25 bg-cyan-400/10 text-cyan-200'
-                  : 'border-white/8 bg-white/[0.03] text-dim'
-              }`}
-            >
-              <Languages size={14} /> Translation
-            </button>
-            <div className="flex items-center gap-1 rounded-xl border border-white/8 bg-black/20 p-1">
-              <button type="button" onClick={() => setFontSize((size) => Math.max(13, size - 1))} className="flex h-7 w-7 items-center justify-center rounded-lg text-dim hover:bg-white/5 hover:text-white">
-                <Minus size={13} />
-              </button>
-              <span className="min-w-9 text-center text-[10px] font-bold text-mist">{fontSize}px</span>
-              <button type="button" onClick={() => setFontSize((size) => Math.min(22, size + 1))} className="flex h-7 w-7 items-center justify-center rounded-lg text-dim hover:bg-white/5 hover:text-white">
-                <Plus size={13} />
-              </button>
-            </div>
-            <div className="flex items-center gap-1 rounded-xl border border-white/8 bg-black/20 p-1">
-              {(['violet', 'cyan', 'amber'] as const).map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`${color} highlight`}
-                  onClick={() => setHighlightColor(color)}
-                  className={`h-7 w-7 rounded-lg border ${highlightStyles[color]} ${highlightColor === color ? 'ring-2 ring-white/40' : ''}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center justify-between rounded-xl border border-white/8 bg-black/15 px-3 py-2">
-          <span className="text-[9px] font-bold text-dim">
-            {bookLoading
-              ? 'Loading the public-domain edition...'
-              : bookError
-                ? `Offline preview · ${bookError}`
-                : resolvedBook?.lines?.length
-                  ? `${resolvedBook.lines.length} passages loaded from Project Gutenberg`
-                  : 'Offline preview · full edition unavailable'}
-          </span>
-          {(resolvedBook?.openLibraryUrl || resource.sourceUrl) && (
-            <a
-              href={resolvedBook?.openLibraryUrl || resource.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[9px] font-black text-[#C4B5FD] no-underline hover:text-white"
-            >
-              View source
-            </a>
-          )}
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/8 pt-4 md:grid-cols-3 xl:grid-cols-6">
-          <label className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Typeface</span>
-            <select value={readerFont} onChange={(event) => setReaderFont(event.target.value as keyof typeof readerFonts)} className="mt-1 w-full bg-transparent text-[11px] font-bold text-white outline-none">
-              <option value="literary" className="bg-[#0B1020]">Literary</option>
-              <option value="clean" className="bg-[#0B1020]">Clean</option>
-              <option value="mono" className="bg-[#0B1020]">Monospace</option>
-            </select>
-          </label>
-          <label className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Reader theme</span>
-            <select value={readerTheme} onChange={(event) => setReaderTheme(event.target.value as keyof typeof readerThemes)} className="mt-1 w-full bg-transparent text-[11px] font-bold text-white outline-none">
-              <option value="midnight" className="bg-[#0B1020]">Midnight</option>
-              <option value="paper" className="bg-[#0B1020]">Paper</option>
-              <option value="sepia" className="bg-[#0B1020]">Sepia</option>
-            </select>
-          </label>
-          <label className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Bilingual layout</span>
-            <select value={readerLayout} onChange={(event) => setReaderLayout(event.target.value as typeof readerLayout)} className="mt-1 w-full bg-transparent text-[11px] font-bold text-white outline-none">
-              <option value="parallel" className="bg-[#0B1020]">Side by side</option>
-              <option value="stacked" className="bg-[#0B1020]">Stacked</option>
-              <option value="original" className="bg-[#0B1020]">Original only</option>
-              <option value="translation" className="bg-[#0B1020]">Translation only</option>
-            </select>
-          </label>
-          <label className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Page width</span>
-            <select value={pageWidth} onChange={(event) => setPageWidth(event.target.value as typeof pageWidth)} className="mt-1 w-full bg-transparent text-[11px] font-bold text-white outline-none">
-              <option value="focused" className="bg-[#0B1020]">Focused</option>
-              <option value="comfortable" className="bg-[#0B1020]">Comfortable</option>
-              <option value="wide" className="bg-[#0B1020]">Wide</option>
-            </select>
-          </label>
-          <label className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <span className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-dim">
-              Line spacing <span>{lineHeight.toFixed(1)}</span>
-            </span>
-            <input type="range" min="1.4" max="2.4" step="0.1" value={lineHeight} onChange={(event) => setLineHeight(Number(event.target.value))} className="mt-2 w-full accent-[#8B5CF6]" />
-          </label>
-          <button
-            type="button"
-            onClick={() => setFocusMode((current) => !current)}
-            className={`rounded-xl border px-3 py-2 text-left ${focusMode ? 'border-[#8B5CF6]/40 bg-[#8B5CF6]/15' : 'border-white/8 bg-black/20'}`}
-          >
-            <span className="block text-[8px] font-black uppercase tracking-wider text-dim">Reading focus</span>
-            <span className={`mt-1 block text-[11px] font-bold ${focusMode ? 'text-[#C4B5FD]' : 'text-white'}`}>{focusMode ? 'Current passage' : 'Show all text'}</span>
-          </button>
-        </div>
-      </section>
-
-      <section
-        className="mt-5 overflow-hidden rounded-[28px] border shadow-[0_30px_90px_rgba(0,0,0,0.3)]"
-        style={{ backgroundColor: theme.background, borderColor: theme.border }}
-      >
-        <div className={`grid grid-cols-1 border-b ${parallelLayout && showOriginalPage && showTranslationPage ? 'md:grid-cols-2' : ''}`} style={{ borderColor: theme.border }}>
-          {showOriginalPage && (
-          <div className={`flex items-center justify-between px-6 py-4 ${parallelLayout && showTranslationPage ? 'md:border-r' : ''}`} style={{ borderColor: theme.border }}>
-            <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#A78BFA]">Original</p>
-              <h2 className="mt-1 text-[14px] font-black" style={{ color: theme.source }}>Spanish</h2>
-            </div>
-            <Highlighter size={16} className="text-[#A78BFA]" />
-          </div>
-          )}
-          {showTranslationPage && (
-          <div className="flex items-center justify-between px-6 py-4">
-            <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-cyan-300">Translation</p>
-              <h2 className="mt-1 text-[14px] font-black" style={{ color: theme.translation }}>English</h2>
-            </div>
-            <Languages size={16} className="text-cyan-300" />
-          </div>
-          )}
-        </div>
-
-        <div className={`grid min-h-[560px] grid-cols-1 ${parallelLayout && showOriginalPage && showTranslationPage ? 'md:grid-cols-2' : ''}`}>
-          {showOriginalPage && (
-          <article className={`mx-auto w-full space-y-3 p-6 md:p-9 ${contentWidthClass} ${parallelLayout && showTranslationPage ? 'md:border-r' : ''}`} style={{ borderColor: theme.border }}>
-            {readingLines.map((line) => {
-              const selected = line.id === selectedLine.id;
-              return (
-                <button
-                  key={line.id}
-                  type="button"
-                  onClick={() => setSelectedLineId(line.id)}
-                  className={`block w-full rounded-xl border px-3 py-2 text-left transition-colors ${
-                    selected ? highlightStyles[highlightColor] : `border-transparent hover:bg-white/[0.025] ${focusMode ? 'opacity-25 hover:opacity-70' : ''}`
-                  }`}
-                >
-                  <span style={{ fontSize, lineHeight, color: theme.source, fontFamily: readerFonts[readerFont] }}>{line.source}</span>
-                </button>
-              );
-            })}
-          </article>
-          )}
-
-          {showTranslationPage && (
-          <article className={`mx-auto w-full space-y-3 p-6 transition-opacity md:p-9 ${contentWidthClass} ${showTranslation ? 'opacity-100' : 'select-none opacity-15 blur-sm'}`}>
-            {readingLines.map((line) => {
-              const selected = line.id === selectedLine.id;
-              return (
-                <button
-                  key={line.id}
-                  type="button"
-                  disabled={!showTranslation}
-                  onClick={() => setSelectedLineId(line.id)}
-                  className={`block w-full rounded-xl border px-3 py-2 text-left transition-colors ${
-                    selected ? 'border-cyan-400/35 bg-cyan-400/8' : `border-transparent hover:bg-white/[0.025] ${focusMode ? 'opacity-25 hover:opacity-70' : ''}`
-                  }`}
-                >
-                  <span style={{ fontSize, lineHeight, color: theme.translation, fontFamily: readerFonts[readerFont] }}>
-                    {line.translation || generatedTranslations[line.id] || 'Select this passage and use Translate selection to create an English study translation.'}
-                  </span>
-                </button>
-              );
-            })}
-          </article>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between border-t px-6 py-4" style={{ borderColor: theme.border }}>
-          <button type="button" className="flex items-center gap-2 text-[11px] font-bold text-dim hover:text-white">
-            <ChevronLeft size={14} /> Previous chapter
-          </button>
-          <span className="text-[10px] font-black uppercase tracking-[0.14em] text-dim">Chapter 1 · Page 1 of 8</span>
-          <button type="button" className="flex items-center gap-2 text-[11px] font-bold text-mist hover:text-white">
-            Next page <ChevronRight size={14} />
-          </button>
-        </div>
-      </section>
-
-      <section className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="rounded-[22px] border border-white/10 bg-[#0B1020]/82 p-5">
-          <div className="flex items-center gap-2">
-            <Highlighter size={15} className="text-[#A78BFA]" />
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A78BFA]">Selected passage</p>
-          </div>
-          <p className="mt-3 font-serif text-[15px] leading-relaxed text-white">{selectedLine.source}</p>
-          {showTranslation && (
-            <p className="mt-2 text-[12px] leading-relaxed text-cyan-100/70">
-              {selectedLine.translation || generatedTranslations[selectedLine.id] || 'No English translation generated for this passage yet.'}
-            </p>
-          )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={translationBusy}
-              onClick={() => void translateSelection()}
-              className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white disabled:opacity-50"
-            >
-              <Languages size={13} /> {translationBusy ? 'Translating...' : 'Translate selection'}
-            </button>
-            <button
-              type="button"
-              onClick={toggleSaved}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-bold ${
-                immersion.isSaved(selectedLine.source)
-                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-                  : 'border-white/8 bg-white/[0.035] text-mist'
-              }`}
-            >
-              {immersion.isSaved(selectedLine.source) ? <Check size={13} /> : <BookmarkPlus size={13} />}
-              {immersion.isSaved(selectedLine.source) ? 'Highlight saved' : 'Save highlight'}
-            </button>
-            <button type="button" className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[11px] font-bold text-mist hover:text-white">
-              <BookMarked size={13} /> Add to Notebook
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-[22px] border border-white/10 bg-[#0B1020]/82 p-5">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-dim">Reading position</p>
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-[22px] font-black text-white">{selectedIndex + 1}</span>
-            <span className="text-[11px] font-bold text-dim">of {readingLines.length} passages</span>
-          </div>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#8B5CF6] to-cyan-400" style={{ width: `${((selectedIndex + 1) / readingLines.length) * 100}%` }} />
-          </div>
-          <button type="button" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#8B5CF6]/15 py-2.5 text-[11px] font-black text-[#C4B5FD]">
-            <RotateCcw size={13} /> Review highlights
-          </button>
-        </div>
-      </section>
     </PageContent>
   );
 }
